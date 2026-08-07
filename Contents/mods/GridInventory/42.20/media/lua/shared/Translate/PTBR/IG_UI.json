@@ -1,0 +1,22 @@
+{
+    "IGUI_PaperDoll_Title": "Equipamentos",
+    "IGUI_PaperDoll_Hat": "Cabeça",
+    "IGUI_PaperDoll_Mask": "Rosto",
+    "IGUI_PaperDoll_Shirt": "Tronco",
+    "IGUI_PaperDoll_Jacket": "Jaqueta",
+    "IGUI_PaperDoll_Pants": "Pernas",
+    "IGUI_PaperDoll_Back": "Costas",
+    "IGUI_PaperDoll_Primary": "Principal",
+    "IGUI_PaperDoll_Secondary": "Secundária",
+    "IGUI_PaperDoll_Accessories": "Acessórios",
+    "IGUI_PaperDoll_Belt": "Cinto",
+    "IGUI_PaperDoll_Hands": "Mãos",
+    "IGUI_PaperDoll_Socks": "Meias",
+    "IGUI_PaperDoll_Shoes": "Pés",
+    "IGUI_Unequip": "Desequipar",
+    "IGUI_CantStore": "Impossível Guardar",
+    "IGUI_CannotStoreItself": "Não pode guardar em si mesmo",
+    "IGUI_InventoryFull": "Sem Espaço",
+    "IGUI_Overloaded": "Sobrecarregado",
+    "IGUI_NoGridSpace": "Sem Espaço"
+}

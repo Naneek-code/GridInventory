@@ -1,0 +1,6 @@
+version=1
+id=GridInventory
+title=GridInventory
+description=A modern, B42 native grid-based spatial inventory system.
+tags=Inventory, Interface, Grid, Tarkov
+visibility=private

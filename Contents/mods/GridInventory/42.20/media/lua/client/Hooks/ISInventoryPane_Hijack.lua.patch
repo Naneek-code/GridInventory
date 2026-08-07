@@ -1,0 +1,42 @@
+--- /home/montesi/Zomboid/Workshop/GridInventory/Contents/mods/GridInventory/42.20/media/lua/client/Hooks/ISInventoryPane_Hijack.lua
++++ /home/montesi/Zomboid/Workshop/GridInventory/Contents/mods/GridInventory/42.20/media/lua/client/Hooks/ISInventoryPane_Hijack.lua
+@@ -39,26 +39,15 @@
+         if not self.inventory then return end
+ 
+         local containersToRender = {}
+-        
+-        if self.inventoryPage and self.inventoryPage.onCharacter then
+-            -- PAINEL DO JOGADOR: Renderiza todos os grids simultaneamente (Tarkov style)
+-            if self.inventoryPage.backpacks then
+-                for _, button in ipairs(self.inventoryPage.backpacks) do
+-                    if button.inventory then
+-                        table.insert(containersToRender, { 
+-                            inv = button.inventory, 
+-                            item = button.inventory:getContainingItem() 
+-                        })
+-                    end
+-                end
+-            end
+-        else
+-            -- PAINEL DE LOOT: Renderiza apenas o container selecionado pra evitar um scroll infinito
+-            -- de todos os zumbis e caixas empilhadas na mesma sala
+-            table.insert(containersToRender, { 
+-                inv = self.inventory, 
+-                item = self.inventory:getContainingItem() 
+-            })
++        -- Lê a lista oficial de botões gerados pela UI do Zomboid (backpacks)
++        -- Isso engloba roupas, mãos, chão, porta-malas e chaveiros automaticamente!
++        if self.inventoryPage and self.inventoryPage.backpacks then
++            for _, button in ipairs(self.inventoryPage.backpacks) do
++                if button.inventory then
++                    table.insert(containersToRender, { 
++                        inv = button.inventory, 
++                        item = button.inventory:getContainingItem() 
++                    })
++                end
++            end
++        else
++            table.insert(containersToRender, { inv = self.inventory, item = nil })
+         end
+ 
+         local yOffset = 30
