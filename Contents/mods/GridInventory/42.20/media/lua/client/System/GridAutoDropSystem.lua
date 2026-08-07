@@ -101,17 +101,19 @@ function GridAutoDropSystem.OnTick()
                 end
                 
                 -- Tenta transferir pra outra mochila que tenha espaço
-                if not handled then
+                -- Moveables ficam de fora deste passo: o sistema de placement (Cursor/SpriteProps)
+                -- só reconhece Moveables nas mãos, então guardar em mochila os deixaria "presos"
+                -- sem forma de instalar depois.
+                if not handled and not instanceof(item, "Moveable") then
                     for _, targetInv in ipairs(containers) do
-                    if targetInv ~= sourceInv and targetInv:isItemAllowed(item) and canItemFitInContainer(item, targetInv, playerNum) then
-                        print("[AutoDrop] Coube na mochila " .. tostring(targetInv:getType()))
-                        local transfer = ISInventoryTransferAction:new(playerObj, item, sourceInv, targetInv, 1)
-                        -- Importante: forçamos a engine a rodar o transfer rápido já que é AutoDrop
-                        transfer.maxTime = 0
-                        ISTimedActionQueue.add(transfer)
-                        handled = true
-                        break
-                    end
+                        if targetInv ~= sourceInv and targetInv:isItemAllowed(item) and canItemFitInContainer(item, targetInv, playerNum) then
+                            print("[AutoDrop] Coube na mochila " .. tostring(targetInv:getType()))
+                            local transfer = ISInventoryTransferAction:new(playerObj, item, sourceInv, targetInv, 1)
+                            transfer.maxTime = 0
+                            ISTimedActionQueue.add(transfer)
+                            handled = true
+                            break
+                        end
                     end
                 end
                 
@@ -122,9 +124,29 @@ function GridAutoDropSystem.OnTick()
                         item:setFavorite(false) -- Overflow perde o favorito!
                         local transfer = ISInventoryTransferAction:new(playerObj, item, sourceInv, floorContainer, 1)
                         transfer.maxTime = 0
+
+                        -- O limite de peso do chão (50kg) existe pra frear transferências manuais,
+                        -- não pra travar o AutoDrop. Se o item já não coube em nenhuma mochila, ele
+                        -- TEM que ir pro chão -- então ignoramos a validação de capacidade só pra
+                        -- essa transferência específica.
+                        function transfer:isValid()
+                            return true
+                        end
+
                         ISTimedActionQueue.add(transfer)
-                    else
-                        print("[AutoDrop] Item não pode ser jogado no chao (Moveable grid)")
+                    else -- Equipa o item na mao
+                        local primary = playerObj:getPrimaryHandItem()
+                        local secondary = playerObj:getSecondaryHandItem()
+
+                        if primary then
+                            playerObj:setPrimaryHandItem(nil)
+                        end
+                        if secondary and secondary ~= primary then
+                            playerObj:setSecondaryHandItem(nil)
+                        end
+
+                        item:setFavorite(false)
+                        playerObj:setPrimaryHandItem(item)
                     end
                 end
             end
