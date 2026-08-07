@@ -18,5 +18,18 @@
     "IGUI_CannotStoreItself": "Cannot store in itself",
     "IGUI_InventoryFull": "Out of Space",
     "IGUI_Overloaded": "Overloaded",
-    "IGUI_NoGridSpace": "No Space"
+    "IGUI_NoGridSpace": "No Space",
+    "IGUI_ActionBar_Generic": "Action",
+    "IGUI_ActionBar_Equipping": "Equipping",
+    "IGUI_ActionBar_Wearing": "Wearing",
+    "IGUI_ActionBar_Unequipping": "Unequipping",
+    "IGUI_ActionBar_Transferring": "Transferring",
+    "IGUI_ActionBar_EatingDrinking": "Eating/Drinking",
+    "IGUI_ActionBar_Reading": "Reading",
+    "IGUI_ActionBar_Attaching": "Attaching",
+    "IGUI_ActionBar_Detaching": "Detaching",
+    "IGUI_ActionBar_Dropping": "Dropping",
+    "IGUI_ActionBar_Grabbing": "Picking Up",
+    "IGUI_ActionBar_Reloading": "Reloading",
+    "IGUI_ActionBar_RackingFirearm": "Racking Firearm"
 }

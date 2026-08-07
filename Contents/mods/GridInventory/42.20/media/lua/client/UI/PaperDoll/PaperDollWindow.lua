@@ -281,12 +281,25 @@ function PaperDollWindow:update()
     end
 end
 
+local ACTION_TRANSLATION_KEYS = {
+    ISEquipWeaponAction       = "IGUI_ActionBar_Equipping",
+    ISWearClothingAction      = "IGUI_ActionBar_Wearing",
+    ISUnequipAction           = "IGUI_ActionBar_Unequipping",
+    ISInventoryTransferAction = "IGUI_ActionBar_Transferring",
+    ISEatFoodAction           = "IGUI_ActionBar_EatingDrinking",
+    ISReadABook               = "IGUI_ActionBar_Reading",
+    ISAttachItemHotbar        = "IGUI_ActionBar_Attaching",
+    ISDetachItemHotbar        = "IGUI_ActionBar_Detaching",
+    ISDropItemAction          = "IGUI_ActionBar_Dropping",
+    ISGrabItemAction          = "IGUI_ActionBar_Grabbing",
+    ISReloadWeaponAction      = "IGUI_ActionBar_Reloading",
+    ISRackFirearm             = "IGUI_ActionBar_RackingFirearm",
+}
+
 function PaperDollWindow:render()
     ISCollapsableWindow.render(self)
-    
     local playerObj = getSpecificPlayer(self.playerNum)
     if not playerObj then return end
-    
     if ISTimedActionQueue then
         local queue = ISTimedActionQueue.getTimedActionQueue(playerObj)
         if queue and queue.queue and queue.queue[1] then
@@ -299,32 +312,21 @@ function PaperDollWindow:render()
                     local barX = self.avatarX + 10
                     local scrollOffset = self.scrollPanel and self.scrollPanel:getYScroll() or 0
                     local barY = self.avatarY - 20 + scrollOffset + self:titleBarHeight()
-                    
-                    -- Traduz as TimedActions mais comuns
-                    local actionName = "Ação"
+
+                    local actionName = getText("IGUI_ActionBar_Generic")
                     if action.Type then
                         local t = tostring(action.Type)
-                        if t == "ISEquipWeaponAction" then actionName = "Equipando"
-                        elseif t == "ISWearClothingAction" then actionName = "Vestindo"
-                        elseif t == "ISUnequipAction" then actionName = "Desequipando"
-                        elseif t == "ISInventoryTransferAction" then actionName = "Transferindo"
-                        elseif t == "ISEatFoodAction" then actionName = "Comendo/Bebendo"
-                        elseif t == "ISReadABook" then actionName = "Lendo"
-                        elseif t == "ISAttachItemHotbar" then actionName = "Anexando"
-                        elseif t == "ISDetachItemHotbar" then actionName = "Removendo"
-                        elseif t == "ISDropItemAction" then actionName = "Derrubando"
-                        elseif t == "ISGrabItemAction" then actionName = "Pegando"
-                        elseif t == "ISReloadWeaponAction" then actionName = "Recarregando"
-                        elseif t == "ISRackFirearm" then actionName = "Puxando Ferrolho"
+                        local key = ACTION_TRANSLATION_KEYS[t]
+                        if key then
+                            actionName = getText(key)
                         else
-                            -- Se não for mapeado, tenta pelo menos remover o "IS" do nome original da classe
+                            -- Sem mapeamento: fallback puro, não traduzido.
                             actionName = string.gsub(t, "^IS", "")
                             actionName = string.gsub(actionName, "Action$", "")
                         end
                     end
-                    
+
                     self:drawTextCentre(actionName, barX + (barW/2), barY - 18, 1, 1, 1, 1, UIFont.Small)
-                    
                     self:drawRect(barX, barY, barW, barH, 0.7, 0, 0, 0)
                     self:drawRectBorder(barX, barY, barW, barH, 1.0, 0.4, 0.4, 0.4)
                     self:drawRect(barX + 2, barY + 2, (barW - 4) * progress, barH - 4, 0.9, 0, 0.6, 0)

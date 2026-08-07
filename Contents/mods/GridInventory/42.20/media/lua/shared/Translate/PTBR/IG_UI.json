@@ -18,5 +18,18 @@
     "IGUI_CannotStoreItself": "Não pode guardar em si mesmo",
     "IGUI_InventoryFull": "Sem Espaço",
     "IGUI_Overloaded": "Sobrecarregado",
-    "IGUI_NoGridSpace": "Sem Espaço"
+    "IGUI_NoGridSpace": "Sem Espaço",
+    "IGUI_ActionBar_Generic": "Ação",
+    "IGUI_ActionBar_Equipping": "Equipando",
+    "IGUI_ActionBar_Wearing": "Vestindo",
+    "IGUI_ActionBar_Unequipping": "Desequipando",
+    "IGUI_ActionBar_Transferring": "Transferindo",
+    "IGUI_ActionBar_EatingDrinking": "Comendo/Bebendo",
+    "IGUI_ActionBar_Reading": "Lendo",
+    "IGUI_ActionBar_Attaching": "Anexando",
+    "IGUI_ActionBar_Detaching": "Removendo",
+    "IGUI_ActionBar_Dropping": "Derrubando",
+    "IGUI_ActionBar_Grabbing": "Pegando",
+    "IGUI_ActionBar_Reloading": "Recarregando",
+    "IGUI_ActionBar_RackingFirearm": "Puxando Ferrolho"
 }
