@@ -281,12 +281,28 @@ function PaperDollWindow:update()
     end
 end
 
+-- Insere espaço antes de cada letra maiúscula que vem depois de uma minúscula
+-- (ex: "HandWorking" -> "Hand Working", "DrinkingLiquid" -> "Drinking Liquid")
+-- Também trata siglas seguidas de palavra (ex: "HTMLParser" -> "HTML Parser")
+local function camelCaseToSpaces(str)
+    if not str or str == "" then return str end
+
+    -- Caso 1: minúscula seguida de maiúscula
+    str = string.gsub(str, "(%l)(%u)", "%1 %2")
+
+    -- Caso 2: sequência de maiúsculas seguida por Maiúscula+minúscula (siglas)
+    str = string.gsub(str, "(%u)(%u%l)", "%1 %2")
+
+    return str
+end
+
 local ACTION_TRANSLATION_KEYS = {
     ISEquipWeaponAction       = "IGUI_ActionBar_Equipping",
-    ISWearClothingAction      = "IGUI_ActionBar_Wearing",
+    ISWearClothing            = "IGUI_ActionBar_Wearing",
     ISUnequipAction           = "IGUI_ActionBar_Unequipping",
     ISInventoryTransferAction = "IGUI_ActionBar_Transferring",
-    ISEatFoodAction           = "IGUI_ActionBar_EatingDrinking",
+    ISEatFoodAction           = "IGUI_ActionBar_Eating",
+    ISDrinkFluidAction        = "IGUI_ActionBar_DrinkingFluid",
     ISReadABook               = "IGUI_ActionBar_Reading",
     ISAttachItemHotbar        = "IGUI_ActionBar_Attaching",
     ISDetachItemHotbar        = "IGUI_ActionBar_Detaching",
@@ -294,6 +310,7 @@ local ACTION_TRANSLATION_KEYS = {
     ISGrabItemAction          = "IGUI_ActionBar_Grabbing",
     ISReloadWeaponAction      = "IGUI_ActionBar_Reloading",
     ISRackFirearm             = "IGUI_ActionBar_RackingFirearm",
+    ISTakeWaterAction         = "IGUI_ActionBar_TakeWater",
 }
 
 function PaperDollWindow:render()
@@ -320,9 +337,10 @@ function PaperDollWindow:render()
                         if key then
                             actionName = getText(key)
                         else
-                            -- Sem mapeamento: fallback puro, não traduzido.
+                            -- Sem mapeamento: fallback com espaçamento automático, não traduzido.
                             actionName = string.gsub(t, "^IS", "")
                             actionName = string.gsub(actionName, "Action$", "")
+                            actionName = camelCaseToSpaces(actionName)
                         end
                     end
 
