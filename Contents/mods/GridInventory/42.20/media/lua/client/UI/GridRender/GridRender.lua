@@ -35,8 +35,7 @@ function GridRender:new(x, y, gridCore, playerNum, inventoryContainer, gridIndex
     o.draggedItem = nil
     o.selectedItems = {}
     
-    o.onMouseDoubleClick = self.onMouseDoubleClick
-    
+    -- o.onMouseDoubleClick = self.onMouseDoubleClick  -- redundante (já herdado via metatable, __index=self); mantido comentado só por clareza
     return o
 end
 
@@ -243,6 +242,39 @@ function GridRender:prerender()
     end
 end
 
+local function truncateText(text, maxWidth, font)
+    if not text or text == "" then return text end
+    local textManager = getTextManager()
+    if textManager:MeasureStringX(font, text) <= maxWidth then
+        return text
+    end
+
+    local ellipsis = "..."
+    local ellipsisWidth = textManager:MeasureStringX(font, ellipsis)
+    if ellipsisWidth >= maxWidth then
+        return ""
+    end
+
+    local truncated = text
+    while #truncated > 0 and textManager:MeasureStringX(font, truncated) + ellipsisWidth > maxWidth do
+        truncated = truncated:sub(1, #truncated - 1)
+    end
+
+    return truncated .. ellipsis
+end
+
+-- Movido pra fora do render(): assim não precisa existir duas vezes (uma pra medir,
+-- outra pra desenhar). Mesma lógica de antes, só que compartilhada.
+local function formatWeight(value)
+    local rounded = math.floor(value * 100 + 0.5) / 100
+    if rounded == math.floor(rounded) then
+        return string.format("%d", rounded)
+    end
+    local str = string.format("%.2f", rounded)
+    str = str:gsub("0+$", ""):gsub("%.$", "")
+    return str
+end
+
 function GridRender:render()
     local mouseX = self:getMouseX()
     local mouseY = self:getMouseY()
@@ -299,15 +331,55 @@ function GridRender:render()
             self:drawTextureScaledAspect(tex, textX, GRID_PADDING + 2, 20, 20, 1, 1, 1, 1)
             textX = textX + 25
         end
-        
-        self:drawText(text, textX, GRID_PADDING + 4, 0.9, 0.9, 0.9, 1, UIFont.Small)
-        
-        if self.inventoryContainer and self.inventoryContainer.getCapacityWeight and self.inventoryContainer.getMaxWeight then
+
+        -- ── PESO: calcula o TEXTO e a COR antes de desenhar qualquer coisa,
+        -- só pra saber a largura que ele vai ocupar (ainda não desenha na tela).
+        local weightStr = nil
+        local weightR, weightG, weightB = 0.9, 0.9, 0.9
+        local hasWeightDisplay = self.inventoryContainer and self.inventoryContainer.getCapacityWeight and self.inventoryContainer.getMaxWeight
+
+        if hasWeightDisplay then
             local w = self.inventoryContainer:getCapacityWeight()
             local mw = self.inventoryContainer:getMaxWeight()
-            local weightStr = string.format("%.2f / %d", w, mw)
+
+            weightStr = formatWeight(w) .. " / " .. string.format("%d", mw)
+
+            local ratio = 0
+            if mw and mw > 0 then
+                ratio = w / mw
+                if ratio > 1 then ratio = 1 end
+                if ratio < 0 then ratio = 0 end
+            end
+
+            -- Só começa a colorir a partir de 70%. Abaixo disso, fica 100% branco.
+            local THRESHOLD = 0.7
+            local colorRatio = 0
+            if ratio > THRESHOLD then
+                colorRatio = (ratio - THRESHOLD) / (1 - THRESHOLD)
+            end
+
+            local baseR, baseG, baseB = 0.9, 0.9, 0.9
+            local hotR, hotG, hotB = 1.0, 0.15, 0.15
+            weightR = baseR + (hotR - baseR) * colorRatio
+            weightG = baseG + (hotG - baseG) * colorRatio
+            weightB = baseB + (hotB - baseB) * colorRatio
+        end
+
+        -- Reserva o espaço que o texto de peso vai ocupar de verdade (medido, não estimado)
+        local weightReservedWidth = 0
+        if weightStr then
+            weightReservedWidth = getTextManager():MeasureStringX(UIFont.Small, weightStr) + 10
+        end
+
+        -- ── NOME: agora que já sabemos quanto espaço sobra, trunca e desenha.
+        local titleMaxWidth = (self.width - GRID_PADDING - 5) - textX - weightReservedWidth
+        local displayText = truncateText(text, titleMaxWidth, UIFont.Small)
+        self:drawText(displayText, textX, GRID_PADDING + 4, 0.9, 0.9, 0.9, 1, UIFont.Small)
+
+        -- ── PESO: desenha por último, já com texto e cor prontos de antes.
+        if weightStr then
             local rightX = self.width - GRID_PADDING - 5
-            self:drawTextRight(weightStr, rightX, GRID_PADDING + 4, 0.9, 0.9, 0.9, 1, UIFont.Small)
+            self:drawTextRight(weightStr, rightX, GRID_PADDING + 4, weightR, weightG, weightB, 1, UIFont.Small)
         end
     end
 
@@ -661,8 +733,7 @@ function GridRender:onMouseMove(dx, dy)
         local mX = self:getMouseX()
         local mY = self:getMouseY()
         
-        if math.abs(mX - self.clickX) > 4 or math.abs(mY - self.clickY) > 4 then
-            
+        if math.abs(mX - self.clickX) > 8 or math.abs(mY - self.clickY) > 8 then    
             -- É um drag! Seleciona o item agarrado agora (se não estiver selecionado previamente com shift)
             if not self.selectedItems[self.clickedItemId] then
                 self.selectedItems = {}
@@ -744,7 +815,7 @@ function GridRender:doDoubleClick(x, y)
     
     -- Evita spam de double click na mesma ação
     local now = getTimeInMillis()
-    if self.lastActionTime and (now - self.lastActionTime < 300) then return end
+    if self.lastActionTime and (now - self.lastActionTime < 700) then return end
     self.lastActionTime = now
     
     self.selectedItems = {} -- Limpa a seleção para não ofuscar o progresso verde
