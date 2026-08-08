@@ -19,6 +19,7 @@
     "IGUI_InventoryFull": "Out of Space",
     "IGUI_Overloaded": "Overloaded",
     "IGUI_NoGridSpace": "No Space",
+    "IGUI_ContainerRestricted": "Selective Container",
     "IGUI_ActionBar_Generic": "Action",
     "IGUI_ActionBar_Equipping": "Equipping",
     "IGUI_ActionBar_Wearing": "Wearing",

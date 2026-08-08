@@ -19,6 +19,7 @@
     "IGUI_InventoryFull": "Sem Espaço",
     "IGUI_Overloaded": "Sobrecarregado",
     "IGUI_NoGridSpace": "Sem Espaço",
+    "IGUI_ContainerRestricted": "Recipiente Seletivo",
     "IGUI_ActionBar_Generic": "Ação",
     "IGUI_ActionBar_Equipping": "Equipando",
     "IGUI_ActionBar_Wearing": "Vestindo",

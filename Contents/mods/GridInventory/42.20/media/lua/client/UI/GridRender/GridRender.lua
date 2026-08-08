@@ -479,17 +479,32 @@ function GridRender:render()
             if firstItem == self.containerItem then
                 self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
                 self:drawTextCentre(getText("IGUI_CannotStoreItself") or "Cannot store itself", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
-                
-            -- Verifica se o container rejeita o item categoricamente
+            
+                -- Verifica se o container rejeita o item categoricamente
             elseif not self.inventoryContainer:isItemAllowed(firstItem) then
                 self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
-                self:drawTextCentre(getText("IGUI_CantStore") or "Impossível Guardar", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
-                
-            -- Verifica capacidade física de peso (Engine Java)
+                self:drawTextCentre(getText("IGUI_CantStore") or "Cannot Store", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
+
+            -- Verifica capacidade física (Engine Java) -- pode ser peso OU alguma outra
+            -- restrição interna vanilla que o mod não consegue inspecionar diretamente.
             elseif not self.inventoryContainer:hasRoomFor(playerObj, firstItem) then
-                self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
-                self:drawTextCentre(getText("IGUI_Overloaded") or "Sobrecarregado", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
-                
+            self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
+            
+            -- Calcula a matemática de peso manualmente pra saber se "Overloaded" é
+            -- realmente verdade, ou se hasRoomFor rejeitou por outro motivo vanilla
+            -- que a gente não consegue nomear (ex: alguma regra interna do tipo de
+            -- container). Evita mostrar uma causa errada pro jogador.
+            local capacity = self.inventoryContainer:getCapacity()
+            local currentWeight = self.inventoryContainer:getContentsWeight()
+            local itemWeight = firstItem:getUnequippedWeight()
+            local weightWouldFit = capacity and ((currentWeight + itemWeight) <= capacity)
+
+            if weightWouldFit then
+                self:drawTextCentre(getText("IGUI_ContainerRestricted") or "Selective Container", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
+            else
+                self:drawTextCentre(getText("IGUI_Overloaded") or "Overloaded", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
+            end
+
             -- Verifica se há espaço matemático no Grid
             else
                 local hasGridSpace = false
@@ -507,18 +522,16 @@ function GridRender:render()
                 else
                     hasGridSpace = true -- Fallback se a malha não tiver inicializado (raro)
                 end
-                
                 if not hasGridSpace then
                     self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
-                    self:drawTextCentre(getText("IGUI_NoGridSpace") or "Sem Espaço", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
+                    self:drawTextCentre(getText("IGUI_NoGridSpace") or "No Space", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
                 else
-                    -- Espaço liberado! Verifica só se estamos desequipando pra dar dica visual.
                     local isFromPaperDoll = GridInventory_GlobalDrag.sourceGrid and GridInventory_GlobalDrag.sourceGrid.slotName
                     if isFromPaperDoll then
                         local isInPlayerInv = self.inventoryContainer:isInCharacterInventory(playerObj)
                         if isInPlayerInv then
                             self:drawRect(0, 0, self.width, self.height, 0.7, 0.1, 0.1, 0.1)
-                            self:drawTextCentre(getText("IGUI_Unequip") or "Desequipar", self.width/2, self.height/2 - 10, 1, 0.3, 0.3, 1, UIFont.Large)
+                            self:drawTextCentre(getText("IGUI_Unequip") or "Unequip", self.width/2, self.height/2 - 10, 1, 0.3, 0.3, 1, UIFont.Large)
                         end
                     end
                 end
