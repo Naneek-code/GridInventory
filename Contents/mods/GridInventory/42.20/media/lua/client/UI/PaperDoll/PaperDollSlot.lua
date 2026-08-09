@@ -157,13 +157,19 @@ function PaperDollSlot:onMouseMove(dx, dy)
             if item then
                 ISMouseDrag.dragging = { item }
                 ISMouseDrag.draggingFocus = self
-                
+
+                -- Footprint REAL do item (mesmo usado pelos grids), para o
+                -- fantasma de arraste ter o tamanho certo e o item ser colocado
+                -- com o footprint correto ao soltar num grid.
+                local ItemFootprint = require("Algorithm/ItemFootprint")
+                local fw, fh = ItemFootprint.getSize(item)
+
                 GridInventory_GlobalDrag = {
                     itemsData = {
                         {
                             id = "paperdoll_" .. tostring(item:getID()),
-                            originalW = 2,
-                            originalH = 2,
+                            originalW = fw,
+                            originalH = fh,
                             grabOffsetX = 0,
                             grabOffsetY = 0,
                             rotated = false,
@@ -356,6 +362,9 @@ function PaperDollSlot:new(x, y, width, height, playerNum, locations, slotName)
     o.playerNum = playerNum
     o.locations = locations
     o.slotName = slotName
+    -- Escala do fantasma de arraste: mesmo cellSize do grid, para o item
+    -- solto do PaperDoll ter o mesmo tamanho visual que teria no inventário.
+    o.cellSize = 40
     o.backgroundColor = {r=0.1, g=0.1, b=0.1, a=0.8}
     o.borderColor = {r=0.4, g=0.4, b=0.4, a=1}
     return o
