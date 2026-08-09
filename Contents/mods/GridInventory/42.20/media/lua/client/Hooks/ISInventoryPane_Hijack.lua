@@ -322,6 +322,62 @@ Events.OnGameBoot.Add(function()
             self.vscroll:setX(self.width - 15)
             self.vscroll:bringToTop()
         end
+
+        -- Auto-scroll para o container selecionado. No painel de LOOT o alvo é
+        -- o container na frente do jogador (rola ao ABRIR e ao trocar de alvo —
+        -- virou, clicou, scroll do mouse). No painel do INVENTÁRIO o alvo é a
+        -- mochila clicada (restaura o comportamento do selectContainer antigo:
+        -- pisca/rola SÓ quando a mochila muda, nunca na abertura). Depois de
+        -- encaixar, para de mexer — o jogador rola livre até o alvo mudar.
+        if self.inventoryPage then
+            local targetInv = self.inventoryPage.inventory
+            local changed = (targetInv ~= self.autoScrollTargetInv)
+            -- Loot: flag de abertura força rolar; troca de alvo sempre rola.
+            -- Inventário do jogador: rola só quando a mochila muda (a flag de
+            -- abertura nunca é setada pra ele — ver setVisible).
+            local shouldSnap = self.autoScrollToTarget or (changed and self.autoScrollTargetInv ~= nil)
+            if targetInv and shouldSnap then
+                for _, gridUi in ipairs(self.gridContainerUis) do
+                    if not gridUi.isOverflow and gridUi.inventoryContainer == targetInv then
+                        -- Pisca a grid alvo (mesmo efeito do selectContainer antigo),
+                        -- mas não repete se for o MESMO container da última vez
+                        -- (ex.: reabriu o loot sem trocar de alvo). O scroll
+                        -- continua rolando até ele, só o flash não repete.
+                        local isSameContainer = (targetInv == self.autoScrollTargetInv)
+                        if not isSameContainer then
+                            gridUi.flashAlpha = 1.0
+                        end
+                        local maxScroll = math.max(0, (self.myFinalHeight or finalHeight) - self:getHeight())
+                        local desired = math.max(0, math.min((gridUi.baseY or 0) - 15, maxScroll))
+                        self:setYScroll(-desired)
+                        -- Mata o scroll suave nativo pra ele não brigar com o snap
+                        self.smoothScrollTargetY = nil
+                        self.autoScrollTargetInv = targetInv
+                        self.autoScrollToTarget = false
+                        break
+                    end
+                end
+            end
+        end
+    end
+
+    -- Quando um painel é mostrado:
+    --  - Loot: marca pra rolar até o container alvo na abertura (o flash não
+    --    repete se for o mesmo container).
+    --  - Inventário do jogador: apenas registra o container atual como baseline,
+    --    pra abrir NÃO contar como "mudança" (flash/scroll só ao trocar de mochila).
+    local og_pageSetVisible = ISInventoryPage.setVisible
+    function ISInventoryPage:setVisible(vis)
+        og_pageSetVisible(self, vis)
+        if vis and self.inventoryPane then
+            if self.onCharacter then
+                if self.inventoryPane.inventory then
+                    self.inventoryPane.autoScrollTargetInv = self.inventoryPane.inventory
+                end
+            else
+                self.inventoryPane.autoScrollToTarget = true
+            end
+        end
     end
 end)
 

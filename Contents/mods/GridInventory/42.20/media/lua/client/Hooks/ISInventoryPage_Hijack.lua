@@ -397,78 +397,9 @@ function ISInventoryPage:onMouseWheel(del)
     return true
 end
 
-local og_selectContainer = ISInventoryPage.selectContainer
-function ISInventoryPage:selectContainer(button)
-    og_selectContainer(self, button)
-    
-    if self.inventoryPane and self.inventoryPane.gridContainerUis then
-        -- O og_selectContainer chamou refreshContainer() que criou os grids em 1 coluna só.
-        -- Precisamos simular 1 frame do FlexBox AQUI MESMO pra descobrir o baseY real das mochilas!
-        local core = getCore()
-        local screenW = core:getScreenWidth()
-        local panelW = (screenW - 350) / 2
-        local paneWidth = panelW - (self.buttonSize or 32)
-        
-        local isPlayer = (self.onCharacter)
-        local xMargin = isPlayer and 25 or 10
-        local curX = isPlayer and (paneWidth - xMargin) or xMargin
-        local curY = 30
-        local rowTallest = 0
-        local xGap = 15
-        local yGap = 15
-        
-        for _, gridUi in ipairs(self.inventoryPane.gridContainerUis) do
-            local gW = gridUi.width
-            local gH = gridUi.height
-            if isPlayer then
-                if curX - gW < 10 and curX < paneWidth - xMargin then
-                    curX = paneWidth - xMargin
-                    curY = curY + rowTallest + yGap
-                    rowTallest = 0
-                end
-                gridUi.baseX = curX - gW
-                curX = curX - gW - xGap
-            else
-                -- LTR (Da esquerda pra direita) - FLEXBOX RESTAURADO!
-                if curX + gW > paneWidth - 25 and curX > xMargin then
-                    curX = xMargin
-                    curY = curY + rowTallest + yGap
-                    rowTallest = 0
-                end
-                gridUi.baseX = curX
-                curX = curX + gW + xGap
-            end
-            gridUi.baseY = curY
-            if gH > rowTallest then rowTallest = gH end
-        end
-        
-        local finalHeight = curY + rowTallest + 30
-        self.inventoryPane:setScrollHeight(finalHeight)
-
-        -- Auto-scroll inteligente usando a coordenada real flexificada
-        for _, gridUi in ipairs(self.inventoryPane.gridContainerUis) do
-            if gridUi.inventoryContainer == button.inventory then
-                -- Acende a luz vermelha de Vegas no painel alvo!
-                gridUi.flashAlpha = 1.0
-                
-                local currentScrollY = -self.inventoryPane:getYScroll()
-                local paneHeight = self.inventoryPane:getHeight()
-                local isFullyVisible = (gridUi.baseY >= currentScrollY) and ((gridUi.baseY + gridUi.height) <= (currentScrollY + paneHeight))
-                
-                if not isFullyVisible then
-                    local targetY = gridUi.baseY
-                    
-                    -- Limite máximo normal para o Zomboid não deixar rolar pra um abismo de escuridão
-                    local maxScroll = math.max(0, self.inventoryPane:getScrollHeight() - paneHeight)
-                    if targetY > maxScroll then targetY = maxScroll end
-                    
-                    self.inventoryPane:setYScroll(-targetY)
-                    
-                    -- Quebra o scroll suave nativo do zomboid pra ele não brigar com a gente
-                    self.inventoryPane.smoothScrollTargetY = -targetY
-                end
-                break
-            end
-        end
-    end
-end
+-- O auto-scroll + flash foi centralizado no prerender do ISInventoryPane
+-- (ISInventoryPane_Hijack.lua): ele cobre abrir o loot, virar pra outro
+-- container, clique na mochila e scroll do mouse, usando o baseY REAL do
+-- flexbox (sem reimplementar o layout aqui, que ficava inconsistente com o
+-- prerender). O selectContainer vanilla (chamado abaixo) já muda o
+-- inventoryPane.inventory, e o prerender detecta a troca no próximo frame.
