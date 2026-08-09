@@ -212,7 +212,13 @@ function PaperDollWindow:initialise()
     self.closeButton:setVisible(false)
     self.collapseButton:setVisible(false)
     if self.infoButton then self.infoButton:setVisible(false) end
-    self.onMouseDown = function() end
+    -- Z-INDEX: clicar no PaperDoll o traz pra frente; re-sobemos a janela
+    -- flutuante junto (mesmo mecanismo do ISInventoryPage — sem flicker).
+    self.onMouseDown = function(this)
+        if GridInventory_raiseFloating then
+            GridInventory_raiseFloating(this.playerNum)
+        end
+    end
 
     -- Bloqueia a rotação e o zoom nativos da engine (Trava a estátua)
     self.avatarPanel.onMouseDown = function() end

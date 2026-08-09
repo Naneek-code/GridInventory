@@ -39,5 +39,9 @@
     "IGUI_AvatarDrop_Eat": "Eat",
     "IGUI_AvatarDrop_Drink": "Drink",
     "IGUI_AvatarDrop_Read": "Read",
-    "IGUI_AvatarDrop_Take": "Take"
+    "IGUI_AvatarDrop_Take": "Take",
+    "IGUI_FloatingGrid_Close": "Close",
+    "IGUI_FloatingGrid_Pin": "Pin",
+    "IGUI_FloatingGrid_Unpin": "Unpin",
+    "IGUI_StackPicker_Take": "Take"
 }

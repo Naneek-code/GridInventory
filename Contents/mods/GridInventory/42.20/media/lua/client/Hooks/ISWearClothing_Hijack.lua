@@ -3,9 +3,15 @@
 --- o inventário é reduzido). O problema: o vanilla ISWearClothing:complete()
 --- só limpa as mãos no ramo de mochila/container vestível
 --- (`removeFromHands`), NÃO no ramo de roupas (categoria "Clothing"). Então uma
---- roupa segurada na mão e depois VESTIDA ficava VESTIDA e TAMBÉM na mão —
---- comportamento estranho. Aqui garantimos que, se o item terminou vestido,
---- a mão é liberada (no-op se o item não estiver na mão).
+--- roupa segurada na mão e depois VESTIDA ficava VESTIDA e TAMBÉM na mão.
+---
+--- Detecção de "item vestido": NÃO usar isEquippedClothing/isAlreadyEquipped.
+--- Em MP o equip é aplicado no servidor com atraso (round-trip), então no
+--- cliente esses dois retornam false no momento do complete(). A única fonte
+--- confiável é o retorno do complete() vanilla: só é true quando o item foi
+--- realmente equipado (ou virou arma primária REPLACE_PRIMARY). Portanto:
+--- se `done == true` e o item continua na mão e NÃO é REPLACE_PRIMARY, a mão
+--- é liberada (no-op caso contrário).
 
 require "TimedActions/ISWearClothing"
 
@@ -16,11 +22,12 @@ if not GridInventory_WearClothingInstalled and ISWearClothing and ISWearClothing
     function ISWearClothing:complete()
         local done = og_wearClothingComplete(self)
 
-        -- Item terminou vestido (roupa OU container vestível)? Libera a mão.
-        if self.character and self.item then
-            local isWorn = self.character.isEquippedClothing and self.character:isEquippedClothing(self.item)
-                or (self.isAlreadyEquipped and self:isAlreadyEquipped(self.item))
-            if isWorn then
+        -- Item terminou vestido E continua na mão? Libera a mão.
+        if done and self.character and self.item then
+            local isReplacement = self.item.hasTag and ItemTag and self.item:hasTag(ItemTag.REPLACE_PRIMARY)
+            local primary = self.character.getPrimaryHandItem and self.character:getPrimaryHandItem()
+            local secondary = self.character.getSecondaryHandItem and self.character:getSecondaryHandItem()
+            if (primary == self.item or secondary == self.item) and not isReplacement then
                 self.character:removeFromHands(self.item)
             end
         end

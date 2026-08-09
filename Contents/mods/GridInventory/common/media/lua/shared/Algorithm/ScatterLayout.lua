@@ -107,12 +107,25 @@ end
 ---@param w number largura natural do item
 ---@param h number altura natural do item
 ---@param seedKey string identidade determinística do container
+---@param compatKey string? chave de empilhamento (itens compatíveis na mesma
+---   célula podem compartilhar posição — ver GridCore:canPlaceItem)
+---@param stackInfo table? { limit, units } — limite de unidades da pilha
 ---@return number, number, boolean|nil x, y, rotacionado (nil se não achou)
-function ScatterLayout.place(grid, itemId, w, h, seedKey)
+function ScatterLayout.place(grid, itemId, w, h, seedKey, compatKey, stackInfo)
     if not ScatterLayout.enabled then return nil end
 
     w, h = tonumber(w), tonumber(h)
     local rng = newRNG(hashString(tostring(seedKey) .. "#" .. tostring(itemId)))
+
+    -- Empilháveis: se já existe uma pilha compatível (mesmo retângulo), o item
+    -- se junta a ela em vez de sortear posição nova. Mantém determinismo: a
+    -- posição da pilha vem do seed do PRIMEIRO item do tipo.
+    if compatKey then
+        local sx, sy, srot = grid:findCompatibleStack(itemId, w, h, compatKey, stackInfo)
+        if sx then
+            return sx, sy, srot
+        end
+    end
 
     for _ = 1, ScatterLayout.maxAttempts do
         -- Orientação natural (não rotacionada) primeiro
@@ -121,7 +134,7 @@ function ScatterLayout.place(grid, itemId, w, h, seedKey)
         if maxX >= 1 and maxY >= 1 then
             local x = 1 + math.floor(rng() * maxX)
             local y = 1 + math.floor(rng() * maxY)
-            if grid:canPlaceItem(itemId, x, y, w, h) then
+            if grid:canPlaceItem(itemId, x, y, w, h, nil, compatKey, false, stackInfo) then
                 return x, y, false
             end
         end
@@ -133,7 +146,7 @@ function ScatterLayout.place(grid, itemId, w, h, seedKey)
             if rMaxX >= 1 and rMaxY >= 1 then
                 local x = 1 + math.floor(rng() * rMaxX)
                 local y = 1 + math.floor(rng() * rMaxY)
-                if grid:canPlaceItem(itemId, x, y, h, w) then
+                if grid:canPlaceItem(itemId, x, y, h, w, nil, compatKey, true, stackInfo) then
                     return x, y, true
                 end
             end

@@ -29,8 +29,9 @@ local function isTaintedWaterTextEnabled()
     return taintEnabledCache
 end
 
-function GridRender:new(x, y, gridCore, playerNum, inventoryContainer, gridIndex, containerItem, fallbackIcon)
+function GridRender:new(x, y, gridCore, playerNum, inventoryContainer, gridIndex, containerItem, fallbackIcon, noHeader)
     local headerH = 28
+    if noHeader then headerH = 0 end
     local width = (gridCore.width * 40) + (GRID_PADDING * 2)
     local height = (gridCore.height * 40) + (GRID_PADDING * 2) + headerH
     local o = ISPanel:new(x, y, width, height)
@@ -391,6 +392,19 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
     end
 end
 
+--- Badge de contagem no canto inferior-direito da célula: mostra o NÚMERO DE
+--- ITENS na pilha (getStackSize), não a soma de getCount() — o jogador quer
+--- saber quantos itens estão empilhados naquela célula.
+function GridRender:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH)
+    local total = self.gridCore and self.gridCore:getStackSize(itemId) or 1
+    local text = tostring(total)
+    local textW = getTextManager():MeasureStringX(UIFont.Small, text)
+    local bx = drawX + drawW - textW - 5
+    local by = drawY + drawH - 15
+    self:drawRect(bx, by, textW + 5, 14, 0.85, 0, 0, 0)
+    self:drawText(text, bx + 2, by + 1, 1, 1, 1, 1, UIFont.Small)
+end
+
 function GridRender:prerender()
     ISPanel.prerender(self)
     
@@ -581,7 +595,22 @@ function GridRender:render()
     local playerObj = getSpecificPlayer(self.playerNum)
     local hotbar = getPlayerHotbar(self.playerNum)
 
+    -- Membros de pilha: mesmo sem render individual, precisam do tick de
+    -- idade/umidade (o vanilla faz isso ao renderizar itens em containers
+    -- visíveis). Só o LÍDER desenha o ícone.
     for itemId, data in pairs(self.gridCore.items) do
+        if data.stackMemberOf and data.itemObj then
+            if data.itemObj.updateAge then data.itemObj:updateAge() end
+            if data.itemObj.updateWetness then data.itemObj:updateWetness() end
+        end
+    end
+
+    for itemId, data in pairs(self.gridCore.items) do
+        -- Membros de pilha não são desenhados individualmente: só o LÍDER
+        -- renderiza (ícone + badge de contagem). As células apontam pro líder.
+        if data.stackMemberOf then
+            -- skip
+        else
         -- Se estivermos arrastando, não renderizamos o item localmente se for um dos arrastados.
         local isDragged = GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid == self and GridInventory_GlobalDrag.itemsMap[itemId]
         
@@ -664,8 +693,14 @@ function GridRender:render()
                         self:drawRect(drawX, fillY, drawW, fillH, 0.4, 0.2, 0.8, 0.2)
                     end
                 end
+
+                -- Badge de contagem da pilha (soma de getCount() dos membros)
+                if self.gridCore:getStackSize(itemId) > 1 then
+                    self:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH)
+                end
             end
         end
+    end
     end
     if self.gridCore.ghostItems then
         for gId, gData in pairs(self.gridCore.ghostItems) do
@@ -905,7 +940,19 @@ function GridRender:onMouseMove(dx, dy)
             local dragMap = {}
             local nativeList = {}
             
+            -- Expande PILHAS: se um líder de pilha está selecionado, todos os
+            -- membros entram no drag (arrastar pilha = mover tudo junto).
+            local selectedIds = {}
             for selectedId, _ in pairs(self.selectedItems) do
+                selectedIds[selectedId] = true
+                if self.gridCore:isStackLeader(selectedId) then
+                    for _, mId in ipairs(self.gridCore:getStackMembers(selectedId)) do
+                        selectedIds[mId] = true
+                    end
+                end
+            end
+            
+            for selectedId, _ in pairs(selectedIds) do
                 local itemData = self.gridCore.items[selectedId]
                 if itemData then
                     local ItemFootprint = require("Algorithm/ItemFootprint")
@@ -936,7 +983,9 @@ function GridRender:onMouseMove(dx, dy)
                         grabOffsetX = grabOffsetX,
                         grabOffsetY = grabOffsetY,
                         rotated = rotated,
-                        itemObj = itemData.itemObj
+                        itemObj = itemData.itemObj,
+                        compatKey = GridContainer.getStackableCompatKey(itemData.itemObj),
+                        stackInfo = select(2, GridContainer.getStackInfo(itemData.itemObj)),
                     }
                     table.insert(dragList, dData)
                     dragMap[selectedId] = true
@@ -1008,6 +1057,23 @@ function GridRender:doDoubleClick(x, y)
     if not itemData or not itemData.itemObj then return end
     
     local item = itemData.itemObj
+
+    -- BOLSA (InventoryContainer): duplo clique abre o floating grid pra
+    -- gerenciar o conteúdo SEM equipar/segurar na mão.
+    if instanceof(item, "InventoryContainer") and item.getInventory and item:getInventory() then
+        if GridInventory_openFloatingBag then
+            GridInventory_openFloatingBag(self.playerNum, item)
+            return
+        end
+    end
+
+    -- PILHA de itens (size > 1): duplo clique abre o STACK PICKER no floating
+    -- window — lista cada item da pilha pra escolher o de melhor condição.
+    if self.gridCore:getStackSize(itemId) > 1 and GridInventory_openStackPicker then
+        GridInventory_openStackPicker(self.playerNum, self, itemId)
+        return
+    end
+
     local playerObj = getSpecificPlayer(self.playerNum)
     local playerInvUI = getPlayerInventory(self.playerNum)
     
@@ -1165,7 +1231,7 @@ function GridRender:onMouseUp(x, y)
                 if targetX < 1 then targetX = 1 end
                 if targetY < 1 then targetY = 1 end
                 
-                if not self.gridCore:canPlaceItem(draggedItem.id, targetX, targetY, effectiveW, effectiveH, draggedItem.id) then
+                if not self.gridCore:canPlaceItem(draggedItem.id, targetX, targetY, effectiveW, effectiveH, draggedItem.id, draggedItem.compatKey, draggedItem.rotated, draggedItem.stackInfo) then
                     allCanPlace = false
                     break
                 end
@@ -1175,7 +1241,7 @@ function GridRender:onMouseUp(x, y)
             
             if allCanPlace then
                 for _, t in ipairs(targets) do
-                    self.gridCore:insertItem(t.item.id, t.tx, t.ty, t.ew, t.eh, t.item.rotated, t.item.itemObj)
+                    self.gridCore:insertItem(t.item.id, t.tx, t.ty, t.ew, t.eh, t.item.rotated, t.item.itemObj, t.item.compatKey, t.item.stackInfo)
                     if t.item.itemObj then
                         local modData = t.item.itemObj:getModData()
                         modData.gridX = t.tx
@@ -1274,9 +1340,11 @@ function GridRender:onMouseUp(x, y)
                         
                         if targetX < 1 then targetX = 1 end
                         if targetY < 1 then targetY = 1 end
+
+                        local compatKey, stackInfo = GridContainer.getStackInfo(itemObj)
                         
-                        if not self.gridCore:canPlaceItem(itemObj:getID(), targetX, targetY, effectiveW, effectiveH) then
-                            local fx, fy = self.gridCore:findFreeSpace(itemObj:getID(), effectiveW, effectiveH)
+                        if not self.gridCore:canPlaceItem(itemObj:getID(), targetX, targetY, effectiveW, effectiveH, nil, compatKey, rotated, stackInfo) then
+                            local fx, fy = self.gridCore:findFreeSpace(itemObj:getID(), effectiveW, effectiveH, compatKey, stackInfo)
                             if fx and fy then
                                 targetX = fx
                                 targetY = fy
@@ -1308,7 +1376,7 @@ function GridRender:onMouseUp(x, y)
                                         end
                                     end
                                 else
-                                    self.gridCore:addGhostItem(itemObj:getID(), itemObj, targetX, targetY, effectiveW, effectiveH, rotated)
+                                    self.gridCore:addGhostItem(itemObj:getID(), itemObj, targetX, targetY, effectiveW, effectiveH, rotated, compatKey, stackInfo)
                                     local playerInv = getPlayerInventory(self.playerNum)
                                     if playerInv and playerInv.inventoryPane then
                                         playerInv.inventoryPane:transferItemsByWeight({itemObj}, self.inventoryContainer)
@@ -1342,6 +1410,54 @@ function GridRender:onMouseUpOutside(x, y)
     -- antes que os outros painéis (como o Loot) tenham a chance de processar o onMouseUp!
     -- A limpeza será feita no GridRender:update()
 end
+
+--- Move UM membro da pilha para uma célula própria (livre) no MESMO grid.
+--- Se o grid estiver cheio, transfere o membro pros bolsos. Usado pelo
+--- stack picker ("pegar o melhor item da pilha") e pelo split.
+---@param memberId string|number id do membro (objeto) a tirar da pilha
+---@return boolean true se conseguiu tirar
+function GridRender:takeStackMember(memberId)
+    local memberData = self.gridCore.items[memberId]
+    local member = memberData and memberData.itemObj
+    if not member then return false end
+
+    local w, h = ItemFootprint.getSize(member)
+    local _, stackInfo = GridContainer.getStackInfo(member)
+    -- findFreeSpace SEM compatKey: célula genuinamente livre (não re-empilha)
+    local fx, fy = self.gridCore:findFreeSpace(memberId, w, h, nil, stackInfo)
+
+    if fx and fy then
+        local md = member:getModData()
+        md.gridX = fx
+        md.gridY = fy
+        md.gridRot = false
+        if self.inventoryContainer and self.inventoryContainer.setDrawDirty then
+            self.inventoryContainer:setDrawDirty(true)
+        end
+        -- MP server-mandatory: servidor grava a nova posição (célula própria).
+        GridClientNetwork.sendItemMove(self.inventoryContainer, member:getID(), fx, fy, false)
+        -- Re-refresh o GridCore AGORA: hash de IDs não muda numa divisão.
+        local gc = GridContainer.getOrCreate(self.inventoryContainer, self.playerNum)
+        gc:refresh()
+        return true
+    else
+        -- Grid cheio: transfere 1 membro pros bolsos (engine combina munição).
+        local playerObj = getSpecificPlayer(self.playerNum)
+        local playerInv = getPlayerInventory(self.playerNum)
+        if playerObj and playerInv and playerInv.inventoryPane then
+            local dst = playerObj:getInventory()
+            if dst:hasRoomFor(playerObj, member) then
+                GridClientNetwork.clearServerPosition(self.inventoryContainer, member:getID())
+                playerInv.inventoryPane:transferItemsByWeight({member}, dst)
+                return true
+            end
+        end
+        return false
+    end
+end
+
+--- Separar 1 item da pilha: pega o PRIMEIRO membro disponível e tira da pilha.
+--- (O split agora acontece no STACK PICKER — duplo clique na pilha.)
 
 function GridRender:onRightMouseUp(x, y)
     if GridInventory_GlobalDrag then

@@ -39,5 +39,9 @@
     "IGUI_AvatarDrop_Eat": "Comer",
     "IGUI_AvatarDrop_Drink": "Beber",
     "IGUI_AvatarDrop_Read": "Ler",
-    "IGUI_AvatarDrop_Take": "Tomar"
+    "IGUI_AvatarDrop_Take": "Tomar",
+    "IGUI_FloatingGrid_Close": "Fechar",
+    "IGUI_FloatingGrid_Pin": "Fixar",
+    "IGUI_FloatingGrid_Unpin": "Desafixar",
+    "IGUI_StackPicker_Take": "Pegar"
 }

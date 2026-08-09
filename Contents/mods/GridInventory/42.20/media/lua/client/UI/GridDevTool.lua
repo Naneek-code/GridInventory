@@ -38,13 +38,20 @@ function GridDevToolUI:new(x, y, item)
     local w, h = ItemFootprint.getSize(item)
     o.tempData.w = (override and override.w) or w
     o.tempData.h = (override and override.h) or h    
+    o.tempData.stackable = (override and override.stackable) -- nil=Auto, true/false
+    o.tempData.maxStackAuto = not (override and override.maxStack)
+    local GridContainer = require("DataModel/GridContainer")
+    local autoMax = GridContainer.getMaxStackUnits(item)
+    o.tempData.maxStack = (override and override.maxStack) or autoMax or 100
     o.isContainer = item:IsInventoryContainer()
     if o.isContainer then
         local cap = item:getInventory():getCapacity()
         local cw, ch = 6, math.max(2, math.ceil(cap / 3))
         o.tempData.cols = (override and override.cols) or cw
         o.tempData.rows = (override and override.rows) or ch
-        o.height = 300
+        o.height = 380
+    else
+        o.height = 280
     end
     
     return o
@@ -80,6 +87,52 @@ function GridDevToolUI:initialise()
     
     cy = cy + 40
     
+    -- Stackable toggle (Auto → ON → OFF)
+    self:addChild(ISLabel:new(labelX, cy, 20, "Stackable:", 1, 1, 1, 1, UIFont.Small, true))
+    self.btnStack = ISButton:new(160, cy, 90, btnH, "Auto", self, function(self)
+        if self.tempData.stackable == nil then
+            self.tempData.stackable = true
+        elseif self.tempData.stackable == true then
+            self.tempData.stackable = false
+        else
+            self.tempData.stackable = nil
+        end
+        self:updateStackButton()
+    end)
+    self.btnStack:initialise()
+    self:addChild(self.btnStack)
+    self:updateStackButton()
+
+    cy = cy + 40
+
+    -- MaxStack (Auto / número)
+    self:addChild(ISLabel:new(labelX, cy, 20, "MaxStack:", 1, 1, 1, 1, UIFont.Small, true))
+    self.btnMaxMinus = ISButton:new(130, cy, btnW, btnH, "-", self, function(self)
+        if not self.tempData.maxStackAuto then
+            self.tempData.maxStack = math.max(1, self.tempData.maxStack - 1)
+            self:updateMaxButton()
+        end
+    end)
+    self.btnMaxMinus:initialise()
+    self:addChild(self.btnMaxMinus)
+    self.btnMaxMode = ISButton:new(165, cy, 60, btnH, "Auto", self, function(self)
+        self.tempData.maxStackAuto = not self.tempData.maxStackAuto
+        self:updateMaxButton()
+    end)
+    self.btnMaxMode:initialise()
+    self:addChild(self.btnMaxMode)
+    self.btnMaxPlus = ISButton:new(230, cy, btnW, btnH, "+", self, function(self)
+        if not self.tempData.maxStackAuto then
+            self.tempData.maxStack = self.tempData.maxStack + 1
+            self:updateMaxButton()
+        end
+    end)
+    self.btnMaxPlus:initialise()
+    self:addChild(self.btnMaxPlus)
+    self:updateMaxButton()
+
+    cy = cy + 40
+
     if self.isContainer then
         self:addChild(ISLabel:new(labelX, cy, 20, "Bag Grid Cols:", 1, 1, 1, 1, UIFont.Small, true))
         self.btnCMinus = ISButton:new(160, cy, btnW, btnH, "-", self, function(self) self.tempData.cols = math.max(1, self.tempData.cols - 1) end)
@@ -113,10 +166,38 @@ function GridDevToolUI:initialise()
     self:addChild(self.btnClose)
 end
 
+function GridDevToolUI:updateStackButton()
+    if not self.btnStack then return end
+    if self.tempData.stackable == true then
+        self.btnStack:setTitle("ON")
+        self.btnStack.backgroundColor = { r = 0.15, g = 0.45, b = 0.15, a = 0.8 }
+        self.btnStack.backgroundColorMouseOver = { r = 0.25, g = 0.6, b = 0.25, a = 0.9 }
+    elseif self.tempData.stackable == false then
+        self.btnStack:setTitle("OFF")
+        self.btnStack.backgroundColor = { r = 0.45, g = 0.15, b = 0.15, a = 0.8 }
+        self.btnStack.backgroundColorMouseOver = { r = 0.6, g = 0.25, b = 0.25, a = 0.9 }
+    else
+        self.btnStack:setTitle("Auto")
+        self.btnStack.backgroundColor = { r = 0.3, g = 0.3, b = 0.3, a = 0.6 }
+        self.btnStack.backgroundColorMouseOver = { r = 0.5, g = 0.5, b = 0.5, a = 0.8 }
+    end
+end
+
+function GridDevToolUI:updateMaxButton()
+    if not self.btnMaxMode then return end
+    if self.tempData.maxStackAuto then
+        self.btnMaxMode:setTitle("Auto")
+    else
+        self.btnMaxMode:setTitle(tostring(self.tempData.maxStack))
+    end
+end
+
 function GridDevToolUI:onSave()
     GridDevTool.applyOverrides(self.fullType, self.tempData.w, self.tempData.h,
         self.isContainer and self.tempData.cols or nil,
-        self.isContainer and self.tempData.rows or nil)
+        self.isContainer and self.tempData.rows or nil,
+        self.tempData.stackable,
+        self.tempData.maxStackAuto and nil or self.tempData.maxStack)
 
     -- MP server-mandatory: envia pro servidor aplicar (autoridade) + broadcast.
     GridClientNetwork.sendOverrides(GridDevTool.Overrides)

@@ -386,6 +386,11 @@ function ISInventoryPage:setVisible(visible)
         self:bringToTop()
     end
     
+    -- Floating grids: ao fechar o inventário, fecha as janelas não-pinadas.
+    if not visible and GridInventory_closeFloatingBags then
+        GridInventory_closeFloatingBags(self.player)
+    end
+    
     if self.onCharacter then
         local paperDoll = GridInventory_PaperDollWindow[self.player]
         if paperDoll then
@@ -407,6 +412,14 @@ function ISInventoryPage:setVisible(visible)
             end
             if visible then invPage:bringToTop() end
         end
+    end
+
+    -- Floating grids (pinadas) por CIMA dos painéis ao abrir: a abertura do
+    -- inventário/paperdoll/loot os traz pra frente; sem isso a janela flutuante
+    -- fica renderizada ATRÁS depois que o painel é aberto de novo.
+    -- (Roda por último, DEPOIS de todos os bringToTop dos painéis acima.)
+    if visible and GridInventory_raiseFloating then
+        GridInventory_raiseFloating(self.player)
     end
 end
 
@@ -571,7 +584,23 @@ end
 -- Destruir a capacidade de mover a janela nativamente
 function ISInventoryPage:onMouseDown(x, y)
     if not self:getIsVisible() then return end
+    -- Z-INDEX: qualquer clique no painel o traz pra frente; re-sobemos a janela
+    -- flutuante junto (método do InvTetris — sem flicker de bringToTop por frame).
+    if GridInventory_raiseFloating then
+        GridInventory_raiseFloating(self.player)
+    end
     getSpecificPlayer(self.player):nullifyAiming()
+end
+
+-- Z-INDEX: quando o painel (inventário OU loot) é trazido pra frente por
+-- QUALQUER caminho (abrir, selecionar container, etc.), a janela flutuante é
+-- re-sobida junto. É o mesmo mecanismo do InvTetris (keepChildWindowsOnTop).
+local og_pageBringToTop = ISInventoryPage.bringToTop
+function ISInventoryPage:bringToTop()
+    og_pageBringToTop(self)
+    if GridInventory_raiseFloating then
+        GridInventory_raiseFloating(self.player)
+    end
 end
 
 -- Conserta a rolagem do mouse nas mochilas! (O Zomboid hardcodava o scroll para a direita)

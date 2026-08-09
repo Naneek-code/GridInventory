@@ -23,9 +23,16 @@ function GridDevTool.loadOverrides()
             local parts = string.split(line, "=")
             if #parts == 2 then
                 local k = parts[1]:match("^%s*(.-)%s*$")
-                local v = tonumber(parts[2]:match("^%s*(.-)%s*$"))
-                if v then
-                    GridDevTool.Overrides[currentItem][k] = v
+                local v = parts[2]:match("^%s*(.-)%s*$")
+                if v == "true" then
+                    GridDevTool.Overrides[currentItem][k] = true
+                elseif v == "false" then
+                    GridDevTool.Overrides[currentItem][k] = false
+                else
+                    local n = tonumber(v)
+                    if n then
+                        GridDevTool.Overrides[currentItem][k] = n
+                    end
                 end
             end
         end
@@ -45,6 +52,8 @@ function GridDevTool.saveOverrides()
         if data.h then writer:write("h=" .. tostring(data.h) .. "\r\n") end
         if data.cols then writer:write("cols=" .. tostring(data.cols) .. "\r\n") end
         if data.rows then writer:write("rows=" .. tostring(data.rows) .. "\r\n") end
+        if data.maxStack then writer:write("maxStack=" .. tostring(data.maxStack) .. "\r\n") end
+        if data.stackable ~= nil then writer:write("stackable=" .. tostring(data.stackable) .. "\r\n") end
         writer:write("\r\n")
     end
     writer:close()
@@ -79,6 +88,10 @@ function GridDevTool.replaceOverrides(overrides)
             local h = clampInt(data.h, 24);  if h then o.h = h end
             local c = clampInt(data.cols, 20); if c then o.cols = c end
             local r = clampInt(data.rows, 40); if r then o.rows = r end
+            local ms = clampInt(data.maxStack, 1000); if ms then o.maxStack = ms end
+            -- stackable: só boolean puro (true = força stack, false = força não)
+            if data.stackable == true then o.stackable = true
+            elseif data.stackable == false then o.stackable = false end
             local hasAny = false
             for _ in pairs(o) do hasAny = true break end
             if hasAny then
@@ -94,13 +107,20 @@ end
 --- Aplica overrides sanitizados (>=1), salva no arquivo e limpa os caches
 --- (GridContainer.instances + ItemFootprint) para reconstruir com os novos
 --- tamanhos. Usado pelo UI e pelo servidor ao receber overrides do cliente.
-function GridDevTool.applyOverrides(fullType, w, h, cols, rows)
+--- stackable: nil = Auto (regra de peso), true = força stack, false = força não.
+--- maxStack: nil = Auto (recipe de pack/unpack), número = limite fixo.
+function GridDevTool.applyOverrides(fullType, w, h, cols, rows, stackable, maxStack)
     if not fullType then return end
     local o = GridDevTool.Overrides[fullType] or {}
     if w ~= nil and tonumber(w) then o.w = math.max(1, tonumber(w)) end
     if h ~= nil and tonumber(h) then o.h = math.max(1, tonumber(h)) end
     if cols ~= nil and tonumber(cols) then o.cols = math.max(1, tonumber(cols)) end
     if rows ~= nil and tonumber(rows) then o.rows = math.max(1, tonumber(rows)) end
+    if stackable == true then o.stackable = true
+    elseif stackable == false then o.stackable = false
+    elseif stackable == nil then o.stackable = nil end
+    if maxStack ~= nil and tonumber(maxStack) then o.maxStack = math.min(1000, math.max(1, math.floor(tonumber(maxStack))))
+    elseif maxStack == nil then o.maxStack = nil end
     GridDevTool.Overrides[fullType] = o
     GridDevTool.saveOverrides()
     GridDevTool.clearCaches()

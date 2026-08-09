@@ -54,6 +54,133 @@ function GridContainer.getGridSize(inventory)
     return w, h
 end
 
+--- Chave de empilhamento de um item (nil = não-empilhável).
+--- REGRA (ordem de prioridade):
+---   1. Override explícito do GridDevTool (`stackable=true` força stack;
+---      `stackable=false` força NÃO stack) — per-item, ajustável pelo dev.
+---   2. Padrão: item LEVE (peso base < 1 por unidade) pode empilhar — caixa de
+---      pregos (2.0) não, panos/rags (0.1) sim, munição/nails/bandagens sim.
+---   3. O engine nunca empilha itens com CanStack=false (carregadores/clips).
+--- NOTA: getMaxCount() NÃO existe no InventoryItem do B42 — não usar.
+--- Compartilhado cliente/servidor: a mesma chave é usada na validação do servidor.
+---@param item InventoryItem
+---@return string|nil
+function GridContainer.getStackableCompatKey(item)
+    if not item then return nil end
+    local fullType = item:getFullType()
+
+    -- 1. Override explícito do DevTool (força stack / força não-stack)
+    if GridDevTool and GridDevTool.Overrides and GridDevTool.Overrides[fullType] then
+        local ov = GridDevTool.Overrides[fullType]
+        if ov.stackable == true then
+            return "stack:" .. fullType
+        elseif ov.stackable == false then
+            return nil
+        end
+    end
+
+    -- 2. Regra padrão: item LEVE (peso base < 1) pode empilhar
+    local weight = item.getWeight and tonumber(item:getWeight())
+    local stackable = weight ~= nil and weight < 1
+
+    -- 3. Engine não empilha (CanStack=false → carregadores/clips): nunca stacka
+    if stackable and item.canStack and not item:canStack() then
+        stackable = false
+    end
+
+    if stackable then
+        return "stack:" .. fullType
+    end
+    return nil
+end
+
+--- Fallback curado de maxStack (unidades que empacotam numa caixa) — valores
+--- confirmados nos recipes de pack/unpack do jogo. O parsing runtime dos
+--- CraftRecipes (buildRecipeMaxStack) estende/sobrescreve isso automaticamente.
+GridContainer.MAX_STACK_FALLBACK = {
+    ["Base.Nails"] = 100, ["Base.Screws"] = 100, ["Base.NutsBolts"] = 100, ["Base.CapGunCap"] = 100,
+    ["Base.Bullets9mm"] = 50, ["Base.Bullets45"] = 50, ["Base.Bullets38"] = 50, ["Base.Bullets357"] = 50,
+    ["Base.Bullets44"] = 20, ["Base.308Bullets"] = 20, ["Base.556Bullets"] = 20, ["Base.3030Bullets"] = 20,
+    ["Base.ShotgunShells"] = 25,
+    ["Base.Money"] = 100,
+    ["Base.BeerBottle"] = 6, ["Base.Wine"] = 6, ["Base.Wine2"] = 6,
+    ["Base.EmptyJar"] = 6, ["Base.JarLid"] = 6,
+}
+-- Sem recipe/pack → teto de segurança de 1000 unidades (nunca pilha absurda).
+GridContainer.STACK_LIMIT_DEFAULT = 1000
+
+--- Tenta derivar maxStack de TODOS os recipes de categoria Packing: o output com
+--- count > 1 (ex.: 100 pregos, 20 munições) é o limite da pilha daquele item.
+--- Best-effort (pcall): se a API de craft mudar, cai pro fallback curado.
+function GridContainer.buildRecipeMaxStack()
+    local map = {}
+    for k, v in pairs(GridContainer.MAX_STACK_FALLBACK) do
+        map[k] = v
+    end
+    local ok, err = pcall(function()
+        local cm = CraftRecipeManager
+        if not cm or not cm.getAllCraftRecipes then return end
+        local recipes = cm.getAllCraftRecipes()
+        for i = 0, recipes:size() - 1 do
+            local recipe = recipes:get(i)
+            if recipe and recipe.getCategory and recipe:getCategory() == "Packing"
+                and recipe.getOutputs then
+                local outputs = recipe:getOutputs()
+                for j = 0, outputs:size() - 1 do
+                    local out = outputs:get(j)
+                    if out and out.getIntAmount and out.getPossibleResultItems then
+                        local amount = out:getIntAmount()
+                        if amount and amount > 1 then
+                            local items = out:getPossibleResultItems()
+                            for k = 0, items:size() - 1 do
+                                local it = items:get(k)
+                                if it and it.getFullType then
+                                    map[it:getFullType()] = amount
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    return map
+end
+
+--- Máximo de UNIDADES da pilha do item (ex.: 100 pregos). Ordem:
+--- override maxStack do DevTool > recipe de pack (Auto) > fallback > ilimitado.
+function GridContainer.getMaxStackUnits(item)
+    if not item then return GridContainer.STACK_LIMIT_DEFAULT end
+    local fullType = item:getFullType()
+
+    -- 1. Override explícito do DevTool
+    if GridDevTool and GridDevTool.Overrides and GridDevTool.Overrides[fullType] then
+        local mv = GridDevTool.Overrides[fullType].maxStack
+        if mv and tonumber(mv) then
+            return math.max(1, math.floor(tonumber(mv)))
+        end
+    end
+
+    -- 2. Auto: recipe de pack/unpack (derivado runtime) ou fallback curado
+    if not GridContainer.recipeMaxStack then
+        GridContainer.recipeMaxStack = GridContainer.buildRecipeMaxStack()
+    end
+    return GridContainer.recipeMaxStack[fullType]
+        or GridContainer.MAX_STACK_FALLBACK[fullType]
+        or GridContainer.STACK_LIMIT_DEFAULT
+end
+
+--- CompatKey + stackInfo ({limit, units}) de um item num único acesso.
+---@return string|nil compatKey
+---@return table|nil stackInfo
+function GridContainer.getStackInfo(item)
+    local compatKey = GridContainer.getStackableCompatKey(item)
+    if not compatKey then return nil, nil end
+    local limit = GridContainer.getMaxStackUnits(item)
+    local units = (item.getCount and tonumber(item:getCount())) or 1
+    return compatKey, { limit = limit, units = math.max(1, units) }
+end
+
 ---@param inventory ItemContainer
 ---@param playerNum number
 function GridContainer.getOrCreate(inventory, playerNum)
@@ -91,7 +218,10 @@ function GridContainer.buildOccupancy(container, grid)
                 local isRot = md.gridRot or false
                 local w, h = ItemFootprint.getSize(item)
                 local ew, eh = isRot and h or w, isRot and w or h
-                grid:insertItem(item:getID(), sx, sy, ew, eh, isRot, item)
+                -- CompatKey de pilha: itens compatíveis na MESMA posição empilham
+                -- (respeitando o limite de unidades do maxStack).
+                local compatKey, stackInfo = GridContainer.getStackInfo(item)
+                grid:insertItem(item:getID(), sx, sy, ew, eh, isRot, item, compatKey, stackInfo)
             end
         end
     end
@@ -99,6 +229,7 @@ end
 
 --- Valida (autoritativamente, lado servidor) se um item pode ser colocado em
 --- (x, y) no grid do container: bounds + colisão com itens já posicionados.
+--- Empilháveis (mesmo compatKey + mesmo retângulo) podem compartilhar célula.
 ---@param container ItemContainer
 ---@param item InventoryItem
 ---@param x number
@@ -112,7 +243,8 @@ function GridContainer.validatePlacement(container, item, x, y, rotated)
     GridContainer.buildOccupancy(container, grid)
     local fw, fh = ItemFootprint.getSize(item)
     local ew, eh = rotated and fh or fw, rotated and fw or fh
-    return grid:canPlaceItem(item:getID(), x, y, ew, eh, item:getID())
+    local compatKey, stackInfo = GridContainer.getStackInfo(item)
+    return grid:canPlaceItem(item:getID(), x, y, ew, eh, item:getID(), compatKey, rotated, stackInfo)
 end
 
 --- Validação de CHÃO (container virtual inexistente no servidor): bounds-only
@@ -122,7 +254,8 @@ function GridContainer.validateFloorPlacement(item, x, y, rotated)
     if not item then return false end
     local fw, fh = ItemFootprint.getSize(item)
     local ew, eh = rotated and fh or fw, rotated and fw or fh
-    return GridCore.new(GridContainer.FLOOR_W, GridContainer.FLOOR_H):canPlaceItem(item:getID(), x, y, ew, eh, item:getID())
+    local compatKey, stackInfo = GridContainer.getStackInfo(item)
+    return GridCore.new(GridContainer.FLOOR_W, GridContainer.FLOOR_H):canPlaceItem(item:getID(), x, y, ew, eh, item:getID(), compatKey, rotated, stackInfo)
 end
 
 --- Filtra quais itens realmente devem ocupar espaço visual.
@@ -195,6 +328,7 @@ function GridContainer:refresh()
     
     local grid = self.grids[1]
     grid.items = {}
+    grid.stacks = {}
     for x = 1, grid.width do
         for y = 1, grid.height do
             grid.cells[x][y] = nil
@@ -245,6 +379,7 @@ function GridContainer:refresh()
         
         if self:_isItemValidForGrid(item) then
             local w, h = ItemFootprint.getSize(item)
+            local compatKey, stackInfo = GridContainer.getStackInfo(item)
             local placed = false
             
             -- Tenta encaixar no primeiro espaço livre
@@ -258,8 +393,8 @@ function GridContainer:refresh()
                 local effectiveH = isRot and w or h
 
                 -- Tenta colocar na posição salva primeiro (Persistência)
-                if savedX and savedY and grid:canPlaceItem(item:getID(), savedX, savedY, effectiveW, effectiveH) then
-                    grid:insertItem(item:getID(), savedX, savedY, effectiveW, effectiveH, isRot, item)
+                if savedX and savedY and grid:canPlaceItem(item:getID(), savedX, savedY, effectiveW, effectiveH, nil, compatKey, isRot, stackInfo) then
+                    grid:insertItem(item:getID(), savedX, savedY, effectiveW, effectiveH, isRot, item, compatKey, stackInfo)
                     placed = true
                     break
                 else
@@ -269,14 +404,14 @@ function GridContainer:refresh()
                     local didRotate = false
 
                     if applyScatter then
-                        freeX, freeY, didRotate = ScatterLayout.place(grid, item:getID(), w, h, seedKey)
+                        freeX, freeY, didRotate = ScatterLayout.place(grid, item:getID(), w, h, seedKey, compatKey, stackInfo)
                     end
 
                     if not freeX then
-                        freeX, freeY = grid:findFreeSpace(item:getID(), w, h)
+                        freeX, freeY = grid:findFreeSpace(item:getID(), w, h, compatKey, stackInfo)
                         didRotate = false
                         if not freeX then
-                            freeX, freeY = grid:findFreeSpace(item:getID(), h, w)
+                            freeX, freeY = grid:findFreeSpace(item:getID(), h, w, compatKey, stackInfo)
                             if freeX and freeY then
                                 didRotate = true
                             end
@@ -287,7 +422,7 @@ function GridContainer:refresh()
                         local finalW = didRotate and h or w
                         local finalH = didRotate and w or h
                         
-                        grid:insertItem(item:getID(), freeX, freeY, finalW, finalH, didRotate, item)
+                        grid:insertItem(item:getID(), freeX, freeY, finalW, finalH, didRotate, item, compatKey, stackInfo)
                         
                         -- Salva a nova posição gerada automaticamente
                         modData.gridX = freeX

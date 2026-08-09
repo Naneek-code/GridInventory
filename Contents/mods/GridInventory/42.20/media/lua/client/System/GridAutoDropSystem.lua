@@ -32,10 +32,11 @@ local function canItemFitInContainer(item, invContainer, playerNum)
     end
     
     local w, h = ItemFootprint.getSize(item)
+    local compatKey, stackInfo = GridContainer.getStackInfo(item)
     for _, grid in ipairs(gridContainer.grids) do
-        local fx, fy = grid:findFreeSpace(item:getID(), w, h)
+        local fx, fy = grid:findFreeSpace(item:getID(), w, h, compatKey, stackInfo)
         if not fx then
-            fx, fy = grid:findFreeSpace(item:getID(), h, w)
+            fx, fy = grid:findFreeSpace(item:getID(), h, w, compatKey, stackInfo)
         end
         if fx and fy then return true end
     end
