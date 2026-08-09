@@ -331,22 +331,24 @@ end)
 -- 3. Forca a atualizacao da UI em TODO evento de atualizacao de container.
 -- O mod renderiza todas as mochilas de uma vez, entao se qualquer uma 
 -- atualizar, precisamos setar a flag "dirty" no painel principal!
+-- NAO chamamos refreshContainer() aqui: o evento dispara varias vezes por
+-- transferencia/loot e cada chamada refaz o remap matematico de todos os
+-- containers. Marcamos "dirty" e o ISInventoryPage:update coalesce para
+-- no maximo 1 refresh por frame.
 -- ============================================================================
 local og_onInventoryUpdate = ISInventoryPage.onInventoryUpdate
 function ISInventoryPage.onInventoryUpdate(inv, item)
     if og_onInventoryUpdate then og_onInventoryUpdate(inv, item) end
     
-    print("DEBUG: Zomboid chamou onInventoryUpdate! Container: " .. tostring(inv:getType()))
-    
     for p = 0, getNumActivePlayers()-1 do
         local pInv = getPlayerInventory(p)
         if pInv and pInv.inventoryPane then 
-            pInv.inventoryPane:refreshContainer() 
+            pInv.inventoryPane.gridRefreshDirty = true
         end
         
         local pLoot = getPlayerLoot(p)
         if pLoot and pLoot.inventoryPane then 
-            pLoot.inventoryPane:refreshContainer() 
+            pLoot.inventoryPane.gridRefreshDirty = true
         end
     end
 end

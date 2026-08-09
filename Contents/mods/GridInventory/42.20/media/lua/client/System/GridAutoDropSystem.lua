@@ -42,17 +42,34 @@ local function canItemFitInContainer(item, invContainer, playerNum)
     return false
 end
 
-local function getInventoryHash(inv)
-    local hash = 0
+-- Hash barato: se a CONTAGEM de itens não mudou desde a última checagem,
+-- assume-se que o conteúdo não mudou (o caso comum) e evita varrer os IDs
+-- de todos os itens a cada tick. Retorna nil quando nada precisa refrescar.
+local function getInventoryHash(inv, gridContainer)
     local items = inv:getItems()
     local size = items:size()
+    if gridContainer.lastAutoDropSize == size then
+        return nil
+    end
+    gridContainer.lastAutoDropSize = size
+    local hash = 0
     for i=0, size-1 do
         hash = hash + items:get(i):getID()
     end
     return tostring(size) .. "_" .. tostring(hash)
 end
 
+-- Throttle de tempo: a varredura (hash de todos os containers equipados) só
+-- roda a cada 300ms, nunca a cada tick. O OnTick continua sendo o gatilho,
+-- mas o trabalho caro fica limitado no tempo.
+local CHECK_INTERVAL_MS = 300
+
 function GridAutoDropSystem.OnTick()
+    local now = getTimestampMs()
+    GridAutoDropSystem._lastCheck = GridAutoDropSystem._lastCheck or 0
+    if now - GridAutoDropSystem._lastCheck < CHECK_INTERVAL_MS then return end
+    GridAutoDropSystem._lastCheck = now
+
     local playerNum = 0 -- Suporte apenas local multiplayer 0 por enquanto
     local playerObj = getSpecificPlayer(playerNum)
     if not playerObj or playerObj:isDead() then return end
@@ -68,8 +85,8 @@ function GridAutoDropSystem.OnTick()
         for _, inv in ipairs(containers) do
             local gridContainer = GridContainer.instances[inv] or GridContainer.getOrCreate(inv, playerNum)
             
-            local currentHash = getInventoryHash(inv)
-            if currentHash ~= gridContainer.lastAutoDropHash then
+            local currentHash = getInventoryHash(inv, gridContainer)
+            if currentHash and currentHash ~= gridContainer.lastAutoDropHash then
                 gridContainer.lastAutoDropHash = currentHash
                 gridContainer:refresh()
             end
@@ -92,11 +109,8 @@ function GridAutoDropSystem.OnTick()
                 local sourceInv = data.sourceInv
                 local handled = false
                 
-                print("[AutoDrop] Processando item: " .. tostring(item:getName()) .. " do container " .. tostring(sourceInv:getType()))
-                
                 -- Se o item não está mais no container (foi consumido em um craft, comido, etc), ignoramos!
                 if not sourceInv:contains(item) then
-                    print("[AutoDrop] Item fantasma (consumido). Ignorando.")
                     handled = true
                 end
                 
@@ -107,7 +121,6 @@ function GridAutoDropSystem.OnTick()
                 if not handled and not instanceof(item, "Moveable") then
                     for _, targetInv in ipairs(containers) do
                         if targetInv ~= sourceInv and targetInv:isItemAllowed(item) and canItemFitInContainer(item, targetInv, playerNum) then
-                            print("[AutoDrop] Coube na mochila " .. tostring(targetInv:getType()))
                             local transfer = ISInventoryTransferAction:new(playerObj, item, sourceInv, targetInv, 1)
                             transfer.maxTime = 0
                             ISTimedActionQueue.add(transfer)
@@ -119,7 +132,6 @@ function GridAutoDropSystem.OnTick()
                 
                 -- Se não coube em nenhuma, joga no chão
                 if not handled then
-                    print("[AutoDrop] Nao coube em lugar nenhum. Jogando no chao!")
                     if not (instanceof(item, "Moveable") and item:getSpriteGrid() == nil and not item:CanBeDroppedOnFloor()) then
                         item:setFavorite(false) -- Overflow perde o favorito!
                         local transfer = ISInventoryTransferAction:new(playerObj, item, sourceInv, floorContainer, 1)

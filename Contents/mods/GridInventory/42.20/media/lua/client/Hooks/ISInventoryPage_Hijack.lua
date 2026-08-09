@@ -44,6 +44,16 @@ function ISInventoryPage:update()
     -- Roda o Zomboid (e o maldito CleanUI) primeiro!
     og_update(self)
 
+    -- Coalesce do onInventoryUpdate: o refreshContainer (remap de todos os
+    -- containers) roda no maximo 1x por frame e apenas com o painel visivel.
+    local pane = self.inventoryPane
+    if pane and pane.gridRefreshDirty then
+        pane.gridRefreshDirty = nil
+        if self:getIsVisible() and pane:getIsVisible() then
+            pane:refreshContainer()
+        end
+    end
+
     local core = getCore()
     local screenW = core:getScreenWidth()
     local screenH = core:getScreenHeight()
@@ -292,6 +302,10 @@ function ISInventoryPage:updateContainerHighlight()
     end
 end
 
+-- No-op module-level (sem closure): evita alocar 6 closures por frame no render
+-- abaixo, que precisa mutar os métodos de desenho do ISInventoryPane.
+local function noop() end
+
 local og_inventoryRender = ISInventoryPane.render
 function ISInventoryPane:render()
     -- Hack para forçar alpha zero no texto
@@ -302,23 +316,23 @@ function ISInventoryPane:render()
     local og_drawRect = self.drawRect
     local og_drawRectBorder = self.drawRectBorder
     
-    self.drawText = function() end
-    self.drawTextRight = function() end
-    self.drawTexture = function() end
-    self.drawTextureScaled = function() end
-    self.drawRect = function() end
-    self.drawRectBorder = function() end
+    self.drawText = noop
+    self.drawTextRight = noop
+    self.drawTexture = noop
+    self.drawTextureScaled = noop
+    self.drawRect = noop
+    self.drawRectBorder = noop
     
     -- Oculta os botões inúteis de Expandir/Recolher Lista de forma DEFINITIVA
     -- Mutilando as funções de renderização deles pra não piscarem durante o render original
     if self.expandAll and not self.expandAll._isMuted then
-        self.expandAll.render = function() end
-        self.expandAll.prerender = function() end
+        self.expandAll.render = noop
+        self.expandAll.prerender = noop
         self.expandAll._isMuted = true
     end
     if self.collapseAll and not self.collapseAll._isMuted then
-        self.collapseAll.render = function() end
-        self.collapseAll.prerender = function() end
+        self.collapseAll.render = noop
+        self.collapseAll.prerender = noop
         self.collapseAll._isMuted = true
     end
     

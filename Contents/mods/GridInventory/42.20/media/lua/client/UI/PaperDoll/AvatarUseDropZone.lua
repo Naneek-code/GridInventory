@@ -27,8 +27,12 @@ local COLOR_BORDER = { a=0.15, r=0.5, g=0.5, b=0.5 }
 --
 -- SAFE_ACTIONS = PerformingActions com pelo menos um nó de condições 100%
 -- satisfeitas no avatar (só PerformingAction + booleans que o avatar já
--- seta/limpa). Essas são espelhadas de verdade. Qualquer outra ação é espelhada
--- com a animação genérica de transferência (TransferItemOnSelf -> Bob_IdleLooting_Mid)
+-- seta/limpa). O casamento das condições do jogo é case-insensitive
+-- (AnimCondition.check usa equalsIgnoreCase e, para variável não definida com
+-- condição BOOL=false, casa como false), então o lookup da lista ignora o case
+-- para refletir o que o jogo grava via enum.toString() ("Eat", "Chop_tree"...).
+-- Essas são espelhadas de verdade. Qualquer outra ação é espelhada com a
+-- animação genérica de transferência (TransferItemOnSelf -> Bob_IdleLooting_Mid)
 -- para o boneco continuar "vivo" sem tocar o surrender. Lista gerada de
 -- media/AnimSets/player/actions/*.xml (ver /tmp/gridtest/build_whitelist.py);
 -- falha segura: valor novo fora da lista só usa o fallback genérico.
@@ -146,7 +150,11 @@ local SAFE_ACTIONS = {
     "refuelgascan",
 }
 local SAFE_ACTIONS_SET = {}
-for _, v in ipairs(SAFE_ACTIONS) do SAFE_ACTIONS_SET[v] = true end
+local SAFE_ACTIONS_SET_LOWER = {}
+for _, v in ipairs(SAFE_ACTIONS) do
+    SAFE_ACTIONS_SET[v] = true
+    SAFE_ACTIONS_SET_LOWER[v:lower()] = true
+end
 
 -- ─── Constructor ──────────────────────────────────────────────────────────────
 function AvatarUseDropZone:new(x, y, w, h, playerNum, avatarPanel)
@@ -367,7 +375,12 @@ function AvatarUseDropZone:updateAvatarAction(playerObj)
         -- casaria um nó), espelhamos a animação genérica de transferência
         -- (Bob_IdleLooting_Mid, o personagem só mexe os braços) em vez de tocar
         -- o nó default-fallback (Bob_EmoteSurrender) ou ficar parado.
-        self.avatarPanel:setVariable("PerformingAction", SAFE_ACTIONS_SET[actionAnim] and actionAnim or "TransferItemOnSelf")
+        -- O lookup ignora maiúsculas/minúsculas: o jogo grava PerformingAction
+        -- via enum.toString() ("Eat", "Drink", "Chop_tree"...), mas os nós do
+        -- AnimSet usam minúsculas ("eat"...), e o casamento de condição do jogo
+        -- é case-insensitive (equalsIgnoreCase) — então o espelhamento também é.
+        local safe = SAFE_ACTIONS_SET[actionAnim] or SAFE_ACTIONS_SET_LOWER[actionAnim:lower()]
+        self.avatarPanel:setVariable("PerformingAction", safe and actionAnim or "TransferItemOnSelf")
     elseif self.avatarInAction then
         self.avatarInAction = false
         self.avatarPanel:clearVariable("IsPerformingAnAction")

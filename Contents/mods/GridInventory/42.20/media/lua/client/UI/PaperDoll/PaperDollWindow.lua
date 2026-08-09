@@ -286,35 +286,47 @@ function PaperDollWindow:update()
     end
     
     if playerObj then
-        local wornItems = playerObj:getWornItems()
-        local hash = ""
-        for i=0, wornItems:size()-1 do
-            local item = wornItems:get(i):getItem()
-            hash = hash .. tostring(item:getID()) .. "_"
-        end
-        
-        -- Adicionamos também as mãos ao hash!
-        local prim = playerObj:getPrimaryHandItem()
-        local sec = playerObj:getSecondaryHandItem()
-        if prim then hash = hash .. tostring(prim:getID()) .. "_P_" end
-        if sec then hash = hash .. tostring(sec:getID()) .. "_S_" end
-        
-        if self.lastWornItemsHash ~= hash then
-            self.lastWornItemsHash = hash
-            self:refreshOverflow(wornItems, prim, sec)
-        end
-        
-        local hotbar = getPlayerHotbar(self.playerNum)
-        if hotbar then
-            hotbar:update()
-            
-            local hbHash = ""
-            for i, slot in pairs(hotbar.availableSlot) do
-                hbHash = hbHash .. tostring(slot.slotType) .. "_" .. tostring(hotbar.attachedItems[i] and hotbar.attachedItems[i]:getID() or "0")
+        -- Throttle: hashing das roupas/hotbar (montagem de strings por frame)
+        -- roda no maximo a cada 100ms. O setCharacter acima continua por frame
+        -- (é um no-op barato, pois o modelo so e reconstruido quando muda).
+        local now = getTimestampMs()
+        self.lastDollHashCheck = self.lastDollHashCheck or 0
+        if now - self.lastDollHashCheck >= 100 then
+            self.lastDollHashCheck = now
+
+            local wornItems = playerObj:getWornItems()
+            local hash = ""
+            for i=0, wornItems:size()-1 do
+                local item = wornItems:get(i):getItem()
+                hash = hash .. tostring(item:getID()) .. "_"
             end
-            if self.lastHotbarHash ~= hbHash then
-                self.lastHotbarHash = hbHash
-                self:refreshHotbarUIs(hotbar)
+            
+            -- Adicionamos também as mãos ao hash!
+            local prim = playerObj:getPrimaryHandItem()
+            local sec = playerObj:getSecondaryHandItem()
+            if prim then hash = hash .. tostring(prim:getID()) .. "_P_" end
+            if sec then hash = hash .. tostring(sec:getID()) .. "_S_" end
+            
+            if self.lastWornItemsHash ~= hash then
+                self.lastWornItemsHash = hash
+                -- Avisa os PaperDollSlots que o wornItems mudou (cache de localização)
+                GridInventory_WornCacheEpoch = GridInventory_WornCacheEpoch or {}
+                GridInventory_WornCacheEpoch[self.playerNum] = (GridInventory_WornCacheEpoch[self.playerNum] or 0) + 1
+                self:refreshOverflow(wornItems, prim, sec)
+            end
+            
+            local hotbar = getPlayerHotbar(self.playerNum)
+            if hotbar then
+                hotbar:update()
+                
+                local hbHash = ""
+                for i, slot in pairs(hotbar.availableSlot) do
+                    hbHash = hbHash .. tostring(slot.slotType) .. "_" .. tostring(hotbar.attachedItems[i] and hotbar.attachedItems[i]:getID() or "0")
+                end
+                if self.lastHotbarHash ~= hbHash then
+                    self.lastHotbarHash = hbHash
+                    self:refreshHotbarUIs(hotbar)
+                end
             end
         end
     end

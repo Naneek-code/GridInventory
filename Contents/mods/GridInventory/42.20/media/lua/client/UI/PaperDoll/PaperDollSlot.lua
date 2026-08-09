@@ -6,6 +6,44 @@ require "TimedActions/ISInventoryTransferAction"
 
 local PaperDollSlot = ISPanel:derive("PaperDollSlot")
 
+-- Cache por player do wornItems: os slots de localização varrem o wornItems
+-- inteiro (com tostring/lower por item) varias vezes por frame por slot.
+-- Cacheamos o mapa localização->item e so reconstruimos quando o
+-- PaperDollWindow:update detecta mudanca (GridInventory_WornCacheEpoch).
+local wornLocationCaches = {}
+
+local function getWornLocationCache(playerNum, player)
+    local epoch = (GridInventory_WornCacheEpoch and GridInventory_WornCacheEpoch[playerNum]) or 0
+    local cache = wornLocationCaches[playerNum]
+    if cache and cache.epoch == epoch then
+        return cache
+    end
+    cache = { epoch = epoch, byLocation = {} }
+    local wornItems = player:getWornItems()
+    local size = wornItems:size()
+    for i = 0, size - 1 do
+        local worn = wornItems:get(i)
+        local itemObj = worn:getItem()
+        local loc = worn:getLocation()
+        local locStr = tostring(loc)
+        if type(loc) == "userdata" and loc.getId then
+            locStr = loc:getId()
+        elseif type(loc) == "userdata" and loc.name then
+            locStr = loc:name()
+        end
+        local idPart = string.lower(locStr)
+        if string.find(idPart, ":") then
+            idPart = string.sub(idPart, string.find(idPart, ":") + 1)
+        end
+        if not cache.byLocation[idPart] then
+            cache.byLocation[idPart] = {}
+        end
+        table.insert(cache.byLocation[idPart], itemObj)
+    end
+    wornLocationCaches[playerNum] = cache
+    return cache
+end
+
 function PaperDollSlot:initialise()
     ISPanel.initialise(self)
     
@@ -303,26 +341,12 @@ function PaperDollSlot:getEquippedItems()
             return self.itemsList or results
         end
         
-        local wornItems = player:getWornItems()
-        for i=0, wornItems:size()-1 do
-            local itemObj = wornItems:get(i)
-            local loc = itemObj:getLocation()
-            local locStr = tostring(loc)
-            if type(loc) == "userdata" and loc.getId then
-                locStr = loc:getId()
-            elseif type(loc) == "userdata" and loc.name then
-                locStr = loc:name()
-            end
-            
-            local idPart = string.lower(locStr)
-            if string.find(idPart, ":") then
-                idPart = string.sub(idPart, string.find(idPart, ":") + 1)
-            end
-            
-            for _, pattern in ipairs(self.locations) do
-                if idPart == string.lower(pattern) then
-                    table.insert(results, itemObj:getItem())
-                    break
+        local cache = getWornLocationCache(self.playerNum, player)
+        for _, pattern in ipairs(self.locations) do
+            local list = cache.byLocation[string.lower(pattern)]
+            if list then
+                for _, it in ipairs(list) do
+                    table.insert(results, it)
                 end
             end
         end

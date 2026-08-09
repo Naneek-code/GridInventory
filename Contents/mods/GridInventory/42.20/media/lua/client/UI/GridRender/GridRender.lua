@@ -17,6 +17,17 @@ local ITEM_BG_COLOR = {r=0.4, g=0.4, b=0.4, a=0.5}
 local ITEM_BG_FROZEN = {r=0.2, g=0.6, b=0.9, a=0.5}
 local ITEM_BG_HOT = {r=0.9, g=0.2, b=0.2, a=0.5}
 
+-- A opção de "água tinta" é fixa por sessão: cacheia o valor para não buscar
+-- no SandboxOptions a cada item renderizado (getOptionByName é uma chamada Java).
+local taintEnabledCache = nil
+local function isTaintedWaterTextEnabled()
+    if taintEnabledCache == nil then
+        local opt = getSandboxOptions():getOptionByName("EnableTaintedWaterText")
+        taintEnabledCache = opt and opt:getValue() or false
+    end
+    return taintEnabledCache
+end
+
 function GridRender:new(x, y, gridCore, playerNum, inventoryContainer, gridIndex, containerItem, fallbackIcon)
     local headerH = 28
     local width = (gridCore.width * 40) + (GRID_PADDING * 2)
@@ -56,7 +67,9 @@ end
 --- Coleta e desenha ícones de status de um item em modo flex (máx 2 por linha).
 --- Cada ícone tem 12x12 px. Coluna 1 fica no canto superior-esquerdo, Coluna 2 ao lado.
 --- Se tiver mais de 2, empilha na linha de baixo.
-function GridRender:drawItemStatusIcons(item, drawX, drawY, playerObj)
+--- playerObj e hotbar sao passados de fora (hoisted do loop de itens) para evitar
+--- getSpecificPlayer/getPlayerHotbar por item a cada frame.
+function GridRender:drawItemStatusIcons(item, drawX, drawY, playerObj, hotbar)
     if not item then return end
 
     -- ── Coleta de condições ──────────────────────────────────────────────────
@@ -74,7 +87,6 @@ function GridRender:drawItemStatusIcons(item, drawX, drawY, playerObj)
 
     -- No hotbar
     if playerObj and not (playerObj.isEquipped and playerObj:isEquipped(item)) then
-        local hotbar = getPlayerHotbar(self.playerNum)
         if hotbar and hotbar:isInHotbar(item) then
             table.insert(active, self.icons.hotbar)
         end
@@ -83,16 +95,14 @@ function GridRender:drawItemStatusIcons(item, drawX, drawY, playerObj)
     -- Envenenado / água suja
     local isPoison = false
     if instanceof(item, "Food") then
-        local opt = getSandboxOptions():getOptionByName("EnableTaintedWaterText")
-        local taintEnabled = opt and opt:getValue()
+        local taintEnabled = isTaintedWaterTextEnabled()
         if (item.isTainted and item:isTainted() and taintEnabled) or (playerObj and playerObj:isKnownPoison(item)) then
             isPoison = true
         end
     end
     local fluid = item.getFluidContainer and item:getFluidContainer()
     if fluid and not fluid:isEmpty() then
-        local opt = getSandboxOptions():getOptionByName("EnableTaintedWaterText")
-        local taintEnabled = opt and opt:getValue()
+        local taintEnabled = isTaintedWaterTextEnabled()
         if fluid:contains(Fluid.Bleach) or (fluid:contains(Fluid.TaintedWater) and fluid:getPoisonRatio() > 0.1 and taintEnabled) then
             isPoison = true
         end
@@ -346,25 +356,45 @@ function GridRender:prerender()
     end
 end
 
+-- Cache da memoização do truncateText (ver função acima)
+local truncateCache = {}
+local truncateCacheCount = 0
+local TRUNCATE_CACHE_MAX = 256
+
 local function truncateText(text, maxWidth, font)
     if not text or text == "" then return text end
+    -- Memoização: o resultado só depende de (texto, largura, fonte). Títulos e
+    -- larguras mudam raramente, então evitamos o loop de MeasureStringX por
+    -- frame. Cache limitado para não crescer sem controle numa sessão longa.
+    local key = text .. "\0" .. tostring(maxWidth) .. "\0" .. tostring(font)
+    local cached = truncateCache[key]
+    if cached ~= nil then return cached end
+
     local textManager = getTextManager()
+    local result = text
     if textManager:MeasureStringX(font, text) <= maxWidth then
-        return text
+        result = text
+    else
+        local ellipsis = "..."
+        local ellipsisWidth = textManager:MeasureStringX(font, ellipsis)
+        if ellipsisWidth < maxWidth then
+            local truncated = text
+            while #truncated > 0 and textManager:MeasureStringX(font, truncated) + ellipsisWidth > maxWidth do
+                truncated = truncated:sub(1, #truncated - 1)
+            end
+            result = truncated .. ellipsis
+        else
+            result = ""
+        end
     end
 
-    local ellipsis = "..."
-    local ellipsisWidth = textManager:MeasureStringX(font, ellipsis)
-    if ellipsisWidth >= maxWidth then
-        return ""
+    truncateCache[key] = result
+    truncateCacheCount = truncateCacheCount + 1
+    if truncateCacheCount > TRUNCATE_CACHE_MAX then
+        truncateCache = {}
+        truncateCacheCount = 0
     end
-
-    local truncated = text
-    while #truncated > 0 and textManager:MeasureStringX(font, truncated) + ellipsisWidth > maxWidth do
-        truncated = truncated:sub(1, #truncated - 1)
-    end
-
-    return truncated .. ellipsis
+    return result
 end
 
 -- Movido pra fora do render(): assim não precisa existir duas vezes (uma pra medir,
@@ -499,6 +529,7 @@ function GridRender:render()
     end
 
     local playerObj = getSpecificPlayer(self.playerNum)
+    local hotbar = getPlayerHotbar(self.playerNum)
 
     for itemId, data in pairs(self.gridCore.items) do
         -- Se estivermos arrastando, não renderizamos o item localmente se for um dos arrastados.
@@ -561,7 +592,7 @@ function GridRender:render()
                 self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, 1, 1, 1, 1)
                 
                 -- ── Ícones de status (sistema flex) ─────────────────────────────────
-                self:drawItemStatusIcons(data.itemObj, drawX + 2, drawY + 2, playerObj)
+                self:drawItemStatusIcons(data.itemObj, drawX + 2, drawY + 2, playerObj, hotbar)
                 
                 -- Feedback visual de falta de espaço
                 if data.outOfSpaceTimer then
@@ -1338,31 +1369,42 @@ function GridRender:update()
     ISPanel.update(self)
     self:updateTooltip()
 
-    if self.gridCore and self.gridCore.ghostItems then
-        local playerObj = getSpecificPlayer(self.playerNum)
-        local q = ISTimedActionQueue.getTimedActionQueue(playerObj)
-        local activeTransfers = {}
-        
-        if q then
-            if q.action and q.action.item and type(q.action.item) == "userdata" and q.action.item.getID then
-                activeTransfers[q.action.item:getID()] = true
-            end
-            if q.queue then
-                for i = 1, #q.queue do
-                    local act = q.queue[i]
-                    if act.item and type(act.item) == "userdata" and act.item.getID then
-                        activeTransfers[act.item:getID()] = true
+    local ghosts = self.gridCore and self.gridCore.ghostItems
+    if ghosts then
+        -- Checa presença sem `next` (não exposto no ambiente Kahlua do jogo):
+        -- usa pairs e quebra no primeiro par pra não montar activeTransfers à toa.
+        local anyGhost = false
+        for _ in pairs(ghosts) do
+            anyGhost = true
+            break
+        end
+
+        if anyGhost then
+            local playerObj = getSpecificPlayer(self.playerNum)
+            local q = ISTimedActionQueue.getTimedActionQueue(playerObj)
+            local activeTransfers = {}
+
+            if q then
+                if q.action and q.action.item and type(q.action.item) == "userdata" and q.action.item.getID then
+                    activeTransfers[q.action.item:getID()] = true
+                end
+                if q.queue then
+                    for i = 1, #q.queue do
+                        local act = q.queue[i]
+                        if act.item and type(act.item) == "userdata" and act.item.getID then
+                            activeTransfers[act.item:getID()] = true
+                        end
                     end
                 end
             end
-        end
 
-        local currentTime = getTimeInMillis()
-        for gId, gData in pairs(self.gridCore.ghostItems) do
-            -- Apaga o fantasma se não houver NENHUMA action pendente pra ele na queue
-            -- e já tiver passado 500ms desde a criação (pra não matar no 1º frame antes da action nascer)
-            if not activeTransfers[gId] and (currentTime - gData.timeAdded > 500) then
-                self.gridCore:removeGhostItem(gId)
+            local currentTime = getTimeInMillis()
+            for gId, gData in pairs(ghosts) do
+                -- Apaga o fantasma se não houver NENHUMA action pendente pra ele na queue
+                -- e já tiver passado 500ms desde a criação (pra não matar no 1º frame antes da action nascer)
+                if not activeTransfers[gId] and (currentTime - gData.timeAdded > 500) then
+                    self.gridCore:removeGhostItem(gId)
+                end
             end
         end
     end
