@@ -19,12 +19,13 @@ local COLOR_FILL   = { a=0.2, r=0.3, g=0.3, b=0.3 }
 local COLOR_BORDER = { a=0.15, r=0.5, g=0.5, b=0.5 }
 
 -- ─── Constructor ──────────────────────────────────────────────────────────────
-function AvatarUseDropZone:new(x, y, w, h, playerNum)
+function AvatarUseDropZone:new(x, y, w, h, playerNum, avatarPanel)
     local o = ISPanel:new(x, y, w, h)
     setmetatable(o, self)
     self.__index = self
-    o.playerNum  = playerNum or 0
-    o.background = false
+    o.playerNum   = playerNum or 0
+    o.avatarPanel = avatarPanel
+    o.background  = false
     o.borderColor = { r=0, g=0, b=0, a=0 }
     return o
 end
@@ -196,6 +197,49 @@ local function getActionLabel(actionType, item)
     end
     local key = ACTION_FALLBACKS[actionType]
     return (key and getTextOrNull(key)) or actionType
+end
+
+-- ─── Avatar reage às ações do personagem (dar vida ao boneco) ─────────────────
+-- Toda timed action que o jogo anima define "PerformingAction" e
+-- "IsPerformingAnAction" no personagem (via setActionAnim do vanilla, no
+-- ISBaseTimedAction). Aqui ESPELHAMOS isso no avatar: trocamos para o AnimSet
+-- "player" e replicamos as variáveis, então o boneco executa a MESMA animação
+-- de interação do personagem (comer, beber, ler, pílulas, bandagem, artesanato,
+-- etc.) — e só DEPOIS que a ação começa de verdade (após soltar o item).
+-- Chamado todo frame pelo PaperDollWindow:update.
+
+function AvatarUseDropZone:updateAvatarAction(playerObj)
+    if not self.avatarPanel then return end
+    if not playerObj then return end
+
+    local performing = playerObj:getVariableBoolean("IsPerformingAnAction")
+    local actionAnim = playerObj:getVariableString("PerformingAction")
+
+    if performing and actionAnim and actionAnim ~= "" then
+        if not self.avatarInAction then
+            self.avatarInAction = true
+            -- Mesmo mecanismo do personagem real no mundo: idle -> actions.
+            self.avatarPanel:setAnimSetName("player")
+            -- Condições extras de segurança (TakePills pede sneaking=false e
+            -- nearWallCrouching=false; a transição idle->actions pede
+            -- isTurning=false). Com variável não definida o padrão já é false,
+            -- mas garantimos explicitamente para não cair no fallback.
+            self.avatarPanel:setVariable("sneaking", false)
+            self.avatarPanel:setVariable("nearWallCrouching", false)
+            self.avatarPanel:setVariable("isTurning", false)
+        end
+        self.avatarPanel:setVariable("IsPerformingAnAction", true)
+        self.avatarPanel:setVariable("PerformingAction", actionAnim)
+    elseif self.avatarInAction then
+        self.avatarInAction = false
+        self.avatarPanel:clearVariable("IsPerformingAnAction")
+        self.avatarPanel:clearVariable("PerformingAction")
+        self.avatarPanel:clearVariable("sneaking")
+        self.avatarPanel:clearVariable("nearWallCrouching")
+        self.avatarPanel:clearVariable("isTurning")
+        self.avatarPanel:setAnimSetName("player-avatar")
+        self.avatarPanel:setDoRandomExtAnimations(true)
+    end
 end
 
 -- ─── Render ───────────────────────────────────────────────────────────────────

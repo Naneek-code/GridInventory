@@ -51,11 +51,18 @@ function PaperDollWindow:initialise()
     
     local playerObj = getSpecificPlayer(self.playerNum)
     self.avatarPanel:setCharacter(playerObj)
-    self.avatarPanel:setState("idle")
+    -- Sem estado fixo (nil): o ActionGroup dirige as transições (idle, ext...).
+    -- Com "idle" fixo o AnimatedModel reaplica o estado todo frame (via
+    -- setCharacter) e cancela os fidgets (EventDoExt -> ext) na hora.
+    self.avatarPanel:setState(nil)
     self.avatarPanel:setDirection(IsoDirections.S)
     self.avatarPanel:setIsometric(false)
     self.avatarPanel:setZoom(0)
     self.avatarPanel:setYOffset(0) -- Mantém o personagem centralizado dentro da caixa pra não guilhotinar!
+    -- Vida: fidgets/idle aleatórios (olhar ao redor, coçar, etc) e animação
+    -- mesmo com o jogo pausado.
+    self.avatarPanel:setDoRandomExtAnimations(true)
+    self.avatarPanel.animateWhilePaused = true
 
     -- Criar os slots de equipamento!
     self.slots = {}
@@ -219,7 +226,7 @@ function PaperDollWindow:initialise()
     -- Encolhida um pouco para não sobrepor os slots laterais.
     local dropInset = 0
     self.avatarDropZone = AvatarUseDropZone:new(self.avatarX + dropInset, self.avatarY + dropInset,
-        self.avatarW - dropInset * 2, self.avatarH - dropInset * 2, self.playerNum)
+        self.avatarW - dropInset * 2, self.avatarH - dropInset * 2, self.playerNum, self.avatarPanel)
     self.avatarDropZone:initialise()
     self.scrollPanel:addChild(self.avatarDropZone)
 
@@ -263,6 +270,12 @@ function PaperDollWindow:update()
     local playerObj = getSpecificPlayer(self.playerNum)
     if self.avatarPanel and playerObj then
         self.avatarPanel:setCharacter(playerObj)
+    end
+
+    -- Avatar espelha a ação atual do personagem (comer/beber/ler/bandagem/etc),
+    -- só depois que a timed action começa de verdade.
+    if self.avatarDropZone and playerObj then
+        self.avatarDropZone:updateAvatarAction(playerObj)
     end
     
     if playerObj then
