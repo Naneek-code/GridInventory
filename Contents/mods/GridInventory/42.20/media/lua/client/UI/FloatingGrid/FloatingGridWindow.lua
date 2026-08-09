@@ -145,6 +145,7 @@ function FloatingGridWindow:initialise()
     self.scrollY = 0
     self.scrollDrag = nil
     self.hoverRow = nil
+    self.toolRender = nil
     self.lastClickId = nil
     self.lastClickTime = nil
     self.lastSelectedIndex = nil
@@ -243,6 +244,7 @@ function FloatingGridWindow:openBag(bagItem)
 end
 
 function FloatingGridWindow:close()
+    self:destroyStackTooltip()
     if self.gridUi then
         self:removeChild(self.gridUi)
         self.gridUi:destroy()
@@ -311,6 +313,9 @@ end
 function FloatingGridWindow:update()
     ISPanel.update(self)
 
+    -- Tooltip do item sob o mouse no stack picker (todo frame, antes do throttle)
+    self:updateStackTooltip()
+
     local now = getTimestampMs()
     if now - self.lastBagHashCheck < 300 then return end
     self.lastBagHashCheck = now
@@ -351,6 +356,64 @@ function FloatingGridWindow:update()
         self.lastBagHash = hash
         local gc = GridContainer.getOrCreate(inv, self.playerNum)
         gc:refresh()
+    end
+end
+
+--- Tooltip do item sob o mouse no stack picker (mesmo padrão do GridRender:
+--- ISToolTipInv com o item, seguindo o cursor, limitado às bordas da tela).
+function FloatingGridWindow:updateStackTooltip()
+    if not self.isStackPicker or not self.stackRows then
+        self:destroyStackTooltip()
+        return
+    end
+
+    local hoveredItem = nil
+    if self:isMouseOver() and not ISMouseDrag.dragging and not GridInventory_GlobalDrag then
+        local my = self:getMouseY()
+        if my >= self.titleH and my <= self.titleH + self.listH then
+            local idx = math.floor((my - self.titleH - 2 + (self.scrollY or 0)) / ROW_H) + 1
+            if idx >= 1 and idx <= #self.stackRows then
+                hoveredItem = self.stackRows[idx].item
+            end
+        end
+    end
+
+    if hoveredItem then
+        if not self.toolRender then
+            self.toolRender = ISToolTipInv:new(hoveredItem)
+            self.toolRender:initialise()
+            self.toolRender:addToUIManager()
+            self.toolRender:setOwner(self)
+            self.toolRender:setCharacter(getSpecificPlayer(self.playerNum))
+        end
+        self.toolRender:setItem(hoveredItem)
+        self.toolRender:setVisible(true)
+        self.toolRender:bringToTop()
+
+        local gmx = getMouseX()
+        local gmy = getMouseY()
+        local tx = gmx + 15
+        local ty = gmy + 15
+
+        if self.toolRender.width and (tx + self.toolRender.width > getCore():getScreenWidth()) then
+            tx = gmx - self.toolRender.width - 15
+        end
+        if self.toolRender.height and (ty + self.toolRender.height > getCore():getScreenHeight()) then
+            ty = gmy - self.toolRender.height - 15
+        end
+
+        self.toolRender:setX(tx)
+        self.toolRender:setY(ty)
+    else
+        self:destroyStackTooltip()
+    end
+end
+
+function FloatingGridWindow:destroyStackTooltip()
+    if self.toolRender then
+        self.toolRender:removeFromUIManager()
+        self.toolRender:setVisible(false)
+        self.toolRender = nil
     end
 end
 
@@ -568,11 +631,10 @@ function FloatingGridWindow:renderStackList()
             elseif i % 2 == 0 then
                 self:drawRect(pad, ry, rowW, ROW_H - 2, 0.15, 0.2, 0.2, 0.2)
             end
-            -- Ícone
-            local tex = row.item.getTex and row.item:getTex() or (row.item.getTexture and row.item:getTexture())
-            if tex then
-                self:drawTextureScaledAspect(tex, pad + 2, ry + 3, 24, 24, 1, 1, 1, 1)
-            end
+            -- Ícone — usa o MESMO renderer do grid principal (color mask, fluid
+            -- mask e tint são aplicados). drawTextureScaledAspect só desenharia
+            -- a textura base, sem líquido/cor.
+            GridRender.drawItemIconRotated(self, row.item, pad + 2, ry + 3, 24, 24, false, 1, 1, 1, 1)
             -- Nome
             local name = row.item:getName() or row.item:getDisplayName() or ""
             local tx = pad + 30

@@ -116,6 +116,9 @@ GridContainer.STACK_LIMIT_DEFAULT = 1000
 --- Tenta derivar maxStack de TODOS os recipes de categoria Packing: o output com
 --- count > 1 (ex.: 100 pregos, 20 munições) é o limite da pilha daquele item.
 --- Best-effort (pcall): se a API de craft mudar, cai pro fallback curado.
+--- USO SÓ MÉTODOS BARATOS (getIntAmount + getScriptObjectFullType) — NUNCA
+--- getPossibleResultItems(), que instancia itens Java e trava o primeiro
+--- refresh/validação no MP (causava "sem rerender" ao pegar itens).
 function GridContainer.buildRecipeMaxStack()
     local map = {}
     for k, v in pairs(GridContainer.MAX_STACK_FALLBACK) do
@@ -132,16 +135,11 @@ function GridContainer.buildRecipeMaxStack()
                 local outputs = recipe:getOutputs()
                 for j = 0, outputs:size() - 1 do
                     local out = outputs:get(j)
-                    if out and out.getIntAmount and out.getPossibleResultItems then
+                    if out and out.getIntAmount and out.getScriptObjectFullType then
                         local amount = out:getIntAmount()
-                        if amount and amount > 1 then
-                            local items = out:getPossibleResultItems()
-                            for k = 0, items:size() - 1 do
-                                local it = items:get(k)
-                                if it and it.getFullType then
-                                    map[it:getFullType()] = amount
-                                end
-                            end
+                        local fullType = out:getScriptObjectFullType()
+                        if amount and amount > 1 and fullType then
+                            map[fullType] = amount
                         end
                     end
                 end
@@ -172,6 +170,15 @@ function GridContainer.getMaxStackUnits(item)
     return GridContainer.recipeMaxStack[fullType]
         or GridContainer.MAX_STACK_FALLBACK[fullType]
         or GridContainer.STACK_LIMIT_DEFAULT
+end
+
+-- Pré-calcula o mapa de maxStack no boot (depois que os scripts de item/recipe
+-- carregam) — uma vez, barato — pra o PRIMEIRO refresh/validação de itens no
+-- MP não ficar lento nem travar a interface ao pegar itens.
+if Events and Events.OnGameBoot then
+    Events.OnGameBoot.Add(function()
+        GridContainer.recipeMaxStack = GridContainer.buildRecipeMaxStack()
+    end)
 end
 
 --- CompatKey + stackInfo ({limit, units}) de um item num único acesso.
@@ -310,10 +317,18 @@ end
 function GridContainer:refresh()
     local hotbar = getPlayerHotbar(self.playerNum)
     if hotbar and hotbar.isRefreshingHotbar then
-        -- O Zomboid está reconstruindo o Hotbar (ex: vestiu uma roupa nova).
-        -- Durante este processo, itens anexados perdem temporariamente seu status.
-        -- Abortamos o refresh do grid para não capturar esse estado transitório.
-        return
+        -- Segurança: o flag pode ficar preso em true se o refresh do hotbar
+        -- quebrar no login do MP. Bloqueia o refresh por no máximo 2s; depois
+        -- segue mesmo assim (senão NENHUM item é posicionado no grid).
+        local now = getTimestampMs()
+        if not hotbar._gridRefreshBlockedAt then
+            hotbar._gridRefreshBlockedAt = now
+        end
+        if now - hotbar._gridRefreshBlockedAt < 2000 then
+            return
+        end
+    elseif hotbar then
+        hotbar._gridRefreshBlockedAt = nil
     end
 
     -- Salva quem já estava no grid para dar prioridade e evitar que itens novos roubem a vaga
@@ -412,10 +427,10 @@ function GridContainer:refresh()
                     end
 
                     if not freeX then
-                        freeX, freeY = grid:findFreeSpace(item:getID(), w, h, compatKey, stackInfo)
+                        freeX, freeY = grid:findFreeSpace(item:getID(), w, h, compatKey, stackInfo, false)
                         didRotate = false
                         if not freeX then
-                            freeX, freeY = grid:findFreeSpace(item:getID(), h, w, compatKey, stackInfo)
+                            freeX, freeY = grid:findFreeSpace(item:getID(), h, w, compatKey, stackInfo, true)
                             if freeX and freeY then
                                 didRotate = true
                             end

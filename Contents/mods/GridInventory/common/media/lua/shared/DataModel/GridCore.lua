@@ -352,11 +352,13 @@ end
 --- Com compatKey, um item empilhável também "cabe" numa célula ocupada por
 --- pilha compatível (mesmo retângulo) — o scan usa canPlaceItem, que já
 --- contempla stacking e o limite de unidades.
+---@param isRotated boolean? Orientação do candidato (importante pra achar pilha
+---   rotacionada "em pé" — ex.: 1x2 precisa casar com pilha 1x2 rotacionada).
 ---@return number, number (x, y) or nil, nil if no space
-function GridCoreInstance:findFreeSpace(itemId, w, h, compatKey, stackInfo)
+function GridCoreInstance:findFreeSpace(itemId, w, h, compatKey, stackInfo, isRotated)
     for y = 1, self.height do
         for x = 1, self.width do
-            if self:canPlaceItem(itemId, x, y, w, h, nil, compatKey, false, stackInfo) then
+            if self:canPlaceItem(itemId, x, y, w, h, nil, compatKey, isRotated or false, stackInfo) then
                 return x, y
             end
         end

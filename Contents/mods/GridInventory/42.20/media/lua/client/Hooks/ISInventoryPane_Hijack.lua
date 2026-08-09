@@ -20,9 +20,19 @@ Events.OnGameBoot.Add(function()
     -- 0. Intercepta ISHotbar:refresh()
     local og_hotbarRefresh = ISHotbar.refresh
     function ISHotbar:refresh(...)
+        local args = { n = select("#", ...), ... }
         self.isRefreshingHotbar = true
-        og_hotbarRefresh(self, ...)
+        -- pcall: se o refresh do hotbar quebrar (ex.: MP no login, item em
+        -- trânsito), o flag NÃO fica preso em true — senão o GridContainer:
+        -- refresh retorna cedo pra sempre e NENHUM item é posicionado no grid
+        -- (sintoma: itens no inventário mas fora de qualquer grid).
+        local ok, err = pcall(function()
+            og_hotbarRefresh(self, unpack(args, 1, args.n))
+        end)
         self.isRefreshingHotbar = false
+        if not ok then
+            print("[GridInventory] ERRO no hotbar refresh: " .. tostring(err))
+        end
         
         -- Força um refresh limpo agora que o Hotbar terminou de re-anexar os itens
         local pInv = getPlayerInventory(self.playerNum)
@@ -74,9 +84,29 @@ Events.OnGameBoot.Add(function()
         for _, c in ipairs(containersToRender) do
             currentBackpackHash = currentBackpackHash .. tostring(c.inv) .. "|"
             local gc = GridContainer.getOrCreate(c.inv, self.player)
-            gc:refresh()
+            local okRefresh, refreshErr = pcall(function() gc:refresh() end)
+            if not okRefresh then
+                print("[GridInventory] ERRO no refreshContainer: " .. tostring(refreshErr))
+            end
             local newUnpos = gc.unpositioned and #gc.unpositioned or 0
             currentBackpackHash = currentBackpackHash .. "UNPOS:" .. newUnpos .. "|"
+        end
+
+        -- DETECÇÃO DE STALE: se o GridDevTool limpar as instâncias (GridContainer.
+        -- instances = {} — sync de overrides no join, save do dev), os GridRenders
+        -- antigos ficam apontando pra instâncias ÓRFÃS e nunca mais atualizam (o
+        -- refresh atualiza a instância NOVA, mas o render mostra a antiga). Se o
+        -- gridCore de um GridRender != instância atual do container → força rebuild.
+        if self.gridContainerUis and #self.gridContainerUis > 0 then
+            for _, g in ipairs(self.gridContainerUis) do
+                if g.inventoryContainer and g.gridCore then
+                    local gc = GridContainer.instances[g.inventoryContainer]
+                    if gc and gc.grids and gc.grids[1] and g.gridCore ~= gc.grids[1] then
+                        self.lastBackpackHash = nil
+                        break
+                    end
+                end
+            end
         end
         
         -- Se a estrutura está igualzinha, a matemática do GridContainer já foi atualizada no loop acima.
@@ -228,13 +258,26 @@ Events.OnGameBoot.Add(function()
                             
                             local oldUnpositioned = gridContainer.unpositioned and #gridContainer.unpositioned or 0
                             
-                            gridContainer:refresh()
+                            local okRefresh, refreshErr = pcall(function() gridContainer:refresh() end)
+                            if not okRefresh then
+                                print("[GridInventory] ERRO no refresh do container: " .. tostring(refreshErr))
+                            end
                             
                             local newUnpositioned = gridContainer.unpositioned and #gridContainer.unpositioned or 0
                             
                             -- Se um overflow grid precisar nascer ou morrer, precisamos de um hard refresh!
                             if (oldUnpositioned == 0 and newUnpositioned > 0) or (oldUnpositioned > 0 and newUnpositioned == 0) then
                                 needsHardRefresh = true
+                            end
+                            
+                            -- STALE: o GridRender aponta pra instância órfã (GridDevTool
+                            -- limpou GridContainer.instances) → força rebuild. Sem isso o
+                            -- grid NUNCA reflete mudanças (loot congela ao pegar item).
+                            if not needsHardRefresh and gridUi.gridCore then
+                                local gc = GridContainer.instances[inv]
+                                if gc and gc.grids and gc.grids[1] and gridUi.gridCore ~= gc.grids[1] then
+                                    needsHardRefresh = true
+                                end
                             end
                         end
                     end
@@ -468,3 +511,21 @@ function ISInventoryPage.onInventoryUpdate(inv, item)
         end
     end
 end
+
+-- GATILHO REAL de container update: o evento OnContainerUpdate é o que o motor
+-- dispara quando QUALQUER container muda (pegar item, transferir, etc.). O
+-- vanilla só marca renderDirty; nós marcamos o refresh do grid pra reconstruir
+-- os GridRenders. O polling de 300ms continua como rede de segurança (o mod
+-- constatou que o OnContainerUpdate às vezes falha em disparar).
+Events.OnContainerUpdate.Add(function(object)
+    for p = 0, getNumActivePlayers() - 1 do
+        local pInv = getPlayerInventory(p)
+        if pInv and pInv.inventoryPane then
+            pInv.inventoryPane.gridRefreshDirty = true
+        end
+        local pLoot = getPlayerLoot(p)
+        if pLoot and pLoot.inventoryPane then
+            pLoot.inventoryPane.gridRefreshDirty = true
+        end
+    end
+end)

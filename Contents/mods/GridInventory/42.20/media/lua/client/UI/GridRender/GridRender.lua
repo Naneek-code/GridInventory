@@ -29,6 +29,24 @@ local function isTaintedWaterTextEnabled()
     return taintEnabledCache
 end
 
+--- True se o item está DENTRO da árvore do container (ele próprio ou aninhado
+--- numa bolsa que está nele). Usado pra não somar o peso 2x: durante o drag o
+--- item ainda está no container de origem; se esse container está dentro do
+--- ALVO, o getCapacityWeight() já conta o peso do item.
+local function isInContainerTree(item, rootContainer)
+    if not item or not rootContainer then return false end
+    local c = item.getContainer and item:getContainer()
+    local guard = 0
+    while c and guard < 10 do
+        guard = guard + 1
+        if c == rootContainer then return true end
+        local ci = c.getContainingItem and c:getContainingItem()
+        if not ci then break end
+        c = ci.getContainer and ci:getContainer()
+    end
+    return false
+end
+
 function GridRender:new(x, y, gridCore, playerNum, inventoryContainer, gridIndex, containerItem, fallbackIcon, noHeader)
     local headerH = 28
     if noHeader then headerH = 0 end
@@ -737,7 +755,44 @@ function GridRender:render()
         local firstItem = GridInventory_GlobalDrag.itemsData[1].itemObj
         if firstItem and self.inventoryContainer then
             local playerObj = getSpecificPlayer(self.playerNum)
-            
+
+            -- Capacidade de peso com matemática PRÓPRIA e precisa:
+            --  - limite = getMaxWeight() (o MESMO do header), não getCapacity();
+            --  - itens arrastados que JÁ estão na árvore do container alvo (ex.:
+            --    tirar de dentro de uma bolsa pra raiz) já estão somados no
+            --    getCapacityWeight() → não podem ser somados de novo, senão o
+            --    "Sobrepeso" aparece ANTES de bater o peso máximo.
+            local capacity = self.inventoryContainer.getMaxWeight and self.inventoryContainer:getMaxWeight() or self.inventoryContainer:getCapacity()
+            local currentWeight = self.inventoryContainer.getCapacityWeight and self.inventoryContainer:getCapacityWeight() or self.inventoryContainer:getContentsWeight()
+            local addWeight = 0
+            for _, d in ipairs(GridInventory_GlobalDrag.itemsData) do
+                local obj = d and d.itemObj
+                if obj and obj.getUnequippedWeight and not isInContainerTree(obj, self.inventoryContainer) then
+                    addWeight = addWeight + (tonumber(obj:getUnequippedWeight()) or 0)
+                end
+            end
+            local afterWeight = (currentWeight or 0) + addWeight
+            local weightOver = capacity and afterWeight > capacity
+
+            -- Quantos itens arrastados cabem por PESO (pra mensagem "parcial":
+            -- algum entra, mas não todos). Só conta os que NÃO já estão na árvore.
+            local totalToAdd = 0
+            local fitsToAdd = 0
+            if capacity and (currentWeight or 0) <= capacity then
+                local room = capacity - (currentWeight or 0)
+                for _, d in ipairs(GridInventory_GlobalDrag.itemsData) do
+                    local obj = d and d.itemObj
+                    if obj and obj.getUnequippedWeight and not isInContainerTree(obj, self.inventoryContainer) then
+                        totalToAdd = totalToAdd + 1
+                        local w = tonumber(obj:getUnequippedWeight()) or 0
+                        if room >= w then
+                            fitsToAdd = fitsToAdd + 1
+                            room = room - w
+                        end
+                    end
+                end
+            end
+
             -- Favorito: protege item de sair do inventário do jogador
             local isInPlayerInv = self.inventoryContainer:isInCharacterInventory(playerObj)
             if firstItem.isFavorite and firstItem:isFavorite() and not isInPlayerInv then
@@ -754,25 +809,36 @@ function GridRender:render()
                 self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
                 self:drawTextCentre(getText("IGUI_CantStore") or "Cannot Store", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
 
-            -- Verifica capacidade física (Engine Java) -- pode ser peso OU alguma outra
-            -- restrição interna vanilla que o mod não consegue inspecionar diretamente.
-            elseif not self.inventoryContainer:hasRoomFor(playerObj, firstItem) then
-            self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
-            
-            -- Calcula a matemática de peso manualmente pra saber se "Overloaded" é
-            -- realmente verdade, ou se hasRoomFor rejeitou por outro motivo vanilla
-            -- que a gente não consegue nomear (ex: alguma regra interna do tipo de
-            -- container). Evita mostrar uma causa errada pro jogador.
-            local capacity = self.inventoryContainer:getCapacity()
-            local currentWeight = self.inventoryContainer:getContentsWeight()
-            local itemWeight = firstItem:getUnequippedWeight()
-            local weightWouldFit = capacity and ((currentWeight + itemWeight) <= capacity)
+            -- "Sobrepeso" SÓ quando o peso vai estourar de verdade. Se for
+            -- PARCIAL (algum item entra, mas não todos), mostra isso no texto
+            -- em vez de "Sobrecarregado" (que soa como se NADA fosse entrar).
+            elseif weightOver then
+                self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
 
-            if weightWouldFit then
+                -- Arrastar UMA pilha inteira = tudo ou nada → mantém o "Overloaded".
+                local singlePile = #GridInventory_GlobalDrag.itemsData > 1
+                if singlePile then
+                    local a = GridInventory_GlobalDrag.itemsData[1]
+                    for i = 2, #GridInventory_GlobalDrag.itemsData do
+                        local b = GridInventory_GlobalDrag.itemsData[i]
+                        if a.compatKey ~= b.compatKey or a.originalX ~= b.originalX or a.originalY ~= b.originalY then
+                            singlePile = false
+                            break
+                        end
+                    end
+                end
+
+                local msg = getText("IGUI_Overloaded") or "Overloaded"
+                if not singlePile and fitsToAdd > 0 and fitsToAdd < totalToAdd then
+                    msg = string.format(getText("IGUI_OverloadedPartial") or "Only %d of %d fit", fitsToAdd, totalToAdd)
+                end
+                self:drawTextCentre(msg, self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
+
+            -- Cabe no peso, mas o hasRoomFor vanilla ainda recusa (alguma regra
+            -- interna do tipo de container que a gente não nomeia).
+            elseif not self.inventoryContainer:hasRoomFor(playerObj, firstItem) then
+                self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
                 self:drawTextCentre(getText("IGUI_ContainerRestricted") or "Selective Container", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
-            else
-                self:drawTextCentre(getText("IGUI_Overloaded") or "Overloaded", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
-            end
 
             -- Verifica se há espaço matemático no Grid
             else
@@ -780,9 +846,13 @@ function GridRender:render()
                 local gridContainer = GridContainer.instances[self.inventoryContainer]
                 if gridContainer then
                     local w, h = ItemFootprint.getSize(firstItem)
+                    -- Empilháveis: passa compatKey/stackInfo pro findFreeSpace
+                    -- enxergar TAMBÉM pilha compatível existente (mesmo com o
+                    -- grid sem célula livre) — evita "Sem Espaço" falso em drop.
+                    local compatKey, stackInfo = GridContainer.getStackInfo(firstItem)
                     for _, grid in ipairs(gridContainer.grids) do
-                        local fx, fy = grid:findFreeSpace(firstItem:getID(), w, h)
-                        if not fx then fx, fy = grid:findFreeSpace(firstItem:getID(), h, w) end
+                        local fx, fy = grid:findFreeSpace(firstItem:getID(), w, h, compatKey, stackInfo, false)
+                        if not fx then fx, fy = grid:findFreeSpace(firstItem:getID(), h, w, compatKey, stackInfo, true) end
                         if fx and fy then
                             hasGridSpace = true
                             break
@@ -848,6 +918,9 @@ function GridRender:onMouseDown(x, y)
     local col, row = self:getGridCellAtMouse(x, y)
     local itemId = nil
     
+    -- Ctrl+drag/peel: flag do stack sob o clique (limpo a cada clique novo)
+    self.ctrlStackPeel = nil
+    
     if col and row then
         itemId = self.gridCore.cells[col][row]
     end
@@ -888,14 +961,14 @@ function GridRender:onMouseDown(x, y)
     end
 
     if itemId then
-        -- STACK PICKER: Ctrl+clique num item EMPILHADO abre o picker (lista os
-        -- itens da pilha pra escolher o de melhor condição). O duplo clique
-        -- mantém o comportamento normal (loot/equipar).
-        if isCtrlKeyDown() and self.gridCore:getStackSize(itemId) > 1 and GridInventory_openStackPicker then
+        -- Ctrl num item EMPILHADO: marca o "peel". Sem arrasto (mouse-up) abre
+        -- o STACK PICKER; com arrasto (Ctrl+drag) tira 1 item da pilha e inicia
+        -- o drag com ele (maneira rápida de pegar 1 da pilha sem abrir painel).
+        if isCtrlKeyDown() and self.gridCore:getStackSize(itemId) > 1 then
+            self.ctrlStackPeel = itemId
             self.lastManualClickTime = nil
             self.lastManualClickItemId = nil
-            GridInventory_openStackPicker(self.playerNum, self, itemId)
-            return
+            self.selectedItems = {}
         end
 
         if isShiftKeyDown() then
@@ -952,15 +1025,23 @@ function GridRender:onMouseMove(dx, dy)
             
             -- Expande PILHAS: se um líder de pilha está selecionado, todos os
             -- membros entram no drag (arrastar pilha = mover tudo junto).
+            -- Ctrl+drag (peel): só UM item da pilha entra no drag.
             local selectedIds = {}
-            for selectedId, _ in pairs(self.selectedItems) do
-                selectedIds[selectedId] = true
-                if self.gridCore:isStackLeader(selectedId) then
-                    for _, mId in ipairs(self.gridCore:getStackMembers(selectedId)) do
-                        selectedIds[mId] = true
+            if self.ctrlStackPeel then
+                local members = self.gridCore:getStackMembers(self.ctrlStackPeel)
+                local peelId = members[2] or members[1]
+                selectedIds[peelId] = true
+            else
+                for selectedId, _ in pairs(self.selectedItems) do
+                    selectedIds[selectedId] = true
+                    if self.gridCore:isStackLeader(selectedId) then
+                        for _, mId in ipairs(self.gridCore:getStackMembers(selectedId)) do
+                            selectedIds[mId] = true
+                        end
                     end
                 end
             end
+            self.ctrlStackPeel = nil -- o peel foi consumido pelo drag
             
             for selectedId, _ in pairs(selectedIds) do
                 local itemData = self.gridCore.items[selectedId]
@@ -1006,10 +1087,17 @@ function GridRender:onMouseMove(dx, dy)
             end
 
             if #dragList > 0 then
+                -- Anchor do ghost: normalmente é o item clicado. No Ctrl+drag
+                -- (peel) o clicado é o LÍDER da pilha, mas o dragList só tem o
+                -- MEMBRO destacado → usa o primeiro do dragList pra ghost renderizar.
+                local anchorId = self.clickedItemId
+                if not dragMap[anchorId] then
+                    anchorId = dragList[1].id
+                end
                 GridInventory_GlobalDrag = {
                     itemsData = dragList,
                     itemsMap = dragMap,
-                    anchorId = self.clickedItemId,
+                    anchorId = anchorId,
                     sourceGrid = self
                 }
                 
@@ -1092,61 +1180,65 @@ function GridRender:doDoubleClick(x, y)
         if isForceDropHeavyItem(item) then
             ISInventoryPaneContextMenu.equipHeavyItem(playerObj, item)
         else
-            -- 1. Verifica se cabe no targetInv!
-            local ItemFootprint = require("Algorithm/ItemFootprint")
-            local GridContainer = require("DataModel/GridContainer")
-            local w, h = ItemFootprint.getSize(item)
-            local targetGrid = GridContainer.instances[targetInv]
-            
-            local canFitInTarget = false
-            -- Antes de olhar a geometria, checa a capacidade de peso!
-            if targetInv:hasRoomFor(playerObj, item) and targetGrid and targetGrid.grids and targetGrid.grids[1] then
-                -- Checa se cabe na posição original
-                local fx, fy = targetGrid.grids[1]:findFreeSpace(item:getID(), w, h)
-                -- Se não couber, tenta rotacionado
-                if not fx then
-                    fx, fy = targetGrid.grids[1]:findFreeSpace(item:getID(), h, w)
-                end
-                
-                if fx and fy then
-                    canFitInTarget = true
-                end
-            end
-            
-            local isFromEquippedBag = self.inventoryContainer:isInCharacterInventory(playerObj)
-            
-            local canFitAnywhere = canFitInTarget
-            -- Se não couber no alvo principal, e for do Loot, verificamos se cabe em QUALQUER outra mochila ou bolsos
-            if not canFitInTarget and not isFromEquippedBag then
-                for i = 0, playerObj:getWornItems():size() - 1 do
-                    local wornItem = playerObj:getWornItems():get(i):getItem()
-                    if wornItem and wornItem:IsInventoryContainer() then
-                        local bagInv = wornItem:getInventory()
-                        local bagGrid = GridContainer.instances[bagInv]
-                        if bagInv:hasRoomFor(playerObj, item) and bagGrid and bagGrid.grids and bagGrid.grids[1] then
-                            local bfx, bfy = bagGrid.grids[1]:findFreeSpace(item:getID(), w, h)
-                            if not bfx then bfx, bfy = bagGrid.grids[1]:findFreeSpace(item:getID(), h, w) end
-                            if bfx and bfy then
-                                canFitAnywhere = true
-                                break
-                            end
-                        end
-                    end
-                end
-                
-                if not canFitAnywhere then
-                    local pInv = playerObj:getInventory()
-                    local pGrid = GridContainer.instances[pInv]
-                    if pInv:hasRoomFor(playerObj, item) and pGrid and pGrid.grids and pGrid.grids[1] then
-                        local pfx, pfy = pGrid.grids[1]:findFreeSpace(item:getID(), w, h)
-                        if not pfx then pfx, pfy = pGrid.grids[1]:findFreeSpace(item:getID(), h, w) end
-                        if pfx and pfy then
-                            canFitAnywhere = true
-                        end
-                    end
-                end
-            end
-            
+             -- 1. Verifica se cabe no targetInv!
+             local ItemFootprint = require("Algorithm/ItemFootprint")
+             local GridContainer = require("DataModel/GridContainer")
+             local w, h = ItemFootprint.getSize(item)
+             -- Empilháveis: passamos compatKey/stackInfo pro findFreeSpace achar
+             -- TANTO uma pilha compatível existente (empilhar) QUANTO uma célula
+             -- livre, nas DUAS orientações (horizontal e rotacionada "em pé").
+             local compatKey, stackInfo = GridContainer.getStackInfo(item)
+             local targetGrid = GridContainer.instances[targetInv]
+             
+             local canFitInTarget = false
+             -- Antes de olhar a geometria, checa a capacidade de peso!
+             if targetInv:hasRoomFor(playerObj, item) and targetGrid and targetGrid.grids and targetGrid.grids[1] then
+                 -- Checa se cabe na posição original
+                 local fx, fy = targetGrid.grids[1]:findFreeSpace(item:getID(), w, h, compatKey, stackInfo, false)
+                 -- Se não couber, tenta rotacionado
+                 if not fx then
+                     fx, fy = targetGrid.grids[1]:findFreeSpace(item:getID(), h, w, compatKey, stackInfo, true)
+                 end
+                 
+                 if fx and fy then
+                     canFitInTarget = true
+                 end
+             end
+             
+             local isFromEquippedBag = self.inventoryContainer:isInCharacterInventory(playerObj)
+             
+             local canFitAnywhere = canFitInTarget
+             -- Se não couber no alvo principal, e for do Loot, verificamos se cabe em QUALQUER outra mochila ou bolsos
+             if not canFitInTarget and not isFromEquippedBag then
+                 for i = 0, playerObj:getWornItems():size() - 1 do
+                     local wornItem = playerObj:getWornItems():get(i):getItem()
+                     if wornItem and wornItem:IsInventoryContainer() then
+                         local bagInv = wornItem:getInventory()
+                         local bagGrid = GridContainer.instances[bagInv]
+                         if bagInv:hasRoomFor(playerObj, item) and bagGrid and bagGrid.grids and bagGrid.grids[1] then
+                             local bfx, bfy = bagGrid.grids[1]:findFreeSpace(item:getID(), w, h, compatKey, stackInfo, false)
+                             if not bfx then bfx, bfy = bagGrid.grids[1]:findFreeSpace(item:getID(), h, w, compatKey, stackInfo, true) end
+                             if bfx and bfy then
+                                 canFitAnywhere = true
+                                 break
+                             end
+                         end
+                     end
+                 end
+                 
+                 if not canFitAnywhere then
+                     local pInv = playerObj:getInventory()
+                     local pGrid = GridContainer.instances[pInv]
+                     if pInv:hasRoomFor(playerObj, item) and pGrid and pGrid.grids and pGrid.grids[1] then
+                         local pfx, pfy = pGrid.grids[1]:findFreeSpace(item:getID(), w, h, compatKey, stackInfo, false)
+                         if not pfx then pfx, pfy = pGrid.grids[1]:findFreeSpace(item:getID(), h, w, compatKey, stackInfo, true) end
+                         if pfx and pfy then
+                             canFitAnywhere = true
+                         end
+                     end
+                 end
+             end
+             
             -- Se couber no target (ou se for do Loot e couber em qualquer lugar), transfere normal
             if canFitInTarget or (not isFromEquippedBag and canFitAnywhere) then
                 if luautils.walkToContainer(self.inventoryContainer, self.playerNum) then
@@ -1189,6 +1281,18 @@ function GridRender:onMouseDoubleClick(x, y)
 end
 
 function GridRender:onMouseUp(x, y)
+    -- Ctrl+CLIQUE (sem arrasto) num stack: abre o STACK PICKER. Se foi um
+    -- Ctrl+DRAG, o flag já foi consumido no onMouseMove (peel de 1 item).
+    if self.ctrlStackPeel and not GridInventory_GlobalDrag
+        and not (ISMouseDrag.dragging and #ISMouseDrag.dragging > 0) then
+        local peelId = self.ctrlStackPeel
+        self.ctrlStackPeel = nil
+        if GridInventory_openStackPicker then
+            GridInventory_openStackPicker(self.playerNum, self, peelId)
+        end
+        return
+    end
+    self.ctrlStackPeel = nil
     self.clickedItemId = nil
     if self.draggingMarquis then
         self.draggingMarquis = false
@@ -1347,7 +1451,7 @@ function GridRender:onMouseUp(x, y)
                         local compatKey, stackInfo = GridContainer.getStackInfo(itemObj)
                         
                         if not self.gridCore:canPlaceItem(itemObj:getID(), targetX, targetY, effectiveW, effectiveH, nil, compatKey, rotated, stackInfo) then
-                            local fx, fy = self.gridCore:findFreeSpace(itemObj:getID(), effectiveW, effectiveH, compatKey, stackInfo)
+                            local fx, fy = self.gridCore:findFreeSpace(itemObj:getID(), effectiveW, effectiveH, compatKey, stackInfo, rotated)
                             if fx and fy then
                                 targetX = fx
                                 targetY = fy
@@ -1409,9 +1513,8 @@ function GridRender:onMouseUp(x, y)
 end
 
 function GridRender:onMouseUpOutside(x, y)
-    -- Não limpe o drag aqui! Zomboid dispara isso MUITO CEDO, 
-    -- antes que os outros painéis (como o Loot) tenham a chance de processar o onMouseUp!
-    -- A limpeza será feita no GridRender:update()
+    -- Ctrl+clique solto FORA do grid: não abre o picker. Só limpa o flag.
+    self.ctrlStackPeel = nil
 end
 
 --- Move UM membro da pilha para uma célula própria (livre) no MESMO grid.

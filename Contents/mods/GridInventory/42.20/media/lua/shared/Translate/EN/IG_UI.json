@@ -18,6 +18,7 @@
     "IGUI_CannotStoreItself": "Cannot store in itself",
     "IGUI_InventoryFull": "Out of Space",
     "IGUI_Overloaded": "Overloaded",
+    "IGUI_OverloadedPartial": "Only %d of %d fit",
     "IGUI_NoGridSpace": "No Space",
     "IGUI_ContainerRestricted": "Selective Container",
     "IGUI_FavoriteProtected": "Item is Favorited",

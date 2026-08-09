@@ -208,8 +208,10 @@ local function OnServerCommand(module, command, args)
     if not player then return end
 
     if command == GridProtocol.COMMANDS.SYNC_ITEM then
-        -- Eco do nosso próprio envio: já aplicamos localmente (posição otimista).
-        if args.sender == player:getUsername() then return end
+        -- NÃO ignora o eco do próprio envio: o modData local pode ser
+        -- sobrescrito pelo sync do container (com a posição ainda vazia)
+        -- enquanto o REQUEST_MOVE está pendente no servidor. Aplicar o eco
+        -- garante que o render final sempre casa com a posição autoritativa.
         if args.clear then
             GridClientNetwork.clearItemPosition(args.itemId)
         else
