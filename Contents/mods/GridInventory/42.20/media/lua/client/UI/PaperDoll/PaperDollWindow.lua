@@ -103,15 +103,15 @@ function PaperDollWindow:initialise()
     end
 
     local bagY = startY + 5*(slotH + padding)
-    local bagX = leftX + 10 -- Entrando um pouco no avatar
-    local bagSlot = PaperDollSlot:new(bagX, bagY, 64, 64, self.playerNum, {"Back", "LowerBack", "TorsoExtra", "Satchel"}, getText("IGUI_PaperDoll_Back"))
+    local bagX = leftX -- Mesma coluna dos slots da esquerda
+    local bagSlot = PaperDollSlot:new(bagX, bagY, slotW, slotH, self.playerNum, {"Back", "LowerBack", "TorsoExtra", "Satchel"}, getText("IGUI_PaperDoll_Back"))
     bagSlot:initialise()
     self.scrollPanel:addChild(bagSlot)
     table.insert(self.slots, bagSlot)
 
     -- Custom Slot: Overflow (Espelhado à Bag, lado direito)
-    local overflowX = rightX - 24
-    self.overflowSlot = PaperDollSlot:new(overflowX, bagY, 64, 64, self.playerNum, {"OVERFLOW"}, "Extra")
+    local overflowX = rightX -- Mesma coluna dos slots da direita
+    self.overflowSlot = PaperDollSlot:new(overflowX, bagY, slotW, slotH, self.playerNum, {"OVERFLOW"}, "Extra")
     self.overflowSlot:initialise()
     self.scrollPanel:addChild(self.overflowSlot)
 
@@ -123,10 +123,10 @@ function PaperDollWindow:initialise()
         local totalW = (btnW * 5) + (spacing * 4)
         
         -- Centralizar entre a Bag e o Overflow
-        local areaX = bagX + 64
+        local areaX = bagX + slotW
         local areaW = overflowX - areaX
         local startX = areaX + (areaW / 2) - (totalW / 2)
-        local btnY = bagY + (64 / 2) - (btnH / 2)
+        local btnY = bagY + (slotH / 2) - (btnH / 2)
         
         local btnData = {
             {name = "Pause", speed = 0, imgOff = "media/ui/speedControls/Pause_Off.png", imgOn = "media/ui/speedControls/Pause_On.png"},
@@ -136,6 +136,7 @@ function PaperDollWindow:initialise()
             {name = "Wait", speed = 4, imgOff = "media/ui/speedControls/Wait_Off.png", imgOn = "media/ui/speedControls/Wait_On.png"}
         }
         
+        self.timeButtons = {}
         for i, b in ipairs(btnData) do
             local btn = ISButton:new(startX + (i-1)*(btnW + spacing), btnY, btnW, btnH, "", self, function(target, button)
                 if UIManager.getSpeedControls() then
@@ -170,6 +171,7 @@ function PaperDollWindow:initialise()
             end
             
             self.scrollPanel:addChild(btn)
+            table.insert(self.timeButtons, btn)
         end
     end
 
@@ -177,12 +179,12 @@ function PaperDollWindow:initialise()
     local wepY = bagY + 64 + padding
     local wepW, wepH = 142, 50
     local centerX = self.width / 2
-    
+
     local primarySlot = PaperDollSlot:new(centerX - wepW - 5, wepY, wepW, wepH, self.playerNum, {"PRIMARY"}, getText("IGUI_PaperDoll_Primary"))
     primarySlot:initialise()
     self.scrollPanel:addChild(primarySlot)
     table.insert(self.slots, primarySlot)
-    
+
     local secondarySlot = PaperDollSlot:new(centerX + 5, wepY, wepW, wepH, self.playerNum, {"SECONDARY"}, getText("IGUI_PaperDoll_Secondary"))
     secondarySlot:initialise()
     self.scrollPanel:addChild(secondarySlot)
@@ -215,11 +217,19 @@ function PaperDollWindow:initialise()
 
     -- Zona de drop sobre o render 3D: arraste um item aqui para usar/consumir/beber sem context menu
     -- Encolhida um pouco para não sobrepor os slots laterais.
-    local dropInset = 25
+    local dropInset = 0
     self.avatarDropZone = AvatarUseDropZone:new(self.avatarX + dropInset, self.avatarY + dropInset,
         self.avatarW - dropInset * 2, self.avatarH - dropInset * 2, self.playerNum)
     self.avatarDropZone:initialise()
     self.scrollPanel:addChild(self.avatarDropZone)
+
+    -- O drop zone cobre o avatar e ficaria por cima dos botões de tempo (z-order).
+    -- Traz os botões de volta para o topo para continuarem clicáveis.
+    if self.timeButtons then
+        for _, btn in ipairs(self.timeButtons) do
+            btn:bringToTop()
+        end
+    end
 end
 
 function PaperDollWindow:prerender()

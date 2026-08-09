@@ -215,8 +215,111 @@ function AvatarUseDropZone:render()
 
     -- Apenas o texto da ação, centralizado e em branco
     local label = getActionLabel(actionType, item)
-    local th = getTextManager():MeasureStringY(UIFont.Small, label)
-    self:drawTextCentre(label, self.width / 2, (self.height - th) / 2, 1, 1, 1, 1, UIFont.Small)
+    local th = getTextManager():MeasureStringY(UIFont.Large, label)
+    self:drawTextCentre(label, self.width / 2, (self.height - th) / 2, 1, 1, 1, 1, UIFont.Large)
+end
+
+-- ─── Clique direito: menu de tratamento (igual ao Health Panel vanilla) ───────
+-- Não mapeia a posição para osso nenhum: lista TODAS as partes do corpo que
+-- precisam de atenção e abre, para cada uma, o MESMO submenu de tratamento que
+-- o health panel vanilla usa (bandagem, desinfetar, costurar, tala, bala,
+-- queimadura...). Tudo é reaproveitado de ISHealthPanel.doBodyPartContextMenu,
+-- então as verificações e as ações são 100% do jogo.
+
+--- "Health panel" mínimo (tabela) para o vanilla montar o menu de tratamento.
+local function makeHealthPanel(playerObj)
+    local panel = {
+        character       = playerObj,
+        otherPlayer     = nil, -- trata o próprio personagem (sem outro jogador)
+        blockingMessage = nil,
+    }
+    panel.getAbsoluteX = function() return 0 end
+    panel.getAbsoluteY = function() return 0 end
+    setmetatable(panel, { __index = ISHealthPanel })
+    return panel
+end
+
+--- Partes do corpo que precisam de atenção (mesma regra do health panel).
+local function getDamagedParts(playerObj)
+    local result = {}
+    local bodyParts = playerObj:getBodyDamage():getBodyParts()
+    for i = 1, bodyParts:size() do
+        local bodyPart = bodyParts:get(i - 1)
+        if bodyPart:HasInjury() or bodyPart:bandaged() or bodyPart:stitched()
+            or bodyPart:getSplintFactor() > 0 or bodyPart:getAdditionalPain() > 10
+            or bodyPart:getStiffness() > 5 then
+            table.insert(result, bodyPart)
+        end
+    end
+    return result
+end
+
+--- Rótulo curto do ferimento (para diferenciar as partes no menu).
+local function getInjuryLabel(bodyPart)
+    if bodyPart:bandaged() then return getText("IGUI_health_Bandaged") end
+    if bodyPart:getSplintFactor() > 0 then return getText("IGUI_health_Splinted") end
+    if bodyPart:stitched() then return getText("IGUI_health_Stitched") end
+    if bodyPart:bleeding() then return getText("IGUI_health_Bleeding") end
+    if bodyPart:getFractureTime() > 0 then return getText("IGUI_health_Fracture") end
+    if bodyPart:isBurnt() then return getText("IGUI_health_Burned") end
+    if bodyPart:haveBullet() then return getText("IGUI_health_Wounded") end
+    if bodyPart:haveGlass() then return getText("IGUI_health_Wounded") end
+    if bodyPart:bitten() then return getText("IGUI_health_Bitten") end
+    if bodyPart:deepWounded() then return getText("IGUI_health_DeepWound") end
+    if bodyPart:isCut() then return getText("IGUI_health_Cut") end
+    if bodyPart:scratched() then return getText("IGUI_health_Scratched") end
+    return nil
+end
+
+function AvatarUseDropZone:onRightMouseUp(x, y)
+    -- Não interferir com o drag de item (botão direito gira o item)
+    if GridInventory_GlobalDrag then return true end
+    if not ISHealthPanel or not ISHealthPanel.doBodyPartContextMenu then return true end
+    if not getPlayerContextMenu(self.playerNum) then return true end
+
+    local playerObj = getSpecificPlayer(self.playerNum)
+    if not playerObj then return true end
+
+    local damagedParts = getDamagedParts(playerObj)
+    if #damagedParts == 0 then return true end
+
+    local context = ISContextMenu.get(self.playerNum, x + self:getAbsoluteX(), y + self:getAbsoluteY())
+    if not context then return true end
+
+    -- Redireciona o ISContextMenu.get do vanilla para dentro de cada submenu,
+    -- assim reaproveitamos o menu de tratamento inteiro (bandagem, desinfetar,
+    -- costurar, tala...) sem copiar nenhuma lógica. Sincronizado e envolto em
+    -- pcall: qualquer erro só loga e não corrompe o context menu global.
+    local realGet = ISContextMenu.get
+    local panel = makeHealthPanel(playerObj)
+
+    for _, bodyPart in ipairs(damagedParts) do
+        local sub = context:getNew(context)
+        ISContextMenu.get = function() return sub end
+        local ok = pcall(ISHealthPanel.doBodyPartContextMenu, panel, bodyPart, 0, 0)
+        ISContextMenu.get = realGet
+
+        if not ok or sub:isEmpty() then
+            -- Sem tratamento disponível nesta parte: descarta o submenu
+            sub:setVisible(false)
+            sub:removeFromUIManager()
+            context.instanceMap[sub.subOptionNums] = nil
+            table.insert(context.subMenuPool, sub)
+        else
+            local label = BodyPartType.getDisplayName(bodyPart:getType())
+            local injury = getInjuryLabel(bodyPart)
+            if injury then
+                label = label .. " (" .. injury .. ")"
+            end
+            local option = context:addOption(label, nil)
+            context:addSubMenu(option, sub)
+        end
+    end
+
+    if context:isEmpty() then
+        context:setVisible(false)
+    end
+    return true
 end
 
 -- ─── Drop: ponte para o "Use" vanilla ─────────────────────────────────────────
