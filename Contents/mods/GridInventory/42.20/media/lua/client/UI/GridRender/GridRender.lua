@@ -888,6 +888,16 @@ function GridRender:onMouseDown(x, y)
     end
 
     if itemId then
+        -- STACK PICKER: Ctrl+clique num item EMPILHADO abre o picker (lista os
+        -- itens da pilha pra escolher o de melhor condição). O duplo clique
+        -- mantém o comportamento normal (loot/equipar).
+        if isCtrlKeyDown() and self.gridCore:getStackSize(itemId) > 1 and GridInventory_openStackPicker then
+            self.lastManualClickTime = nil
+            self.lastManualClickItemId = nil
+            GridInventory_openStackPicker(self.playerNum, self, itemId)
+            return
+        end
+
         if isShiftKeyDown() then
             self.selectedItems[itemId] = not self.selectedItems[itemId]
             self.lastManualClickTime = nil
@@ -1065,13 +1075,6 @@ function GridRender:doDoubleClick(x, y)
             GridInventory_openFloatingBag(self.playerNum, item)
             return
         end
-    end
-
-    -- PILHA de itens (size > 1): duplo clique abre o STACK PICKER no floating
-    -- window — lista cada item da pilha pra escolher o de melhor condição.
-    if self.gridCore:getStackSize(itemId) > 1 and GridInventory_openStackPicker then
-        GridInventory_openStackPicker(self.playerNum, self, itemId)
-        return
     end
 
     local playerObj = getSpecificPlayer(self.playerNum)
