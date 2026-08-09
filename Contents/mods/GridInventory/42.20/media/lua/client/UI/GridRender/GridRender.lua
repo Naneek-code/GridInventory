@@ -64,6 +64,22 @@ function GridRender:initialise()
     }
 end
 
+--- Resolve o FluidContainer de um item, incluindo o fallback do worldItem:
+--- itens no chão/loot guardam o fluido no worldItem (espelha o vanilla
+--- ISInventoryItem.renderItemIcon / ISInventoryPane tooltip). Sem isso, um copo
+--- com água no chão renderiza a máscara de fluido como branca/sem líquido.
+--- Prefere um container NÃO-vazio (próprio ou do worldItem).
+local function getItemFluidContainer(item)
+    local fc = item.getFluidContainer and item:getFluidContainer()
+    if (not fc or (fc.isEmpty and fc:isEmpty())) and item.getWorldItem then
+        local wi = item:getWorldItem()
+        if wi and wi.getFluidContainer then
+            fc = wi:getFluidContainer()
+        end
+    end
+    return fc
+end
+
 --- Coleta e desenha ícones de status de um item em modo flex (máx 2 por linha).
 --- Cada ícone tem 12x12 px. Coluna 1 fica no canto superior-esquerdo, Coluna 2 ao lado.
 --- Se tiver mais de 2, empilha na linha de baixo.
@@ -100,7 +116,7 @@ function GridRender:drawItemStatusIcons(item, drawX, drawY, playerObj, hotbar)
             isPoison = true
         end
     end
-    local fluid = item.getFluidContainer and item:getFluidContainer()
+    local fluid = getItemFluidContainer(item)
     if fluid and not fluid:isEmpty() then
         local taintEnabled = isTaintedWaterTextEnabled()
         if fluid:contains(Fluid.Bleach) or (fluid:contains(Fluid.TaintedWater) and fluid:getPoisonRatio() > 0.1 and taintEnabled) then
@@ -247,7 +263,7 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
         -- Fluid Mask (Sangue/Água Suja)
         if item.getTextureFluidMask and item:getTextureFluidMask() then
             local fluidColor = {r=1, g=1, b=1}
-            local fc = item.getFluidContainer and item:getFluidContainer()
+            local fc = getItemFluidContainer(item)
             local fluidPercent = 1.0
             
             if fc then
