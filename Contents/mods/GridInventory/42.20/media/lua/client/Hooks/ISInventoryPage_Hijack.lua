@@ -41,7 +41,7 @@ end
 
 -- Padding interno da barra de controles dentro do rodapé reservado da grid
 -- ativa (pra não ficar grudada nas extremidades).
-local CONTROLS_PAD = 3
+local CONTROLS_PAD = 1
 
 local og_update = ISInventoryPage.update
 function ISInventoryPage:update()
