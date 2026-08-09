@@ -775,19 +775,29 @@ function GridRender:render()
             local weightOver = capacity and afterWeight > capacity
 
             -- Quantos itens arrastados cabem por PESO (pra mensagem "parcial":
-            -- algum entra, mas não todos). Só conta os que NÃO já estão na árvore.
+            -- algum entra, mas não todos). Só conta os que NÃO já estão na árvore
+            -- (itens já dentro do inventário não mudam o peso total ao mover).
+            -- Também detecta se QUALQUER item arrastado já está na árvore: nesse
+            -- caso o hasRoomFor vanilla CONTA O PESO 2x (item + inventário) e
+            -- retorna false indevidamente → não dá pra usar ele como sinal de
+            -- "Selective Container".
             local totalToAdd = 0
             local fitsToAdd = 0
+            local anyInTree = false
             if capacity and (currentWeight or 0) <= capacity then
                 local room = capacity - (currentWeight or 0)
                 for _, d in ipairs(GridInventory_GlobalDrag.itemsData) do
                     local obj = d and d.itemObj
-                    if obj and obj.getUnequippedWeight and not isInContainerTree(obj, self.inventoryContainer) then
-                        totalToAdd = totalToAdd + 1
-                        local w = tonumber(obj:getUnequippedWeight()) or 0
-                        if room >= w then
-                            fitsToAdd = fitsToAdd + 1
-                            room = room - w
+                    if obj and obj.getUnequippedWeight then
+                        if isInContainerTree(obj, self.inventoryContainer) then
+                            anyInTree = true
+                        else
+                            totalToAdd = totalToAdd + 1
+                            local w = tonumber(obj:getUnequippedWeight()) or 0
+                            if room >= w then
+                                fitsToAdd = fitsToAdd + 1
+                                room = room - w
+                            end
                         end
                     end
                 end
@@ -810,33 +820,22 @@ function GridRender:render()
                 self:drawTextCentre(getText("IGUI_CantStore") or "Cannot Store", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
 
             -- "Sobrepeso" SÓ quando o peso vai estourar de verdade. Se for
-            -- PARCIAL (algum item entra, mas não todos), mostra isso no texto
-            -- em vez de "Sobrecarregado" (que soa como se NADA fosse entrar).
+            -- PARCIAL (algum item/pilha entra, mas não todos), mostra isso no
+            -- texto em vez de "Sobrecarregado" (que soa como se NADA fosse
+            -- entrar). Vale até pra pilha única — o número informa quantos
+            -- entram mesmo quando o drop é tudo-ou-nada.
             elseif weightOver then
                 self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
-
-                -- Arrastar UMA pilha inteira = tudo ou nada → mantém o "Overloaded".
-                local singlePile = #GridInventory_GlobalDrag.itemsData > 1
-                if singlePile then
-                    local a = GridInventory_GlobalDrag.itemsData[1]
-                    for i = 2, #GridInventory_GlobalDrag.itemsData do
-                        local b = GridInventory_GlobalDrag.itemsData[i]
-                        if a.compatKey ~= b.compatKey or a.originalX ~= b.originalX or a.originalY ~= b.originalY then
-                            singlePile = false
-                            break
-                        end
-                    end
-                end
-
                 local msg = getText("IGUI_Overloaded") or "Overloaded"
-                if not singlePile and fitsToAdd > 0 and fitsToAdd < totalToAdd then
+                if fitsToAdd > 0 and fitsToAdd < totalToAdd then
                     msg = string.format(getText("IGUI_OverloadedPartial") or "Only %d of %d fit", fitsToAdd, totalToAdd)
                 end
                 self:drawTextCentre(msg, self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
 
-            -- Cabe no peso, mas o hasRoomFor vanilla ainda recusa (alguma regra
-            -- interna do tipo de container que a gente não nomeia).
-            elseif not self.inventoryContainer:hasRoomFor(playerObj, firstItem) then
+            -- Cabe no peso, mas o hasRoomFor vanilla ainda recusa. Só confiamos
+            -- nele quando NENHUM item arrastado já está na árvore do container
+            -- alvo (senão ele conta o peso 2x e recusa por engano).
+            elseif not anyInTree and not self.inventoryContainer:hasRoomFor(playerObj, firstItem) then
                 self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
                 self:drawTextCentre(getText("IGUI_ContainerRestricted") or "Selective Container", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
 

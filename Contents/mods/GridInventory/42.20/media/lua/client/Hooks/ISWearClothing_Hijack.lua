@@ -20,6 +20,17 @@ if not GridInventory_WearClothingInstalled and ISWearClothing and ISWearClothing
     GridInventory_WearClothingInstalled = true
     local og_wearClothingComplete = ISWearClothing.complete
     function ISWearClothing:complete()
+        -- Item estava na MÃO antes do vanilla? (o vanilla remove a mochila/
+        -- container da mão ao vestir, mas o render 3D pode ficar com a mão
+        -- "fantasma" segurando o item — ex.: mochila equipada nas costas que
+        -- continua aparecendo na mão no boneco 3D).
+        local wasInHand = false
+        if self.character and self.item then
+            local primary = self.character.getPrimaryHandItem and self.character:getPrimaryHandItem()
+            local secondary = self.character.getSecondaryHandItem and self.character:getSecondaryHandItem()
+            wasInHand = (primary == self.item or secondary == self.item)
+        end
+
         local done = og_wearClothingComplete(self)
 
         -- Item terminou vestido E continua na mão? Libera a mão.
@@ -29,6 +40,23 @@ if not GridInventory_WearClothingInstalled and ISWearClothing and ISWearClothing
             local secondary = self.character.getSecondaryHandItem and self.character:getSecondaryHandItem()
             if (primary == self.item or secondary == self.item) and not isReplacement then
                 self.character:removeFromHands(self.item)
+            end
+
+            -- Item estava na mão e foi vestido: o vanilla NÃO sincroniza a mão
+            -- vazia no MP (só o ISUnequipAction chama sendEquip). Sem isso o
+            -- servidor mantém o item na mão e o boneco 3D continua "segurando"
+            -- a mochila/roupa que acabou de ser vestida.
+            if wasInHand and not isReplacement then
+                local c = self.character
+                if isClient and isClient() and sendEquip then
+                    sendEquip(c)
+                end
+                -- Força o rebuild do modelo 3D (limpa o visual fantasma da mão).
+                if c.resetModelNextFrame then
+                    c:resetModelNextFrame()
+                elseif c.resetModel then
+                    c:resetModel()
+                end
             end
         end
 
