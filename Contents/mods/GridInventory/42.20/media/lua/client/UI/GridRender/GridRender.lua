@@ -41,8 +41,112 @@ end
 
 function GridRender:initialise()
     ISPanel.initialise(self)
-    self.poisonIcon = getTexture("media/ui/SkullPoison.png")
-    self.brokenIcon = getTexture("media/ui/icon_broken.png")
+    -- Texturas de status (espelho do inventário vanilla)
+    self.icons = {
+        poison   = getTexture("media/ui/SkullPoison.png"),
+        broken   = getTexture("media/ui/icon_broken.png"),
+        frozen   = getTexture("media/ui/icon_frozen.png"),
+        equipped = getTexture("media/ui/icon.png"),
+        hotbar   = getTexture("media/ui/iconInHotbar.png"),
+        favorite = getTexture("media/ui/FavoriteStar.png"),
+        read     = getTexture("media/ui/Tick_Mark-10.png"),
+    }
+end
+
+--- Coleta e desenha ícones de status de um item em modo flex (máx 2 por linha).
+--- Cada ícone tem 12x12 px. Coluna 1 fica no canto superior-esquerdo, Coluna 2 ao lado.
+--- Se tiver mais de 2, empilha na linha de baixo.
+function GridRender:drawItemStatusIcons(item, drawX, drawY, playerObj)
+    if not item then return end
+
+    -- ── Coleta de condições ──────────────────────────────────────────────────
+    local active = {}
+
+    -- Favorito
+    if item.isFavorite and item:isFavorite() then
+        table.insert(active, self.icons.favorite)
+    end
+
+    -- Equipado
+    if playerObj and playerObj.isEquipped and playerObj:isEquipped(item) then
+        table.insert(active, self.icons.equipped)
+    end
+
+    -- No hotbar
+    if playerObj and not (playerObj.isEquipped and playerObj:isEquipped(item)) then
+        local hotbar = getPlayerHotbar(self.playerNum)
+        if hotbar and hotbar:isInHotbar(item) then
+            table.insert(active, self.icons.hotbar)
+        end
+    end
+
+    -- Envenenado / água suja
+    local isPoison = false
+    if instanceof(item, "Food") then
+        local opt = getSandboxOptions():getOptionByName("EnableTaintedWaterText")
+        local taintEnabled = opt and opt:getValue()
+        if (item.isTainted and item:isTainted() and taintEnabled) or (playerObj and playerObj:isKnownPoison(item)) then
+            isPoison = true
+        end
+    end
+    local fluid = item.getFluidContainer and item:getFluidContainer()
+    if fluid and not fluid:isEmpty() then
+        local opt = getSandboxOptions():getOptionByName("EnableTaintedWaterText")
+        local taintEnabled = opt and opt:getValue()
+        if fluid:contains(Fluid.Bleach) or (fluid:contains(Fluid.TaintedWater) and fluid:getPoisonRatio() > 0.1 and taintEnabled) then
+            isPoison = true
+        end
+    end
+    if isPoison then table.insert(active, self.icons.poison) end
+
+    -- Quebrado (condição 0 ou isBroken)
+    local isBroken = (item.isBroken and item:isBroken())
+        or (item.getCondition and item.getConditionMax and item:getConditionMax() > 0 and item:getCondition() <= 0)
+    if isBroken then table.insert(active, self.icons.broken) end
+
+    -- Congelado (alimento)
+    if instanceof(item, "Food") and item.isFrozen and item:isFrozen() then
+        table.insert(active, self.icons.frozen)
+    end
+
+    -- Lido / visto
+    local isRead = false
+    if playerObj then
+        if item.IsLiterature and item:IsLiterature() then
+            -- verifica literatura (livros, revistas, mapas)
+            local md = item:hasModData() and item:getModData() or nil
+            if md then
+                if md.literatureTitle and playerObj:isLiteratureRead(md.literatureTitle) then isRead = true end
+                if md.printMedia and playerObj:isPrintMediaRead(md.printMedia.title) then isRead = true end
+                if md.learnedRecipe and playerObj:getKnownRecipes():contains(md.learnedRecipe) then isRead = true end
+            end
+            local skillBook = SkillBook and SkillBook[item:getSkillTrained()]
+            if skillBook and item:getMaxLevelTrained() < playerObj:getPerkLevel(skillBook.perk) + 1 then isRead = true end
+            if item:getNumberOfPages() > 0 and playerObj:getAlreadyReadPages(item:getFullType()) == item:getNumberOfPages() then isRead = true end
+            if item:getLearnedRecipes() and playerObj:getKnownRecipes():containsAll(item:getLearnedRecipes()) then isRead = true end
+        end
+        if not isRead then
+            local hasSeen  = item.hasBeenSeen  and item:hasBeenSeen(playerObj)
+            local hasHeard = item.hasBeenHeard and item:hasBeenHeard(playerObj)
+            local hasMap   = playerObj.hasReadMap and playerObj:hasReadMap(item)
+            if hasSeen or hasHeard or hasMap then isRead = true end
+        end
+    end
+    if isRead then table.insert(active, self.icons.read) end
+
+    -- ── Renderização flex (12x12, 2 colunas, canto superior-esquerdo) ─────────
+    if #active == 0 then return end
+    local S   = 12   -- tamanho de cada ícone
+    local PAD = 2    -- padding entre ícones
+    for i, tex in ipairs(active) do
+        if tex then
+            local col = (i - 1) % 2
+            local row = math.floor((i - 1) / 2)
+            local ix = drawX + col * (S + PAD)
+            local iy = drawY + row * (S + PAD)
+            self:drawTextureScaled(tex, ix, iy, S, S, 1, 1, 1, 1)
+        end
+    end
 end
 
 function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
@@ -394,6 +498,8 @@ function GridRender:render()
         end
     end
 
+    local playerObj = getSpecificPlayer(self.playerNum)
+
     for itemId, data in pairs(self.gridCore.items) do
         -- Se estivermos arrastando, não renderizamos o item localmente se for um dos arrastados.
         local isDragged = GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid == self and GridInventory_GlobalDrag.itemsMap[itemId]
@@ -454,39 +560,8 @@ function GridRender:render()
 
                 self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, 1, 1, 1, 1)
                 
-                -- Indicadores de Status Visual (Envenenado / Quebrado)
-                local playerObj = getSpecificPlayer(self.playerNum)
-                
-                -- Veneno / Água Suja
-                local isPoison = false
-                if instanceof(data.itemObj, "Food") then
-                    if (data.itemObj.isTainted and data.itemObj:isTainted()) or (playerObj and playerObj:isKnownPoison(data.itemObj)) then
-                        isPoison = true
-                    end
-                else
-                    local fluid = data.itemObj.getFluidContainer and data.itemObj:getFluidContainer()
-                    if fluid and not fluid:isEmpty() then
-                        if fluid:contains(Fluid.Bleach) or (fluid:contains(Fluid.TaintedWater) and fluid:getPoisonRatio() > 0.1) then
-                            isPoison = true
-                        end
-                    end
-                end
-                
-                if isPoison and self.poisonIcon then
-                    self:drawTexture(self.poisonIcon, drawX + 4, drawY + 4, 1, 1, 1, 1)
-                end
-                
-                -- Quebrado (Condição 0)
-                local isBroken = false
-                if data.itemObj.isBroken and data.itemObj:isBroken() then
-                    isBroken = true
-                elseif data.itemObj.getCondition and data.itemObj.getConditionMax and data.itemObj:getConditionMax() > 0 and data.itemObj:getCondition() <= 0 then
-                    isBroken = true
-                end
-                
-                if isBroken and self.brokenIcon then
-                    self:drawTexture(self.brokenIcon, drawX + drawW - 16, drawY + 4, 1, 1, 1, 1)
-                end
+                -- ── Ícones de status (sistema flex) ─────────────────────────────────
+                self:drawItemStatusIcons(data.itemObj, drawX + 2, drawY + 2, playerObj)
                 
                 -- Feedback visual de falta de espaço
                 if data.outOfSpaceTimer then
@@ -547,8 +622,14 @@ function GridRender:render()
         if firstItem and self.inventoryContainer then
             local playerObj = getSpecificPlayer(self.playerNum)
             
+            -- Favorito: protege item de sair do inventário do jogador
+            local isInPlayerInv = self.inventoryContainer:isInCharacterInventory(playerObj)
+            if firstItem.isFavorite and firstItem:isFavorite() and not isInPlayerInv then
+                self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
+                self:drawTextCentre(getText("IGUI_FavoriteProtected") or "Item is Favorited", self.width/2, self.height/2 - 10, 1, 1, 0.8, 0.2, UIFont.Large)
+            
             -- Verifica se tentou colocar o container dentro dele mesmo
-            if firstItem == self.containerItem then
+            elseif firstItem == self.containerItem then
                 self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
                 self:drawTextCentre(getText("IGUI_CannotStoreItself") or "Cannot store itself", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
             
@@ -600,7 +681,6 @@ function GridRender:render()
                 else
                     local isFromPaperDoll = GridInventory_GlobalDrag.sourceGrid and GridInventory_GlobalDrag.sourceGrid.slotName
                     if isFromPaperDoll then
-                        local isInPlayerInv = self.inventoryContainer:isInCharacterInventory(playerObj)
                         if isInPlayerInv then
                             self:drawRect(0, 0, self.width, self.height, 0.7, 0.1, 0.1, 0.1)
                             self:drawTextCentre(getText("IGUI_Unequip") or "Unequip", self.width/2, self.height/2 - 10, 1, 0.3, 0.3, 1, UIFont.Large)
