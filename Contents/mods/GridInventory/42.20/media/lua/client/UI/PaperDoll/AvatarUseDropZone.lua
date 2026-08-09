@@ -18,6 +18,136 @@ local AvatarUseDropZone = ISPanel:derive("AvatarUseDropZone")
 local COLOR_FILL   = { a=0.2, r=0.3, g=0.3, b=0.3 }
 local COLOR_BORDER = { a=0.15, r=0.5, g=0.5, b=0.5 }
 
+-- ─── Lista de ações espelháveis e fallback controlado ─────────────────────────
+-- O avatar usa o AnimSet "player", cujo estado "actions" tem um nó de recurso
+-- `default-fallback` (Bob_EmoteSurrender) que toca quando NENHUM nó de ação casa
+-- as condições. O avatar só espelha IsPerformingAnAction + PerformingAction, então
+-- ações cujos nós exigem variáveis extras (AttachAnim, WearClothingLocation,
+-- Weapon, FoodType, ReadType...) nunca casariam e tocariam o surrender.
+--
+-- SAFE_ACTIONS = PerformingActions com pelo menos um nó de condições 100%
+-- satisfeitas no avatar (só PerformingAction + booleans que o avatar já
+-- seta/limpa). Essas são espelhadas de verdade. Qualquer outra ação é espelhada
+-- com a animação genérica de transferência (TransferItemOnSelf -> Bob_IdleLooting_Mid)
+-- para o boneco continuar "vivo" sem tocar o surrender. Lista gerada de
+-- media/AnimSets/player/actions/*.xml (ver /tmp/gridtest/build_whitelist.py);
+-- falha segura: valor novo fora da lista só usa o fallback genérico.
+local SAFE_ACTIONS = {
+    "AnimalLure",
+    "ApplyAlcohol",
+    "ApplyGlaze",
+    "Bandage",
+    "BlowGlass",
+    "BlowTorch",
+    "Build",
+    "Chisel_Surface",
+    "ChoppingBlock_Hammer",
+    "Craft",
+    "CraftArmourPiece",
+    "CraftKnifeSpear",
+    "CraftWeapon1H",
+    "CraftWeapon2H",
+    "CutWire",
+    "Destroy",
+    "Dig",
+    "DropWhileMoving",
+    "EquipItem",
+    "ExamineVehicle",
+    "Forage",
+    "HammerOre",
+    "HammerSmashSurface",
+    "InsertBullets",
+    "Knitting",
+    "LightFire_KnotchedPlank",
+    "Loot",
+    "MakeChum",
+    "MakeWithBrick",
+    "Making",
+    "MakingElectrical",
+    "MakingHammer_Surface",
+    "MakingJewellery",
+    "MedicalCheck",
+    "MixFluids",
+    "MixingBowl",
+    "MixingBucket",
+    "MixingFood",
+    "MixingMortarPestle",
+    "OpenAmmoBox",
+    "OpenBeerBottle",
+    "OpenChampagne",
+    "OpenTinCan",
+    "PackSack",
+    "PackingBox",
+    "PetAnimal",
+    "PlaceAmmoInBox",
+    "PutSeedsInPacket",
+    "Rake",
+    "RemoveBarricade",
+    "RemoveBullets",
+    "RemoveBush",
+    "RemoveCurtain",
+    "RipSheets",
+    "RollDice",
+    "SawLog",
+    "SawOffShotgun",
+    "SawSmallItemMetal",
+    "ScrubClothWithSoap",
+    "ScrubFloor",
+    "ScrubFloor_Mop",
+    "ScrubWall",
+    "ScrubWall_Mop",
+    "SewingCloth",
+    "SharpenBlade",
+    "SharpenStake",
+    "Shave",
+    "Shear",
+    "SlicingFood",
+    "SmithingHammer",
+    "TakeGasFromPump",
+    "TakeGasFromVehicle",
+    "TakePills",
+    "Take_Off_Rack_Mid",
+    "TanLeatherBarrel",
+    "Threshing",
+    "TransferItemOnSelf",
+    "Tying_High",
+    "UnPackBox",
+    "UnPackSack",
+    "UncorkBottle",
+    "UnequipItem",
+    "Untie_Mid",
+    "UseBandsaw",
+    "UseGrindingSlab",
+    "UseGrindingStone",
+    "UseHandPress",
+    "UseLathe",
+    "UseSpinningWheel",
+    "UseStandingDrill",
+    "UseStoneQuern",
+    "Use_Ripple_Comb",
+    "VehicleTrailer",
+    "VehicleWash",
+    "VehicleWorkOnMid",
+    "VehicleWorkOnTire",
+    "WashFace",
+    "WearClothing",
+    "Welding",
+    "changeBait",
+    "chop_tree",
+    "disassemble",
+    "disassembleElectrical",
+    "drink",
+    "drink_tap",
+    "eat",
+    "fill_container_tap",
+    "paint",
+    "pour",
+    "read",
+    "refuelgascan",
+}
+local SAFE_ACTIONS_SET = {}
+for _, v in ipairs(SAFE_ACTIONS) do SAFE_ACTIONS_SET[v] = true end
+
 -- ─── Constructor ──────────────────────────────────────────────────────────────
 function AvatarUseDropZone:new(x, y, w, h, playerNum, avatarPanel)
     local o = ISPanel:new(x, y, w, h)
@@ -232,7 +362,12 @@ function AvatarUseDropZone:updateAvatarAction(playerObj)
             self.avatarPanel:setVariable("isTurning", false)
         end
         self.avatarPanel:setVariable("IsPerformingAnAction", true)
-        self.avatarPanel:setVariable("PerformingAction", actionAnim)
+        -- Fallback controlado: se a ação não está na lista segura (ex.: precisa
+        -- de variáveis extras que não espelhamos, como AttachAnim, e nunca
+        -- casaria um nó), espelhamos a animação genérica de transferência
+        -- (Bob_IdleLooting_Mid, o personagem só mexe os braços) em vez de tocar
+        -- o nó default-fallback (Bob_EmoteSurrender) ou ficar parado.
+        self.avatarPanel:setVariable("PerformingAction", SAFE_ACTIONS_SET[actionAnim] and actionAnim or "TransferItemOnSelf")
     elseif self.avatarInAction then
         self.avatarInAction = false
         self.avatarPanel:clearVariable("IsPerformingAnAction")
