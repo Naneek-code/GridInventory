@@ -20,6 +20,7 @@
     "IGUI_Overloaded": "Sobrecarregado",
     "IGUI_NoGridSpace": "Sem Espaço",
     "IGUI_ContainerRestricted": "Recipiente Seletivo",
+    "IGUI_FavoriteProtected": "Item está Favoritado",
     "IGUI_ActionBar_Generic": "Ação",
     "IGUI_ActionBar_Equipping": "Equipando",
     "IGUI_ActionBar_Wearing": "Vestindo",
@@ -34,5 +35,9 @@
     "IGUI_ActionBar_Dropping": "Derrubando",
     "IGUI_ActionBar_Grabbing": "Pegando",
     "IGUI_ActionBar_Reloading": "Recarregando",
-    "IGUI_ActionBar_RackingFirearm": "Puxando Ferrolho"
+    "IGUI_ActionBar_RackingFirearm": "Puxando Ferrolho",
+    "IGUI_AvatarDrop_Eat": "Comer",
+    "IGUI_AvatarDrop_Drink": "Beber",
+    "IGUI_AvatarDrop_Read": "Ler",
+    "IGUI_AvatarDrop_Take": "Tomar"
 }

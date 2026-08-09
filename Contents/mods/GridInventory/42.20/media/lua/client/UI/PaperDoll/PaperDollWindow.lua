@@ -1,6 +1,7 @@
 require "ISUI/ISCollapsableWindow"
 require "XpSystem/ISUI/ISCharacterScreen"
-local PaperDollSlot = require "UI/PaperDoll/PaperDollSlot"
+local PaperDollSlot      = require "UI/PaperDoll/PaperDollSlot"
+local AvatarUseDropZone  = require "UI/PaperDoll/AvatarUseDropZone"
 
 local PaperDollWindow = ISCollapsableWindow:derive("PaperDollWindow")
 
@@ -211,6 +212,14 @@ function PaperDollWindow:initialise()
     self.avatarPanel.onMouseMoveOutside = function() end
     self.avatarPanel.onMouseUpOutside = function() end
     self.avatarPanel.onMouseWheel = function() return false end
+
+    -- Zona de drop sobre o render 3D: arraste um item aqui para usar/consumir/beber sem context menu
+    -- Encolhida um pouco para não sobrepor os slots laterais.
+    local dropInset = 25
+    self.avatarDropZone = AvatarUseDropZone:new(self.avatarX + dropInset, self.avatarY + dropInset,
+        self.avatarW - dropInset * 2, self.avatarH - dropInset * 2, self.playerNum)
+    self.avatarDropZone:initialise()
+    self.scrollPanel:addChild(self.avatarDropZone)
 end
 
 function PaperDollWindow:prerender()

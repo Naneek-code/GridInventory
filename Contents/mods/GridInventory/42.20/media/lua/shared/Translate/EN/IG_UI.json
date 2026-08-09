@@ -20,6 +20,7 @@
     "IGUI_Overloaded": "Overloaded",
     "IGUI_NoGridSpace": "No Space",
     "IGUI_ContainerRestricted": "Selective Container",
+    "IGUI_FavoriteProtected": "Item is Favorited",
     "IGUI_ActionBar_Generic": "Action",
     "IGUI_ActionBar_Equipping": "Equipping",
     "IGUI_ActionBar_Wearing": "Wearing",
@@ -34,5 +35,9 @@
     "IGUI_ActionBar_Dropping": "Dropping",
     "IGUI_ActionBar_Grabbing": "Picking Up",
     "IGUI_ActionBar_Reloading": "Reloading",
-    "IGUI_ActionBar_RackingFirearm": "Racking Firearm"
+    "IGUI_ActionBar_RackingFirearm": "Racking Firearm",
+    "IGUI_AvatarDrop_Eat": "Eat",
+    "IGUI_AvatarDrop_Drink": "Drink",
+    "IGUI_AvatarDrop_Read": "Read",
+    "IGUI_AvatarDrop_Take": "Take"
 }
