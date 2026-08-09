@@ -79,11 +79,15 @@ function GridContainer.getStackableCompatKey(item)
         end
     end
 
-    -- 2. Regra padrão: item LEVE (peso base < 1) pode empilhar
+    -- 2. Fallback: item LEVE (peso base <= 0.5) pode empilhar — mesmo que o
+    --    jogo não empilhe nativamente (panos/rags). Acima de 0.5 NÃO empilha
+    --    por padrão (caixa de pregos 2.0, crowbar, etc.); o override do
+    --    DevTool resolve casos específicos.
     local weight = item.getWeight and tonumber(item:getWeight())
-    local stackable = weight ~= nil and weight < 1
+    local stackable = weight ~= nil and weight <= 0.5
 
-    -- 3. Engine não empilha (CanStack=false → carregadores/clips): nunca stacka
+    -- 3. Regra vanilla: o engine NÃO empilha (CanStack=false → carregadores/
+    --    clips) — nunca stacka, mesmo sendo leve.
     if stackable and item.canStack and not item:canStack() then
         stackable = false
     end
