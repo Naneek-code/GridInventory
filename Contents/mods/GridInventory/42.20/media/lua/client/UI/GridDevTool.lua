@@ -1,60 +1,17 @@
---- GridDevTool.lua
---- Ferramenta de desenvolvedor para editar os tamanhos de itens e grids em tempo real.
---- Salva tudo num arquivo na pasta do usuário para não perder e facilitar o balanceamento.
+--- GridDevTool.lua (CLIENT)
+--- Ferramenta de desenvolvedor para editar os tamanhos de itens e grids.
+--- A camada de DADOS (tabela de overrides + arquivo) vive no módulo SHARED
+--- DevTool/GridOverrides.lua — carregado também no SERVIDOR, que usa os mesmos
+--- overrides na validação autoritativa. Aqui fica só a UI + o menu de contexto,
+--- e ao salvar o cliente envia os overrides pro servidor (autoridade final).
 
 require "ISUI/ISPanel"
 require "ISUI/ISButton"
 require "ISUI/ISLabel"
 require "ISUI/ISInventoryPaneContextMenu"
+require "DevTool/GridOverrides"
 
-GridDevTool = {}
-GridDevTool.Overrides = {}
-
-function GridDevTool.loadOverrides()
-    local reader = getFileReader("GridOverrides.ini", true)
-    if not reader then return end
-    
-    local currentItem = nil
-    local line = reader:readLine()
-    while line do
-        line = line:match("^%s*(.-)%s*$") -- Lua trim
-        if line:sub(1, 1) == "[" and line:sub(-1) == "]" then
-            currentItem = string.sub(line, 2, -2)
-            GridDevTool.Overrides[currentItem] = GridDevTool.Overrides[currentItem] or {}
-        elseif currentItem and string.find(line, "=") then
-            local parts = string.split(line, "=")
-            if #parts == 2 then
-                local k = parts[1]:match("^%s*(.-)%s*$")
-                local v = tonumber(parts[2]:match("^%s*(.-)%s*$"))
-                if v then
-                    GridDevTool.Overrides[currentItem][k] = v
-                end
-            end
-        end
-        line = reader:readLine()
-    end
-    reader:close()
-    print("[GridDevTool] Loaded overrides from GridOverrides.ini")
-end
-
-function GridDevTool.saveOverrides()
-    local writer = getFileWriter("GridOverrides.ini", true, false)
-    if not writer then return end
-    
-    for itemName, data in pairs(GridDevTool.Overrides) do
-        writer:write("[" .. itemName .. "]\r\n")
-        if data.w then writer:write("w=" .. tostring(data.w) .. "\r\n") end
-        if data.h then writer:write("h=" .. tostring(data.h) .. "\r\n") end
-        if data.cols then writer:write("cols=" .. tostring(data.cols) .. "\r\n") end
-        if data.rows then writer:write("rows=" .. tostring(data.rows) .. "\r\n") end
-        writer:write("\r\n")
-    end
-    writer:close()
-    print("[GridDevTool] Saved overrides to GridOverrides.ini")
-end
-
--- Inicializa carregando os dados salvos
-Events.OnGameBoot.Add(GridDevTool.loadOverrides)
+local GridClientNetwork = require("Network/GridClientNetwork")
 
 -----------------------------------------------------------------------------------------
 -- UI Panel
@@ -80,8 +37,7 @@ function GridDevToolUI:new(x, y, item)
     local ItemFootprint = require("Algorithm/ItemFootprint")
     local w, h = ItemFootprint.getSize(item)
     o.tempData.w = (override and override.w) or w
-    o.tempData.h = (override and override.h) or h
-    
+    o.tempData.h = (override and override.h) or h    
     o.isContainer = item:IsInventoryContainer()
     if o.isContainer then
         local cap = item:getInventory():getCapacity()
@@ -158,17 +114,13 @@ function GridDevToolUI:initialise()
 end
 
 function GridDevToolUI:onSave()
-    GridDevTool.Overrides[self.fullType] = GridDevTool.Overrides[self.fullType] or {}
-    GridDevTool.Overrides[self.fullType].w = self.tempData.w
-    GridDevTool.Overrides[self.fullType].h = self.tempData.h
-    
-    if self.isContainer then
-        GridDevTool.Overrides[self.fullType].cols = self.tempData.cols
-        GridDevTool.Overrides[self.fullType].rows = self.tempData.rows
-    end
-    
-    GridDevTool.saveOverrides()
-    
+    GridDevTool.applyOverrides(self.fullType, self.tempData.w, self.tempData.h,
+        self.isContainer and self.tempData.cols or nil,
+        self.isContainer and self.tempData.rows or nil)
+
+    -- MP server-mandatory: envia pro servidor aplicar (autoridade) + broadcast.
+    GridClientNetwork.sendOverrides(GridDevTool.Overrides)
+
     -- Força um refresh global nas instâncias!
     local GridContainer = require("DataModel/GridContainer")
     if GridContainer then
@@ -209,6 +161,9 @@ end
 -----------------------------------------------------------------------------------------
 
 local function OnFillInventoryObjectContextMenu(player, context, items)
+    -- DevTool é ferramenta de DEV: só aparece com o jogo iniciado em -debug.
+    if not isDebugEnabled() then return end
+
     local testItem = items[1]
     if not testItem then return end
     

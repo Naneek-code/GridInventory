@@ -1,55 +1,228 @@
 --- GridClientNetwork.lua
---- Lida com os envios do cliente e escuta as respostas do servidor.
+--- Lado cliente do sync de posições server-mandatory:
+---  - envia REQUEST_MOVE quando o jogador solta um item num grid (com as coords x,y);
+---  - aplica SYNC_ITEM broadcastado pelo servidor (posição autoritativa de outros
+---    jogadores / confirmação de volta);
+---  - reverte a posição local se o servidor negar (ERROR: colisão/cheat).
 
 local GridProtocol = require("Network/GridProtocol")
+local GridContainer = require("DataModel/GridContainer")
 
 local GridClientNetwork = {}
 
--- ============================================================================
--- THE DISCORD GOLDEN DISCOVERY (B42.20 Hidden Event)
--- Isso salva a nossa vida para sincronizar baús e carros no multiplayer
--- ============================================================================
-if Events and Events.OnReceiveGlobalModData then
-    Events.OnReceiveGlobalModData.Add(function(tag, data)
-        -- Atualiza o registro global do cliente silenciosamente
-        ModData.add(tag, data)
-        
-        -- Se for a nossa tag de grids de mundo, nós disparamos um evento customizado
-        -- para avisar a Interface Gráfica que ela precisa desenhar a tela novamente!
-        if tag == GridProtocol.MODDATA_KEYS.GLOBAL_WORLD_GRIDS then
-            triggerEvent("OnGridInventoryWorldSync")
+--- Encontra um item por ID nos containers que este cliente conhece:
+--- inventário do jogador + containers dos grids abertos (inv e loot).
+local function findItemRecursive(container, itemId)
+    if not container or not itemId then return nil end
+    if container.getItemWithID then
+        local direct = container:getItemWithID(itemId)
+        if direct then return direct end
+    end
+    local items = container:getItems()
+    for i = 0, items:size() - 1 do
+        local child = items:get(i)
+        if child.getInventory and child:getInventory() then
+            local found = findItemRecursive(child:getInventory(), itemId)
+            if found then return found end
         end
-    end)
+    end
+    return nil
 end
 
---- Pede permissão e validação matemática para o servidor
-function GridClientNetwork.RequestItemMove(containerId, itemId, x, y, rotated)
+local function getKnownContainers(playerNum)
+    local seen = {}
+    local list = {}
+    local function add(container)
+        if container and not seen[container] then
+            seen[container] = true
+            table.insert(list, container)
+        end
+    end
+    local function addPane(pane)
+        if pane and pane.gridContainerUis then
+            for _, gridUi in ipairs(pane.gridContainerUis) do
+                if gridUi.inventoryContainer then
+                    add(gridUi.inventoryContainer)
+                end
+            end
+        end
+    end
+    local pInv = getPlayerInventory(playerNum)
+    local pLoot = getPlayerLoot(playerNum)
+    addPane(pInv and pInv.inventoryPane)
+    addPane(pLoot and pLoot.inventoryPane)
+    return list
+end
+
+function GridClientNetwork.findItem(itemId)
+    local player = getPlayer()
+    if not player then return nil end
+    local playerNum = player:getPlayerNum()
+
+    local item = findItemRecursive(player:getInventory(), itemId)
+    if item then return item end
+
+    for _, container in ipairs(getKnownContainers(playerNum)) do
+        item = findItemRecursive(container, itemId)
+        if item then return item end
+    end
+    return nil
+end
+
+--- Re-renderiza o grid do container (e marca o pane pra rebuild de overflow).
+local function refreshContainerGrid(container, playerNum)
+    if not container then return end
+    local gc = GridContainer.getOrCreate(container, playerNum)
+    gc:refresh()
+    local function markPane(page)
+        if page and page.inventoryPane and page.inventoryPane.gridContainerUis then
+            for _, g in ipairs(page.inventoryPane.gridContainerUis) do
+                if g.inventoryContainer == container then
+                    page.inventoryPane.gridRefreshDirty = true
+                end
+            end
+        end
+    end
+    markPane(getPlayerInventory(playerNum))
+    markPane(getPlayerLoot(playerNum))
+end
+
+--- Envia a posição de um item no grid pro servidor (server-mandatory).
+--- @param container ItemContainer container ALVO (o grid onde soltou)
+--- @param itemId number|string
+--- @param x number coordenada 1-indexada
+--- @param y number
+--- @param rotated boolean
+function GridClientNetwork.sendItemMove(container, itemId, x, y, rotated)
+    if not isClient() then return end
+    local player = getPlayer()
+    if not player or not container or itemId == nil then return end
+
+    local ref = GridProtocol.buildContainerRef(container)
+    if not ref then return end
+
+    sendClientCommand(player, GridProtocol.MODULE, GridProtocol.COMMANDS.REQUEST_MOVE, {
+        itemId = itemId,
+        ref = ref,
+        x = tonumber(x),
+        y = tonumber(y),
+        rotated = rotated and true or false,
+    })
+end
+
+--- Pede pro servidor LIMPAR a posição do item (multi-drag/auto-sort: a posição
+--- será recalculada automaticamente; evita posição antiga fantasma no MP).
+function GridClientNetwork.clearServerPosition(container, itemId)
+    if not isClient() then return end
+    local player = getPlayer()
+    if not player or not container or itemId == nil then return end
+
+    local ref = GridProtocol.buildContainerRef(container)
+    if not ref then return end
+
+    sendClientCommand(player, GridProtocol.MODULE, GridProtocol.COMMANDS.REQUEST_MOVE, {
+        itemId = itemId,
+        ref = ref,
+        clear = true,
+    })
+end
+
+--- Envia os overrides editados pro servidor (admin/devtool) — autoridade final.
+function GridClientNetwork.sendOverrides(overrides)
+    if not isClient() then return end
+    local player = getPlayer()
+    if not player or not overrides then return end
+    sendClientCommand(player, GridProtocol.MODULE, GridProtocol.COMMANDS.REQ_OVERRIDES, {
+        overrides = overrides,
+    })
+end
+
+--- Pede os overrides do servidor (join): o servidor é a fonte da verdade.
+function GridClientNetwork.requestOverrides()
+    if not isClient() then return end
+    local player = getPlayer()
+    if not player then return end
+    sendClientCommand(player, GridProtocol.MODULE, GridProtocol.COMMANDS.GET_OVERRIDES, {})
+end
+
+-- No início do jogo, pede os overrides do servidor (com um pequeno atraso para
+-- garantir que o jogador local já existe para o sendClientCommand). Só em MP.
+local overridesRequested = false
+Events.OnGameStart.Add(function()
+    if overridesRequested or not isClient() then return end
+    overridesRequested = true
+    local done = false
+    Events.OnTick.Add(function()
+        if not done and getPlayer() then
+            done = true
+            GridClientNetwork.requestOverrides()
+        end
+    end)
+end)
+
+--- Aplica os overrides vindos do servidor (broadcast) e recarrega os grids.
+local function applyServerOverrides(overrides)
+    if not GridDevTool then
+        require("DevTool/GridOverrides")
+    end
+    if GridDevTool and GridDevTool.replaceOverrides then
+        GridDevTool.replaceOverrides(overrides)
+        local playerNum = getPlayer() and getPlayer():getPlayerNum() or 0
+        local pInv = getPlayerInventory(playerNum)
+        local pLoot = getPlayerLoot(playerNum)
+        if pInv and pInv.inventoryPane then pInv.inventoryPane:refreshContainer() end
+        if pLoot and pLoot.inventoryPane then pLoot.inventoryPane:refreshContainer() end
+    end
+end
+
+--- Aplica a posição autoritativa vinda do servidor num item local.
+function GridClientNetwork.applyItemPosition(itemId, x, y, rotated)
+    local item = GridClientNetwork.findItem(itemId)
+    if not item then return end
+    local md = item:getModData()
+    md.gridX = tonumber(x)
+    md.gridY = tonumber(y)
+    md.gridRot = rotated and true or false
+    if item.getContainer then
+        refreshContainerGrid(item:getContainer(), getPlayer() and getPlayer():getPlayerNum() or 0)
+    end
+end
+
+--- Remove a posição local de um item (usado na reversão de ERROR).
+function GridClientNetwork.clearItemPosition(itemId)
+    local item = GridClientNetwork.findItem(itemId)
+    if not item then return end
+    local md = item:getModData()
+    md.gridX = nil
+    md.gridY = nil
+    md.gridRot = false
+    if item.getContainer then
+        refreshContainerGrid(item:getContainer(), getPlayer() and getPlayer():getPlayerNum() or 0)
+    end
+end
+
+--- Recebe os broadcast/erros do Servidor.
+local function OnServerCommand(module, command, args)
+    if module ~= GridProtocol.MODULE then return end
     local player = getPlayer()
     if not player then return end
 
-    local args = {
-        container = containerId,
-        item = itemId,
-        x = x,
-        y = y,
-        rotated = rotated
-    }
-
-    sendClientCommand(player, GridProtocol.MODULE, GridProtocol.COMMANDS.REQUEST_MOVE, args)
-end
-
---- Recebe as broncas ou confirmações do Servidor
-local function OnServerCommand(module, command, args)
-    if module ~= GridProtocol.MODULE then return end
-
-    if command == GridProtocol.COMMANDS.ERROR then
-        -- Exemplo: Alguém pegou o item 1 milissegundo antes de você (Race Condition)
-        -- O servidor negou seu movimento.
-        player = getPlayer()
-        if player then
-            player:Say("Ops... Desync! Movimento negado pelo Servidor.")
-            triggerEvent("OnGridInventoryWorldSync") -- Força a UI a reverter pra realidade do server
+    if command == GridProtocol.COMMANDS.SYNC_ITEM then
+        -- Eco do nosso próprio envio: já aplicamos localmente (posição otimista).
+        if args.sender == player:getUsername() then return end
+        if args.clear then
+            GridClientNetwork.clearItemPosition(args.itemId)
+        else
+            GridClientNetwork.applyItemPosition(args.itemId, args.x, args.y, args.rotated)
         end
+
+    elseif command == GridProtocol.COMMANDS.ERROR then
+        -- Servidor negou (colisão/cheat): reverte pra posição anterior (auto-fit).
+        GridClientNetwork.clearItemPosition(args.itemId)
+
+    elseif command == GridProtocol.COMMANDS.SYNC_OVERRIDES then
+        -- Overrides do servidor (autoridade): aplica e recarrega grids.
+        applyServerOverrides(args.overrides)
     end
 end
 

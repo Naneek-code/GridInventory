@@ -6,6 +6,7 @@ require "ISUI/ISPanel"
 require "TimedActions/ISUnequipAction"
 local ItemFootprint = require("Algorithm/ItemFootprint")
 local GridContainer = require("DataModel/GridContainer")
+local GridClientNetwork = require("Network/GridClientNetwork")
 
 GridRender = ISPanel:derive("GridRender")
 
@@ -1180,6 +1181,8 @@ function GridRender:onMouseUp(x, y)
                         modData.gridX = t.tx
                         modData.gridY = t.ty
                         modData.gridRot = t.item.rotated
+                        -- MP server-mandatory: o servidor grava e broadcasta a posição.
+                        GridClientNetwork.sendItemMove(self.inventoryContainer, t.item.itemObj:getID(), t.tx, t.ty, t.item.rotated)
                     end
                 end
                 self.selectedItems = {} -- Limpa seleção após mover com sucesso
@@ -1251,6 +1254,8 @@ function GridRender:onMouseUp(x, y)
                             end
                         else
                             -- Transfere normalmente (Sem criar fantasma)
+                            -- MP: limpa a posição no servidor (auto-fit recalcula).
+                            GridClientNetwork.clearServerPosition(self.inventoryContainer, itemObj:getID())
                             local playerInv = getPlayerInventory(self.playerNum)
                             if playerInv and playerInv.inventoryPane then
                                 playerInv.inventoryPane:transferItemsByWeight({itemObj}, self.inventoryContainer)
@@ -1290,6 +1295,8 @@ function GridRender:onMouseUp(x, y)
                                 modData.gridX = targetX
                                 modData.gridY = targetY
                                 modData.gridRot = rotated
+                                -- MP server-mandatory: servidor grava a posição (drop coords, não autoSlot).
+                                GridClientNetwork.sendItemMove(self.inventoryContainer, itemObj:getID(), targetX, targetY, rotated)
                                 
                                 if isFromPaperDoll and srcContainer == self.inventoryContainer then
                                     local playerObj = getSpecificPlayer(self.playerNum)

@@ -12,6 +12,48 @@ GridContainer.__index = GridContainer
 -- Cache para não recriar as instâncias a cada frame
 GridContainer.instances = {}
 
+-- Chão virtual: grid fixo (GetFloorContainer não existe no servidor, então a
+-- validação de chão é bounds-only com estas dimensões).
+GridContainer.FLOOR_W, GridContainer.FLOOR_H = 6, 15
+
+--- Calcula as dimensões (w, h) do grid de um ItemContainer.
+--- Compartilhado cliente/servidor: o SERVIDOR usa a MESMA matemática para
+--- validar posições (bounds) e para não divergir da grid exibida no cliente.
+---@param inventory ItemContainer
+---@return number, number
+function GridContainer.getGridSize(inventory)
+    local cap = inventory:getCapacity()
+    local w, h = 6, 6
+    local invType = inventory:getType()
+    local parent = inventory:getParent()
+
+    if parent and instanceof(parent, "IsoDeadBody") then
+        w, h = 6, 8 -- Cadáveres ganham grid 6x8 (48 slots) para respeitar o padrão de largura 6
+    elseif invType == "inventorymale" or invType == "inventoryfemale" or invType == "inventory" or invType == "none" then
+        w, h = 3, 4 -- Bolsos do jogador (12 slots)
+    elseif invType == "floor" then
+        w, h = GridContainer.FLOOR_W, GridContainer.FLOOR_H -- Chão (infinito visualmente limitado)
+    elseif cap and cap > 0 then
+        w = 6
+        h = math.max(2, math.ceil(cap / 3))
+        if h > 15 then h = 15 end
+    else
+        w, h = 4, 4
+    end
+
+    -- Verifica Overrides do GridDevTool (nil no servidor → check é seguro)
+    if inventory:getContainingItem() then
+        local fullType = inventory:getContainingItem():getFullType()
+        if GridDevTool and GridDevTool.Overrides and GridDevTool.Overrides[fullType] then
+            local override = GridDevTool.Overrides[fullType]
+            if override.cols then w = override.cols end
+            if override.rows then h = override.rows end
+        end
+    end
+
+    return w, h
+end
+
 ---@param inventory ItemContainer
 ---@param playerNum number
 function GridContainer.getOrCreate(inventory, playerNum)
@@ -23,40 +65,64 @@ function GridContainer.getOrCreate(inventory, playerNum)
     self.inventory = inventory
     self.playerNum = playerNum
     self.grids = {} -- Nossos sub-grids (bolsos e grid principal)
-    
-    local cap = inventory:getCapacity()
-    local w, h = 6, 6
-    local invType = inventory:getType()
-    local parent = inventory:getParent()
-    
-    if parent and instanceof(parent, "IsoDeadBody") then
-        w, h = 6, 8 -- Cadáveres ganham grid 6x8 (48 slots) para respeitar o padrão de largura 6
-    elseif invType == "inventorymale" or invType == "inventoryfemale" or invType == "inventory" or invType == "none" then
-        w, h = 3, 4 -- Bolsos do jogador (12 slots)
-    elseif invType == "floor" then
-        w, h = 6, 15 -- Chão (infinito visualmente limitado)
-    elseif cap and cap > 0 then
-        w = 6
-        h = math.max(2, math.ceil(cap / 3))
-        if h > 15 then h = 15 end
-    else
-        w, h = 4, 4
-    end
-    
-    -- Verifica Overrides do GridDevTool
-    if inventory:getContainingItem() then
-        local fullType = inventory:getContainingItem():getFullType()
-        if GridDevTool and GridDevTool.Overrides and GridDevTool.Overrides[fullType] then
-            local override = GridDevTool.Overrides[fullType]
-            if override.cols then w = override.cols end
-            if override.rows then h = override.rows end
-        end
-    end
-    
+
+    local w, h = GridContainer.getGridSize(inventory)
+
     table.insert(self.grids, GridCore.new(w, h))
 
     GridContainer.instances[inventory] = self
     return self
+end
+
+--- Preenche um GridCore com os itens do container que POSSUEM posição salva.
+--- Server-safe: não usa getPlayerHotbar/ISTimedActionQueue (só item:getModData()).
+--- Usado pelo servidor para validar colisões de forma autoritativa.
+---@param container ItemContainer
+---@param grid GridCoreInstance
+function GridContainer.buildOccupancy(container, grid)
+    local items = container:getItems()
+    for i = 0, items:size() - 1 do
+        local item = items:get(i)
+        if item and item.getModData then
+            local md = item:getModData()
+            local sx = tonumber(md.gridX)
+            local sy = tonumber(md.gridY)
+            if sx and sy then
+                local isRot = md.gridRot or false
+                local w, h = ItemFootprint.getSize(item)
+                local ew, eh = isRot and h or w, isRot and w or h
+                grid:insertItem(item:getID(), sx, sy, ew, eh, isRot, item)
+            end
+        end
+    end
+end
+
+--- Valida (autoritativamente, lado servidor) se um item pode ser colocado em
+--- (x, y) no grid do container: bounds + colisão com itens já posicionados.
+---@param container ItemContainer
+---@param item InventoryItem
+---@param x number
+---@param y number
+---@param rotated boolean
+---@return boolean
+function GridContainer.validatePlacement(container, item, x, y, rotated)
+    if not container or not item then return false end
+    local w, h = GridContainer.getGridSize(container)
+    local grid = GridCore.new(w, h)
+    GridContainer.buildOccupancy(container, grid)
+    local fw, fh = ItemFootprint.getSize(item)
+    local ew, eh = rotated and fh or fw, rotated and fw or fh
+    return grid:canPlaceItem(item:getID(), x, y, ew, eh, item:getID())
+end
+
+--- Validação de CHÃO (container virtual inexistente no servidor): bounds-only
+--- contra a grid do chão (6x15). Colisão fica por conta da autoridade final do
+--- cliente ao renderizar; aqui só impedimos posições impossíveis/cheat.
+function GridContainer.validateFloorPlacement(item, x, y, rotated)
+    if not item then return false end
+    local fw, fh = ItemFootprint.getSize(item)
+    local ew, eh = rotated and fh or fw, rotated and fw or fh
+    return GridCore.new(GridContainer.FLOOR_W, GridContainer.FLOOR_H):canPlaceItem(item:getID(), x, y, ew, eh, item:getID())
 end
 
 --- Filtra quais itens realmente devem ocupar espaço visual.
