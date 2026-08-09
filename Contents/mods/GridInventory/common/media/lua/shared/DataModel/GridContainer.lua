@@ -4,6 +4,7 @@
 
 local GridCore = require("DataModel/GridCore")
 local ItemFootprint = require("Algorithm/ItemFootprint")
+local ScatterLayout = require("Algorithm/ScatterLayout")
 
 local GridContainer = {}
 GridContainer.__index = GridContainer
@@ -167,6 +168,12 @@ function GridContainer:refresh()
 
     local unpositioned = {}
 
+    -- Loot espalhado (natural) para containers recém-abertos: o sorteio é
+    -- determinístico (mesmo layout em todos os clientes do MP — ver
+    -- ScatterLayout.lua). Só afeta itens SEM posição salva.
+    local applyScatter = ScatterLayout.shouldScatter(self.inventory, self.playerNum)
+    local seedKey = ScatterLayout.buildSeedKey(self.inventory)
+
     -- 2. Itera sobre os itens reais do jogo
     for _, item in ipairs(allItems) do
         
@@ -190,14 +197,23 @@ function GridContainer:refresh()
                     placed = true
                     break
                 else
-                    -- Fallback: Auto-Organize para itens novos que não tem posição salva
-                    local freeX, freeY = grid:findFreeSpace(item:getID(), w, h)
+                    -- Fallback: posição sorteada (loot natural) para itens novos
+                    -- sem posição salva; se não achar, Auto-Organize (top-left).
+                    local freeX, freeY
                     local didRotate = false
-                    
+
+                    if applyScatter then
+                        freeX, freeY, didRotate = ScatterLayout.place(grid, item:getID(), w, h, seedKey)
+                    end
+
                     if not freeX then
-                        freeX, freeY = grid:findFreeSpace(item:getID(), h, w)
-                        if freeX and freeY then
-                            didRotate = true
+                        freeX, freeY = grid:findFreeSpace(item:getID(), w, h)
+                        didRotate = false
+                        if not freeX then
+                            freeX, freeY = grid:findFreeSpace(item:getID(), h, w)
+                            if freeX and freeY then
+                                didRotate = true
+                            end
                         end
                     end
                     
