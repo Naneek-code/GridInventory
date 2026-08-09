@@ -403,6 +403,42 @@ Events.OnGameBoot.Add(function()
         end
         return false
     end
+
+    -- FIX DO DUPLO CLIQUE (3 cliques → 2 cliques):
+    -- O Java detecta double-click POR ELEMENTO (estado `clicked` + clickX/Y +
+    -- leftDownTime) e, quando acha, CHAMA onMouseDoubleClick e ENGOLIRIA o 2º
+    -- onMouseDown. Como o Kahlua rawget resolve metatable, o ISInventoryPane
+    -- (que tem onMouseDoubleClick vanilla) DETECTA o double-click dele no 2º
+    -- clique e engole o clique ANTES de chegar no grid. Aí o estado Java do
+    -- grid fica "primado" do clique 1 e só dispara no 3º clique.
+    -- Solução: como o Java do pane sempre retorna TRUE (não dá pra não-engolir),
+    -- sobrescrevemos o onMouseDoubleClick do pane para ENCAMINHAR o duplo clique
+    -- para o grid sob o cursor (mesma lógica do GridRender:onMouseDoubleClick).
+    local og_paneOnMouseDoubleClick = ISInventoryPane.onMouseDoubleClick
+    function ISInventoryPane:onMouseDoubleClick(x, y)
+        -- Scrollbar: deixa o vanilla tratar (duplo clique rola até o fim)
+        if self.vscroll and self:isMouseOverScrollBar() then
+            return self.vscroll:onMouseDoubleClick(x - self.vscroll.x, y + self:getYScroll() - self.vscroll.y)
+        end
+        -- Duplo clique em cima de um grid: encaminha pro grid sob o cursor
+        if self.gridContainerUis then
+            for _, gridUi in ipairs(self.gridContainerUis) do
+                if gridUi.isMouseOver and gridUi:isMouseOver() and gridUi.onMouseDoubleClick then
+                    -- Limpa o estado custom do grid pra um 3º clique não
+                    -- false-positivar no double-click que acabou de acontecer
+                    gridUi.lastManualClickTime = nil
+                    gridUi.lastManualClickItemId = nil
+                    return gridUi:onMouseDoubleClick(gridUi:getMouseX(), gridUi:getMouseY())
+                end
+            end
+        end
+        -- Fora de grid (e sem scrollbar): comportamento vanilla (lista de itens
+        -- fica oculta no mod, então na prática não faz nada).
+        if og_paneOnMouseDoubleClick then
+            return og_paneOnMouseDoubleClick(self, x, y)
+        end
+        return false
+    end
 end)
 
 

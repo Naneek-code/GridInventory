@@ -922,7 +922,30 @@ function GridRender:doDoubleClick(x, y)
     if self.gridCore and self.gridCore.cells and self.gridCore.cells[col] then
         itemId = self.gridCore.cells[col][row]
     end
-    if not itemId then return end
+    if not itemId then
+        -- Duplo clique em célula VAZIA = torna este container o ATIVO (mesma
+        -- lógica do duplo clique no fundo do onMouseDown). Cobre o caso em que
+        -- o Java detecta o 2º clique no PANE e encaminha pra cá (fix do duplo
+        -- clique). Limpa os estados custom pra um 3º clique não repetir.
+        self.lastEmptyClickTime = nil
+        self.lastManualClickTime = nil
+        self.lastManualClickItemId = nil
+        local pLoot = getPlayerLoot(self.playerNum)
+        local pInv = getPlayerInventory(self.playerNum)
+        local found = false
+        for _, page in ipairs({pLoot, pInv}) do
+            if page and page.backpacks and not found then
+                for _, btn in ipairs(page.backpacks) do
+                    if btn.inventory == self.inventoryContainer then
+                        page:selectContainer(btn)
+                        found = true
+                        break
+                    end
+                end
+            end
+        end
+        return
+    end
     
     -- Evita spam de double click na mesma ação
     local now = getTimeInMillis()
