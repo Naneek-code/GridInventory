@@ -500,8 +500,8 @@ function PaperDollWindow:refreshHotbarUIs(hotbar)
     
     -- Custom Row: Back (grande), Belts
     if backSlot or beltLeft or beltRight then
-        local rowH = 142
-        local backW, backH = 64, 142
+        local rowH = 64
+        local backW, backH = 128, 64
         local beltSize = 64
         
         local totalW = 0
