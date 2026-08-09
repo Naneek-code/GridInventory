@@ -275,6 +275,44 @@ if not GridInventory_ControlsArrangeInstalled and ISLootWindowContainerControls 
     end
 end
 
+-- Substitui os botões de TEXTO do rodapé (Take All / Transfer All / Move To
+-- Floor) por ÍCONES (common/media/UI/*.png). O vanilla continua posicionando
+-- tudo no `arrange`; trocamos só o controle que cada handler cria: em vez de
+-- `getButtonControl("Take All")` usamos o ícone compacto (altura = fonte,
+-- largura = proporção do ícone) com tooltip mantendo o rótulo. Overrides em
+-- nível de módulo = executados UMA vez no load, sem closure/wrapper (idempotente).
+-- Se a textura não carregar (ex.: caminho errado), cai de volta pro texto.
+local function GridInventory_iconButtonControl(handler, imagePath, tooltipText)
+    if getTexture(imagePath) == nil then
+        handler.control = handler:getButtonControl(tooltipText)
+    else
+        handler.control = handler:getImageButtonControl(imagePath)
+        handler.control:setTooltip(tooltipText)
+    end
+    return handler.control
+end
+
+if ISLootWindowObjectControlHandler_TakeAll then
+    function ISLootWindowObjectControlHandler_TakeAll:getControl()
+        return GridInventory_iconButtonControl(self, "media/UI/TakeAll.png", getText("IGUI_invpage_Loot_all"))
+    end
+end
+if ISLootWindowFloorControlHandler_TakeAll then
+    function ISLootWindowFloorControlHandler_TakeAll:getControl()
+        return GridInventory_iconButtonControl(self, "media/UI/TakeAll.png", getText("IGUI_invpage_Loot_all"))
+    end
+end
+if ISLootWindowObjectControlHandler_MoveToFloor then
+    function ISLootWindowObjectControlHandler_MoveToFloor:getControl()
+        return GridInventory_iconButtonControl(self, "media/UI/MoveToFloor.png", getText("ContextMenu_MoveToFloor"))
+    end
+end
+if ISInventoryWindowControlHandler_TransferAll then
+    function ISInventoryWindowControlHandler_TransferAll:getControl()
+        return GridInventory_iconButtonControl(self, "media/UI/TransferAll.png", getText("IGUI_invpage_Transfer_all"))
+    end
+end
+
 -- Hook para mostrar/esconder o PaperDoll e o Loot juntos
 local og_setVisible = ISInventoryPage.setVisible
 function ISInventoryPage:setVisible(visible)
