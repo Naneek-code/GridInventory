@@ -373,6 +373,13 @@ function ISInventoryPage:onMouseWheel(del)
         end
     end
 
+    return self:cycleContainer(del)
+end
+
+--- Troca o container selecionado usando o scroll (mesma lógica do vanilla
+--- quando o mouse está sobre a coluna de mochilas/ícones). Também é chamado
+--- pelo ISInventoryPane:onMouseWheel quando o scroll rola FORA de um grid.
+function ISInventoryPage:cycleContainer(del)
     local currentIndex = self:getCurrentBackpackIndex()
     local unlockedIndex = -1
 
@@ -386,7 +393,7 @@ function ISInventoryPage:onMouseWheel(del)
     else
         unlockedIndex = self:nextUnlockedContainer(currentIndex, wrap)
     end
-    
+
     if unlockedIndex ~= -1 then
         local playerObj = getSpecificPlayer(self.player)
         if playerObj and playerObj:getJoypadBind() ~= -1 then

@@ -379,6 +379,30 @@ Events.OnGameBoot.Add(function()
             end
         end
     end
+
+    -- Scroll FORA de um grid = troca o container selecionado (mesmo
+    -- comportamento do vanilla na coluna de mochilas/ícones), valendo para o
+    -- painel de LOOT e o de INVENTÁRIO. Sobre um grid, rola o painel
+    -- normalmente (comportamento vanilla).
+    local og_paneOnMouseWheel = ISInventoryPane.onMouseWheel
+    function ISInventoryPane:onMouseWheel(del)
+        local page = self.inventoryPage
+        if page and not page.isCollapsed and not self:isMouseOverAnyGrid() then
+            return page:cycleContainer(del)
+        end
+        return og_paneOnMouseWheel(self, del)
+    end
+
+    --- Verdadeiro se o mouse está em cima de qualquer grid renderizado.
+    function ISInventoryPane:isMouseOverAnyGrid()
+        if not self.gridContainerUis then return false end
+        for _, gridUi in ipairs(self.gridContainerUis) do
+            if gridUi.isMouseOver and gridUi:isMouseOver() then
+                return true
+            end
+        end
+        return false
+    end
 end)
 
 
