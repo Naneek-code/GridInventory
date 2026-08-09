@@ -39,6 +39,10 @@ function ISInventoryPage:createChildren()
     end
 end
 
+-- Padding interno da barra de controles dentro do rodapé reservado da grid
+-- ativa (pra não ficar grudada nas extremidades).
+local CONTROLS_PAD = 3
+
 local og_update = ISInventoryPage.update
 function ISInventoryPage:update()
     -- Roda o Zomboid (e o maldito CleanUI) primeiro!
@@ -52,6 +56,15 @@ function ISInventoryPage:update()
         if self:getIsVisible() and pane:getIsVisible() then
             pane:refreshContainer()
         end
+    end
+
+    -- A controlsUI nasce com âncoras bottom/right. Como redimensionamos a
+    -- página todo frame, o layout reaplica essas âncoras e JOGARIA os botões
+    -- de volta pro rodapé (atrás da grid de altura total) e piscaria a cada
+    -- troca de container. Desligamos TODAS as âncoras: a posição passa a ser
+    -- 100% controlada por nós (setX/setY abaixo).
+    if self.controlsUI then
+        self.controlsUI:setAnchors(false)
     end
 
     local core = getCore()
@@ -86,11 +99,6 @@ function ISInventoryPage:update()
         if self.inventoryPane then
             self.inventoryPane:setX(0)
             self.inventoryPane:setWidth(panelW - self.buttonSize)
-        end
-        if self.controlsUI then
-            self.controlsUI:setX(0)
-            self.controlsUI:setWidth(panelW - self.buttonSize)
-            self.controlsUI:setY(self.height - 30)
         end
     else
         self:setX(panelW + paperDollW)
@@ -142,16 +150,71 @@ function ISInventoryPage:update()
         self.resizeWidget2:setX(self.width)
     end
 
-    -- Se o Zomboid disparar o arrange() fora do update, ele vai usar o Y correto!
-    -- Mas precisamos garantir o layout X pro player (esquerda) e loot (direita).
-    if self.controlsUI then
-        if self.onCharacter then
-            self.controlsUI:setX(0)
-        else
-            self.controlsUI:setX(self.buttonSize)
+    -- A "controlsUI" (Take All / Transfer All / botões do objeto, ex: ligar e
+    -- desligar o fogão) NÃO fica mais numa barra perdida no rodapé do painel.
+    -- Ela é re-parentada para DENTRO do pane e vive no RODAPÉ RESERVADO do
+    -- grid ATIVO: o grid ativo ganha +altura (a barra) e o grid debaixo desce
+    -- (nunca sobrepõe). Usar coords locais do pane + setScrollChildren faz o
+    -- scroll acompanhar a grid, e re-adicionar como ÚLTIMO filho do pane garante
+    -- que renderiza por cima das grids. Sem grid/botões, a barra simplesmente some
+    -- e o grid ativo volta à altura normal.
+    if self.controlsUI and self.inventoryPane then
+        self.controlsUI:setAnchors(false)
+        -- Re-parenta pro pane (uma vez; addChild já desanexa da página)
+        if self.controlsUI.parent ~= self.inventoryPane then
+            self.inventoryPane:addChild(self.controlsUI)
         end
-        self.controlsUI:setWidth(panelW - self.buttonSize)
-        self.controlsUI:setY(screenH - 15 - self.controlsUI:getHeight())
+        local gridUi = nil
+        if self.inventoryPane.gridContainerUis then
+            local activeInv = self.inventoryPane.inventory
+            for _, g in ipairs(self.inventoryPane.gridContainerUis) do
+                if not g.isOverflow and g.inventoryContainer == activeInv then
+                    gridUi = g
+                    break
+                end
+            end
+        end
+        local hasButtons = (gridUi and self.controlsUI.controls and #self.controlsUI.controls > 0)
+        -- Reserva o rodapé no grid ativo; restaura a altura dos demais grids
+        local footerH = 0
+        if hasButtons then
+            footerH = math.max(24, (self.controlsUI:getHeight() or 0) + (CONTROLS_PAD * 2))
+        end
+        if self.inventoryPane.gridContainerUis then
+            for _, g in ipairs(self.inventoryPane.gridContainerUis) do
+                if not g.isOverflow then
+                    if not g.baseGridHeight then
+                        g.baseGridHeight = g:getHeight()
+                    end
+                    local targetH = g.baseGridHeight
+                    if g == gridUi and footerH > 0 then
+                        targetH = targetH + footerH
+                    end
+                    if g:getHeight() ~= targetH then
+                        g:setHeight(targetH)
+                    end
+                end
+            end
+        end
+        if hasButtons then
+            -- Posiciona a barra dentro do rodapé reservado da grid ativa, com
+            -- um pequeno padding pra não ficar grudada nas extremidades.
+            self.controlsUI:setX(gridUi:getX() + CONTROLS_PAD)
+            self.controlsUI:setY(gridUi:getY() + gridUi.baseGridHeight + CONTROLS_PAD)
+            self.controlsUI:setWidth(gridUi:getWidth() - (CONTROLS_PAD * 2))
+            self.controlsUI:setVisible(true)
+            -- Último filho do pane → renderiza por cima das grids
+            self.inventoryPane:removeChild(self.controlsUI)
+            self.inventoryPane:addChild(self.controlsUI)
+        else
+            self.controlsUI:setVisible(false)
+        end
+        -- Devolve pro pane a altura que a barra ocupava no rodapé
+        local resizeH = 0
+        if self.resizeWidget and self.resizeWidget.height then
+            resizeH = self.resizeWidget.height
+        end
+        self.inventoryPane:setHeight(self.height - self.inventoryPane.y - resizeH)
     end
 
     -- Esconde os botões soltos da title bar nativa, pois o controlsUI já cuida de tudo no rodapé
@@ -169,6 +232,47 @@ function ISInventoryPage:update()
     self.resizable = false
     self.pin = true
     self.isCollapsed = false
+end
+
+-- A controlsUI do loot ancora os botões "displayToRight" (Turn On, Settings,
+-- Light Fire, Add Fuel, etc.) na largura do PANE inteiro. Como a controlsUI
+-- agora é filha do pane com a largura da grid ativa, ancoramos esses botões
+-- na largura da PRÓPRIA controlsUI (a grid), não no canto do painel.
+-- ATENÇÃO: este override TEM que ficar em nível de módulo (fora do update)!
+-- Se ficar dentro do update, ele re-captura `arrange` e re-embrulha a função a
+-- cada frame → recursão infinita → stack overflow (crash da UI inteira).
+GridInventory_ControlsArrangeInstalled = GridInventory_ControlsArrangeInstalled or false
+if not GridInventory_ControlsArrangeInstalled and ISLootWindowContainerControls then
+    GridInventory_ControlsArrangeInstalled = true
+    local og_lootControlsArrange = ISLootWindowContainerControls.arrange
+    function ISLootWindowContainerControls:arrange()
+        local lootWin = self.lootWindow
+        local pane = lootWin and lootWin.inventoryPane
+        local savedWidth = pane and pane.width
+        if pane then
+            -- Sincroniza a largura da controlsUI com a grid ativa ANTES do
+            -- vanilla posicionar os botões: evita o flicker onde o Turn On/
+            -- Settings nasce ancorado no canto direito (largura do pane) e é
+            -- puxado pra dentro da grid no frame seguinte.
+            if pane.gridContainerUis then
+                local activeInv = pane.inventory
+                for _, g in ipairs(pane.gridContainerUis) do
+                    if not g.isOverflow and g.inventoryContainer == activeInv then
+                        local w = g:getWidth() - (CONTROLS_PAD * 2)
+                        if self.width ~= w then
+                            self:setWidth(w)
+                        end
+                        break
+                    end
+                end
+            end
+            pane.width = self.width
+        end
+        og_lootControlsArrange(self)
+        if pane then
+            pane.width = savedWidth
+        end
+    end
 end
 
 -- Hook para mostrar/esconder o PaperDoll e o Loot juntos
@@ -241,10 +345,20 @@ function ISInventoryPage:prerender()
     end
 end
 
--- Hook no render estava atrasado pois a barra é desenhada no prerender
+-- Hook no render: suprime a barra de status e a borda fantasma da controlsUI
+-- que o vanilla desenhava no rodapé (agora a controlsUI vive dentro do pane,
+-- no grid ativo). Redesenha apenas a borda externa do painel.
 local og_pageRender = ISInventoryPage.render
 function ISInventoryPage:render()
+    local ogDRB = self.drawRectBorder
+    local ogDTS = self.drawTextureScaled
+    self.drawRectBorder = function() end
+    self.drawTextureScaled = function() end
     og_pageRender(self)
+    self.drawRectBorder = ogDRB
+    self.drawTextureScaled = ogDTS
+    self:drawRectBorder(0, 0, self:getWidth(), self:getHeight(),
+        self.borderColor.a, self.borderColor.r, self.borderColor.g, self.borderColor.b)
 end
 
 -- Sobrescrevemos o sistema de destaque visual (highlight verde no chão) 
