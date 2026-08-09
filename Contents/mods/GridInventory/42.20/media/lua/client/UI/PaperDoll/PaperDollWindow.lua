@@ -183,8 +183,8 @@ function PaperDollWindow:initialise()
     end
 
     -- Custom Slots: Primary and Secondary (1x2, lado a lado, abaixo da Bag)
-    local wepY = bagY + 64 + padding
-    local wepW, wepH = 142, 50
+    local wepY = bagY + 50 + padding
+    local wepW, wepH = 155, 50
     local centerX = self.width / 2
 
     local primarySlot = PaperDollSlot:new(centerX - wepW - 5, wepY, wepW, wepH, self.playerNum, {"PRIMARY"}, getText("IGUI_PaperDoll_Primary"))
@@ -449,7 +449,7 @@ function PaperDollWindow:refreshHotbarUIs(hotbar)
     
     local padding = 10
     local centerX = self.width / 2
-    local startY = self.avatarY + 484 -- Abaixo das mãos (wepY + wepH + padding)
+    local startY = self.avatarY + 470 -- Abaixo das mãos (wepY + wepH + padding)
     
     local function createHotbarSlot(x, y, w, h, slotObj)
         if not slotObj then return end
@@ -501,7 +501,7 @@ function PaperDollWindow:refreshHotbarUIs(hotbar)
     -- Custom Row: Back (grande), Belts
     if backSlot or beltLeft or beltRight then
         local rowH = 142
-        local backW, backH = 50, 142
+        local backW, backH = 64, 142
         local beltSize = 64
         
         local totalW = 0
