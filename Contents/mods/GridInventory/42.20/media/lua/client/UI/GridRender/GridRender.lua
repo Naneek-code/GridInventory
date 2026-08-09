@@ -174,8 +174,16 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
     
     local isCustomTint = (r ~= 1 or g ~= 1 or b ~= 1)
     
-    if not isRotated and not isCustomTint then
-        -- Quando não há rotação nem tint especial, usamos o renderizador NATIVO (DrawItemIcon).
+    -- Itens com máscara de fluido NÃO passam pelo DrawItemIcon nativo nem na
+    -- posição normal: o Java desenha a máscara com geometria própria que, em
+    -- alguns itens, nasce 1px menor que o conteúdo do item. O caminho manual
+    -- abaixo (SpriteRenderer com UVs) renderiza a máscara alinhada e no tamanho
+    -- exato da textura base — o mesmo já usado nos itens rotacionados.
+    local hasFluidMask = item.getTextureFluidMask and item:getTextureFluidMask() ~= nil
+    
+    if not isRotated and not isCustomTint and not hasFluidMask then
+        -- Quando não há rotação, tint especial nem máscara de fluido, usamos o
+        -- renderizador NATIVO (DrawItemIcon).
         -- Para evitar as margens invisíveis do jogo e deixar o item igualzinho ao tamanho real do Grid:
         -- Calculamos a escala baseada nos pixels VISÍVEIS (getWidth).
         local scale = math.min(w / texW, h / texH)
@@ -196,8 +204,9 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
         
         self.javaObject:DrawItemIcon(item, relX, relY, a, fullW, fullH)
     else
-        -- Fallback manual (para itens deitados). Usa geometria de vértices nativos do DrawTexture.
-        -- OBS: Máscara de fluido removida do fallback pois a Engine só permite recortar volume d'água via manipulação de UV na API Java.
+        -- Fallback manual (para itens deitados E para itens com máscara de
+        -- fluido na posição normal). Usa geometria de vértices nativos do
+        -- DrawTexture + SpriteRenderer com UVs (recorte de volume d'água).
         local visualTexW = isRotated and texH or texW
         local visualTexH = isRotated and texW or texH
         local scale = math.min(w / visualTexW, h / visualTexH)
@@ -325,7 +334,7 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
             end
         end
         
-        -- Color Mask (Tintas de Cabelo, etc)
+        -- Color Mask (Tintas de Cabelo, etc.)
         if hasColorMask then
             local maskR, maskG, maskB = 1, 1, 1
             if item.getColor and item:getColor() then
@@ -336,7 +345,31 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
             local mR = isCustomTint and finalR or maskR
             local mG = isCustomTint and finalG or maskG
             local mB = isCustomTint and finalB or maskB
-            renderTex(hasColorMask, mR, mG, mB)
+            -- A máscara de cor NÃO é esticada pro retângulo da base: ela tem
+            -- geometria própria (offset/tamanho) e é alinhada ao MESMO "full
+            -- box" que a base e a máscara de fluido (mesma fórmula do fluido).
+            -- Antes era desenhada no retângulo da base e, quando a geometria
+            -- difere (ex.: WaterBottle_Mask2 do PopBottle, 14x16 vs 25x31 da
+            -- base), ficava maior que o item cobrindo ele inteiro.
+            local cmTex = hasColorMask
+            local cmOffX = (cmTex:getOffsetX() - texture:getOffsetX()) * scale
+            local cmOffY = (cmTex:getOffsetY() - texture:getOffsetY()) * scale
+            if not isRotated then
+                local rx = absX + cmOffX
+                local ry = absY + cmOffY
+                local rw = cmTex:getWidth() * scale
+                local rh = cmTex:getHeight() * scale
+                self.javaObject:DrawTexture(cmTex, rx, ry, rx+rw, ry, rx+rw, ry+rh, rx, ry+rh, mR, mG, mB, a)
+            else
+                local rw = cmTex:getHeight() * scale
+                local rh = cmTex:getWidth() * scale
+                local rx = absX + cmOffY
+                local ry = absY + drawH - cmOffX - rh
+                local tx1 = cmTex:getXStart(); local ty1 = cmTex:getYStart()
+                local tx2 = cmTex:getXEnd(); local ty2 = cmTex:getYEnd()
+                SpriteRenderer.instance:render(cmTex, rx, ry, rw, rh, mR, mG, mB, a,
+                    tx2, ty1, tx2, ty2, tx1, ty2, tx1, ty1)
+            end
         end
     end
 end
