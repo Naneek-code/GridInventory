@@ -220,6 +220,9 @@ function AvatarUseDropZone:updateAvatarAction(playerObj)
             self.avatarInAction = true
             -- Mesmo mecanismo do personagem real no mundo: idle -> actions.
             self.avatarPanel:setAnimSetName("player")
+            -- Fidgets aleatórios (EventDoExt) desligados durante a ação para
+            -- não interferirem na transição para o substate "actions".
+            self.avatarPanel:setDoRandomExtAnimations(false)
             -- Condições extras de segurança (TakePills pede sneaking=false e
             -- nearWallCrouching=false; a transição idle->actions pede
             -- isTurning=false). Com variável não definida o padrão já é false,

@@ -266,16 +266,23 @@ end
 
 function PaperDollWindow:update()
     ISCollapsableWindow.update(self)
-    -- Garante que o Avatar continua refletindo o personagem (roupas equipadas, sangue, etc)
     local playerObj = getSpecificPlayer(self.playerNum)
-    if self.avatarPanel and playerObj then
-        self.avatarPanel:setCharacter(playerObj)
-    end
+    if playerObj then
+        -- Avatar espelha a ação atual do personagem (comer/beber/ler/bandagem/etc),
+        -- só depois que a timed action começa de verdade. RODA ANTES do setCharacter:
+        -- no 1o frame o animset/vars já estão setados quando o modelo é reconstruído
+        -- (o substate "actions" ativa com PerformingAction válido) e, no último frame,
+        -- o animset volta a "player-avatar" ANTES da rebuild, resetando o ActionContext
+        -- direto pro idle -- o estado "actions" nunca é avaliado com vars limpos, então
+        -- o nó default-fallback (Bob_EmoteSurrender) não é selecionado.
+        if self.avatarDropZone then
+            self.avatarDropZone:updateAvatarAction(playerObj)
+        end
 
-    -- Avatar espelha a ação atual do personagem (comer/beber/ler/bandagem/etc),
-    -- só depois que a timed action começa de verdade.
-    if self.avatarDropZone and playerObj then
-        self.avatarDropZone:updateAvatarAction(playerObj)
+        -- Garante que o Avatar continua refletindo o personagem (roupas equipadas, sangue, etc)
+        if self.avatarPanel then
+            self.avatarPanel:setCharacter(playerObj)
+        end
     end
     
     if playerObj then
