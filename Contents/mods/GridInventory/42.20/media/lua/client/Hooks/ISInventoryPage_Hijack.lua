@@ -234,6 +234,56 @@ function ISInventoryPage:update()
     self.isCollapsed = false
 end
 
+-- Re-flui os botões da controlsUI com gap de 1px (o vanilla usa UI_MARGIN=5,
+-- uma local inacessível). Separa o grupo ancorado à direita (Turn On, Settings)
+-- do grupo à esquerda e compacta cada um, preservando as ancoragens.
+local function gridInv_compactControls(controlsUI)
+    local controls = controlsUI.controls
+    local uiW = controlsUI.width or 0
+    if not controls or #controls < 2 or uiW <= 0 then return end
+
+    -- Índice do 1º botão do grupo direito (borda direita encosta na largura).
+    -- Se não houver, todos os botões pertencem ao grupo esquerdo.
+    local rightStart = #controls + 1
+    for i, c in ipairs(controls) do
+        if c.getRight and c:getRight() >= uiW - 6 then
+            rightStart = i
+            break
+        end
+    end
+
+    -- Grupo esquerdo: compacta por linha (mesmo getY), da esquerda pra direita.
+    local rows = {}
+    for i = 1, rightStart - 1 do
+        local c = controls[i]
+        local row = rows[c:getY()]
+        if not row then
+            row = {}
+            rows[c:getY()] = row
+        end
+        table.insert(row, c)
+    end
+    for _, row in pairs(rows) do
+        table.sort(row, function(a, b) return a:getX() < b:getX() end)
+        local prevRight = row[1]:getRight()
+        for j = 2, #row do
+            row[j]:setX(prevRight + 1)
+            prevRight = row[j]:getRight()
+        end
+    end
+
+    -- Grupo direito: ancorado à direita, gap de 1px (cada um 1px à esquerda
+    -- do botão já reposicionado).
+    if rightStart <= #controls then
+        local prevLeft = controls[rightStart]:getX()
+        for i = rightStart + 1, #controls do
+            local c = controls[i]
+            c:setX(prevLeft - c:getWidth() - 1)
+            prevLeft = c:getX()
+        end
+    end
+end
+
 -- A controlsUI do loot ancora os botões "displayToRight" (Turn On, Settings,
 -- Light Fire, Add Fuel, etc.) na largura do PANE inteiro. Como a controlsUI
 -- agora é filha do pane com a largura da grid ativa, ancoramos esses botões
@@ -272,6 +322,20 @@ if not GridInventory_ControlsArrangeInstalled and ISLootWindowContainerControls 
         if pane then
             pane.width = savedWidth
         end
+        -- Compacta os botões com gap de 1px (vanilla usa 5px)
+        gridInv_compactControls(self)
+    end
+end
+
+-- Mesma compactação (1px) para a controlsUI do PAINEL DO JOGADOR
+-- (ISInventoryWindowContainerControls: Take All/Transfer All/etc.).
+GridInventory_InvControlsArrangeInstalled = GridInventory_InvControlsArrangeInstalled or false
+if not GridInventory_InvControlsArrangeInstalled and ISInventoryWindowContainerControls then
+    GridInventory_InvControlsArrangeInstalled = true
+    local og_invControlsArrange = ISInventoryWindowContainerControls.arrange
+    function ISInventoryWindowContainerControls:arrange()
+        og_invControlsArrange(self)
+        gridInv_compactControls(self)
     end
 end
 
