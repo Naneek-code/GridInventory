@@ -127,6 +127,18 @@ function GridClientNetwork.clearServerPosition(container, itemId)
     })
 end
 
+--- Pede pro servidor TIRAR um item da MÃO do jogador (vestir item segurado).
+--- O vanilla não sincroniza a mão vazia no MP (setPrimaryHandItem(nil) só
+--- broadcasta no servidor); sem isso a mochila vestida continua na mão no 3D.
+function GridClientNetwork.clearHandItem(itemId)
+    if not isClient() then return end
+    local player = getPlayer()
+    if not player or itemId == nil then return end
+    sendClientCommand(player, GridProtocol.MODULE, GridProtocol.COMMANDS.CLEAR_HAND, {
+        itemId = itemId,
+    })
+end
+
 --- Envia os overrides editados pro servidor (admin/devtool) — autoridade final.
 function GridClientNetwork.sendOverrides(overrides)
     if not isClient() then return end

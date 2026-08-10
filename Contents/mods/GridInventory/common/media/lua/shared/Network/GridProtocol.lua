@@ -16,6 +16,7 @@ GridProtocol.COMMANDS = {
     GET_OVERRIDES = "GetOverrides", -- Cliente pede os overrides do servidor (no join)
     REQ_OVERRIDES = "ReqOverrides", -- Cliente envia overrides editados (admin/devtool)
     SYNC_OVERRIDES = "SyncOverrides", -- Servidor broadcasta os overrides (autoridade)
+    CLEAR_HAND   = "ClearHand",     -- Cliente pede pro servidor tirar um item da MÃO (vestir da mão)
 }
 
 -- Chaves para salvar coisas no banco de dados do jogo

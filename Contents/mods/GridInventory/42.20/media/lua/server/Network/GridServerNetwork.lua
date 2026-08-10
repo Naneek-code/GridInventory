@@ -164,6 +164,29 @@ local function OnClientCommand(module, command, player, args)
         return
     end
 
+    -- Cliente vestiu um item que estava NA MÃO: o vanilla não sincroniza a mão
+    -- vazia (setPrimaryHandItem(nil) só broadcasta no servidor). O servidor é
+    -- autoridade — tira o item da mão aqui e broadcasta (Equip), senão todos os
+    -- clientes continuam renderizando a mochila na mão após vestir.
+    if command == GridProtocol.COMMANDS.CLEAR_HAND then
+        if args and args.itemId then
+            local primary = player.getPrimaryHandItem and player:getPrimaryHandItem()
+            local secondary = player.getSecondaryHandItem and player:getSecondaryHandItem()
+            local cleared = false
+            if primary and primary:getID() == args.itemId then
+                player:removeFromHands(primary)
+                cleared = true
+            elseif secondary and secondary:getID() == args.itemId then
+                player:removeFromHands(secondary)
+                cleared = true
+            end
+            if cleared and sendEquip then
+                sendEquip(player)
+            end
+        end
+        return
+    end
+
     if command ~= GridProtocol.COMMANDS.REQUEST_MOVE then return end
 
     local status = processMove(player, args)
