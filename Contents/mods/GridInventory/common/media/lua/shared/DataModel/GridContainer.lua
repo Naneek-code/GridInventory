@@ -171,7 +171,16 @@ function GridContainer.buildRecipeMaxStack()
                         local amount = out:getIntAmount()
                         local fullType = out:getScriptObjectFullType()
                         if amount and amount > 1 and fullType then
-                            map[fullType] = amount
+                            -- Nem todo output de recipe Packing representa o
+                            -- limite de uma pilha no inventário. Recipes de
+                            -- conversão/embalagem podem produzir 2 unidades
+                            -- (ex.: Twine/Newspaper), o que não deve limitar a
+                            -- pilha visual a dois objetos. Só altera limites
+                            -- já conhecidos/curados; os demais usam o teto
+                            -- seguro padrão.
+                            if GridContainer.MAX_STACK_FALLBACK[fullType] then
+                                map[fullType] = math.max(map[fullType] or 1, amount)
+                            end
                         end
                     end
                 end
@@ -195,12 +204,10 @@ function GridContainer.getMaxStackUnits(item)
         end
     end
 
-    -- 2. Auto: recipe de pack/unpack (derivado runtime) ou fallback curado
-    if not GridContainer.recipeMaxStack then
-        GridContainer.recipeMaxStack = GridContainer.buildRecipeMaxStack()
-    end
-    return GridContainer.recipeMaxStack[fullType]
-        or GridContainer.MAX_STACK_FALLBACK[fullType]
+    -- 2. Limite conhecido pelo tipo ou teto seguro. Outputs de recipes de
+    -- embalagem não são usados aqui: podem representar conversão de receita,
+    -- não o limite visual de objetos empilhados (ex.: Twine/Newspaper = 2).
+    return GridContainer.MAX_STACK_FALLBACK[fullType]
         or GridContainer.STACK_LIMIT_DEFAULT
 end
 
@@ -448,6 +455,33 @@ function GridContainer:refresh()
                 -- item legado sem assinatura — compat com saves antigos).
                 local posValid = savedX and savedY
                     and (not modData.gridContainer or modData.gridContainer == containerSig)
+
+                -- Transferência pendente: o item ainda está na origem, mas já
+                -- recebeu a assinatura do container alvo. Não auto-posicione na
+                -- origem, pois isso sobrescreveria a posição destinada ao alvo
+                -- antes da ação de transferência terminar.
+                local pendingOtherGrid = GridInventory_InTransit
+                    and GridInventory_InTransit[item:getID()]
+                    and modData.gridContainer
+                    and modData.gridContainer ~= containerSig
+                if pendingOtherGrid then
+                    local pending = GridInventory_InTransit[item:getID()]
+                    local previousX = tonumber(pending.previousX)
+                    local previousY = tonumber(pending.previousY)
+                    local previousRot = pending.previousRot or false
+                    local previousW = previousRot and h or w
+                    local previousH = previousRot and w or h
+                    if previousX and previousY
+                        and grid:canPlaceItem(item:getID(), previousX, previousY,
+                            previousW, previousH, nil, compatKey, previousRot, stackInfo) then
+                        grid:insertItem(item:getID(), previousX, previousY,
+                            previousW, previousH, previousRot, item, compatKey, stackInfo)
+                        placed = true
+                        break
+                    end
+                    placed = true
+                    break
+                end
                 
                 local effectiveW = isRot and h or w
                 local effectiveH = isRot and w or h

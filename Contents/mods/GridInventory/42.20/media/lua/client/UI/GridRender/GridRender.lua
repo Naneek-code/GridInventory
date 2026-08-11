@@ -12,6 +12,11 @@ GridRender = ISPanel:derive("GridRender")
 
 -- Configurações visuais do nosso estilo "Tarkov"
 
+-- Itens atualmente EM TRANSFERÊNCIA (drag&drop pra outro container): ficam
+-- "presos" — não podem ser arrastados de novo até o timer da ação completar.
+-- Set global keyed por itemId (o ghost mora no grid ALVO; o item na origem).
+GridInventory_InTransit = GridInventory_InTransit or {}
+
 local GridRender = ISPanel:derive("GridRender")
 local GRID_PADDING = 10
 local ITEM_BG_COLOR = {r=0.4, g=0.4, b=0.4, a=0.5}
@@ -986,6 +991,12 @@ function GridRender:onMouseDown(x, y)
     end
 
     if itemId then
+        -- Item EM TRÂNSITO (transferência pendente pra outro container): fica
+        -- PRESO até a ação completar — não dá pra re-arrastar/mexer.
+        if GridInventory_InTransit and GridInventory_InTransit[itemId] then
+            return
+        end
+
         -- Ctrl num item EMPILHADO: marca o "peel". Sem arrasto (mouse-up) abre
         -- o STACK PICKER; com arrasto (Ctrl+drag) tira 1 item da pilha e inicia
         -- o drag com ele (maneira rápida de pegar 1 da pilha sem abrir painel).
@@ -1428,9 +1439,133 @@ function GridRender:onMouseUp(x, y)
             if globalDragItems and #globalDragItems > 1 then
                 isMultiDrag = true
             end
+
+            -- PILHA ÚNICA arrastada (líder + membros na MESMA célula de origem):
+            -- é UMA unidade lógica (uma célula, um footprint), NÃO um multi-drag
+            -- de verdade. Se caísse no multi-drag, a posição de TODOS os membros
+            -- seria limpa e o auto-sort jogaria a pilha pro começo do grid alvo
+            -- (perda da posição salva). Detecta via célula de origem compartilhada
+            -- e trata como item único (controle fino): a pilha aterrissa na célula
+            -- do drop com a posição preservada.
+            local singleStackLeaderId = nil
+            if isMultiDrag and globalDragItems and #globalDragItems > 1
+                and GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid
+                and GridInventory_GlobalDrag.sourceGrid.gridCore then
+                local first = globalDragItems[1]
+                local sameCell = first.originalX ~= nil
+                for i = 2, #globalDragItems do
+                    local d = globalDragItems[i]
+                    if d.originalX ~= first.originalX or d.originalY ~= first.originalY then
+                        sameCell = false
+                        break
+                    end
+                end
+                if sameCell then
+                    local sourceCore = GridInventory_GlobalDrag.sourceGrid.gridCore
+                    for _, d in ipairs(globalDragItems) do
+                        if sourceCore:isStackLeader(d.id) then
+                            singleStackLeaderId = d.id
+                            break
+                        end
+                    end
+                    isMultiDrag = false
+                end
+            end
             
             local isFromPaperDoll = GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid and GridInventory_GlobalDrag.sourceGrid.slotName
 
+            local singleStackHandled = false
+            if singleStackLeaderId then
+                local leaderData = nil
+                for _, d in ipairs(globalDragItems) do
+                    if d.id == singleStackLeaderId then
+                        leaderData = d
+                        break
+                    end
+                end
+
+                if leaderData and leaderData.itemObj then
+                    local leader = leaderData.itemObj
+                    local rotated = leaderData.rotated or false
+                    local fw, fh = ItemFootprint.getSize(leader)
+                    local effectiveW = rotated and fh or fw
+                    local effectiveH = rotated and fw or fh
+                    local targetX = dropCol - (leaderData.grabOffsetX or 0)
+                    local targetY = dropRow - (leaderData.grabOffsetY or 0)
+                    local compatKey = leaderData.compatKey
+                    local stackInfo = leaderData.stackInfo
+
+                    if targetX < 1 then targetX = 1 end
+                    if targetY < 1 then targetY = 1 end
+                    if not self.gridCore:canPlaceItem(leader:getID(), targetX, targetY,
+                        effectiveW, effectiveH, nil, compatKey, rotated, stackInfo) then
+                        local fx, fy = self.gridCore:findFreeSpace(leader:getID(), effectiveW,
+                            effectiveH, compatKey, stackInfo, rotated)
+                        targetX, targetY = fx, fy
+                    end
+
+                    if targetX and targetY and self.inventoryContainer:isItemAllowed(leader) then
+                        local targetSig = GridContainer.containerSignature(self.inventoryContainer)
+                        for _, d in ipairs(globalDragItems) do
+                            local item = d.itemObj
+                            if item then
+                                local md = item:getModData()
+                                local previousX = md.gridX
+                                local previousY = md.gridY
+                                local previousRot = md.gridRot or false
+                                local previousContainer = md.gridContainer
+                                md.gridX = targetX
+                                md.gridY = targetY
+                                md.gridRot = rotated
+                                md.gridContainer = targetSig
+                                GridClientNetwork.sendItemMove(self.inventoryContainer,
+                                    item:getID(), targetX, targetY, rotated, targetSig)
+                                GridInventory_InTransit[item:getID()] = {
+                                    startedAt = getTimeInMillis(),
+                                    grid = self,
+                                    source = item:getContainer(),
+                                    item = item,
+                                    previousX = previousX,
+                                    previousY = previousY,
+                                    previousRot = previousRot,
+                                    previousContainer = previousContainer,
+                                }
+                            end
+                        end
+
+                        -- Stack virtual (ex.: Twine) é composto por vários
+                        -- InventoryItems independentes. Enfileira cada objeto
+                        -- separadamente; passar a lista inteira permite que o
+                        -- engine reagruppe a lista durante a ação e deixe parte
+                        -- da pilha no autoFill. As posições já foram gravadas
+                        -- acima para todos, antes do primeiro transfer.
+                        self.gridCore:addGhostItem(leader:getID(), leader, targetX, targetY,
+                            effectiveW, effectiveH, rotated, compatKey, stackInfo)
+                        local playerInv = getPlayerInventory(self.playerNum)
+                        if playerInv and playerInv.inventoryPane then
+                            local stackItems = {}
+                            for _, d in ipairs(globalDragItems) do
+                                if d.itemObj and d.id ~= singleStackLeaderId then
+                                    table.insert(stackItems, d.itemObj)
+                                end
+                            end
+                            -- O líder deve ser o ÚLTIMO objeto transferido. Se
+                            -- entrar antes, o engine promove/reagrupa a pilha
+                            -- no meio da ação e os membros restantes podem
+                            -- voltar ao autoFill durante o refresh.
+                            if leader then
+                                table.insert(stackItems, leader)
+                            end
+                            for _, item in ipairs(stackItems) do
+                                playerInv.inventoryPane:transferItemsByWeight({item}, self.inventoryContainer)
+                            end
+                        end
+                        singleStackHandled = true
+                    end
+                end
+            end
+
+            if not singleStackHandled then
             for index, itemObj in ipairs(ISMouseDrag.dragging) do
                 if type(itemObj) == "table" and itemObj.items then
                     itemObj = itemObj.items[1]
@@ -1469,8 +1604,22 @@ function GridRender:onMouseUp(x, y)
                                 end
                             end
                         else
-                            -- Transfere normalmente (Sem criar fantasma)
-                            -- MP: limpa a posição no servidor (auto-fit recalcula).
+                            -- Multi-drag: SEM ghost (o ciclo de vida do ghost não
+                            -- sobrevive ao refreshContainer, que recria o GridRender
+                            -- — vira ghost preso). Só marca EM TRÂNSITO (lock):
+                            -- o item não pode ser re-arrastado durante a transfer.
+                            local modData = itemObj:getModData()
+                            modData.gridX = nil
+                            modData.gridY = nil
+                            modData.gridRot = false
+                            modData.gridContainer = nil
+                            GridInventory_InTransit[itemObj:getID()] = {
+                                startedAt = getTimeInMillis(),
+                                grid = self,
+                                source = itemObj:getContainer(),
+                                item = itemObj,
+                            }
+                            -- MP: limpa a posição (auto-fit recalcula).
                             GridClientNetwork.clearServerPosition(self.inventoryContainer, itemObj:getID())
                             local playerInv = getPlayerInventory(self.playerNum)
                             if playerInv and playerInv.inventoryPane then
@@ -1528,6 +1677,17 @@ function GridRender:onMouseUp(x, y)
                                     end
                                 else
                                     self.gridCore:addGhostItem(itemObj:getID(), itemObj, targetX, targetY, effectiveW, effectiveH, rotated, compatKey, stackInfo)
+                                    -- Marca como EM TRÂNSITO: o item fica preso
+                                    -- até o transfer completar (não dá pra
+                                    -- re-arrastar enquanto a ação roda). Guarda
+                                    -- o GRID ALVO — só ele pode liberar o lock
+                                    -- (o grid origem também tem o item em items).
+                                    GridInventory_InTransit[itemObj:getID()] = {
+                                        startedAt = getTimeInMillis(),
+                                        grid = self,
+                                        source = itemObj:getContainer(),
+                                        item = itemObj,
+                                    }
                                     local playerInv = getPlayerInventory(self.playerNum)
                                     if playerInv and playerInv.inventoryPane then
                                         playerInv.inventoryPane:transferItemsByWeight({itemObj}, self.inventoryContainer)
@@ -1537,6 +1697,7 @@ function GridRender:onMouseUp(x, y)
                         end
                     end
                 end
+            end
             end
         end
         if GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid then
@@ -1714,6 +1875,44 @@ function GridRender:update()
     ISPanel.update(self)
     self:updateTooltip()
 
+    -- Itens com ação de transferência na fila (pra safe-guard de ghost).
+    local q = ISTimedActionQueue.getTimedActionQueue(getSpecificPlayer(self.playerNum))
+    local activeTransfers = {}
+    if q and q.queue then
+        -- IMPORTANTE: o ISTimedActionQueue NÃO tem campo `action` — a ação
+        -- atual é `queue[1]` e os transfers enfileirados depois ficam em
+        -- `queue[i]`. O ISInventoryTransferAction:checkQueueList() absorve
+        -- TODOS os transfers seguintes pro queueList da ação atual (queue[1]) —
+        -- mesmo com peso > 0.1 cada item ganha entrada própria (o limite de
+        -- 0.1 só decide merge em lote; a absorção acontece sempre). Sem varrer
+        -- o queueList de cada ação na fila, o ciclo de vida do InTransit via
+        -- "not activeTransfers" acha que itens AINDA em transferência foram
+        -- cancelados → restaura a posição pra origem → ao chegar no alvo
+        -- posValid=false → caem no autoFill. Era isso que fazia só os 2
+        -- primeiros itens caírem no x,y (o 1º transfere no perform imediato; o
+        -- 2º fica como action.item da queue[1] durante a 1ª janela; o 3º+ era
+        -- cancelado no frame seguinte à absorção).
+        for i = 1, #q.queue do
+            local act = q.queue[i]
+            if act.item and type(act.item) == "userdata" and act.item.getID then
+                activeTransfers[act.item:getID()] = true
+            end
+            if act.queueList then
+                for j = 1, #act.queueList do
+                    local entry = act.queueList[j]
+                    if entry and entry.items then
+                        for k = 1, #entry.items do
+                            local it = entry.items[k]
+                            if it and type(it) == "userdata" and it.getID then
+                                activeTransfers[it:getID()] = true
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     local ghosts = self.gridCore and self.gridCore.ghostItems
     if ghosts then
         -- Checa presença sem `next` (não exposto no ambiente Kahlua do jogo):
@@ -1725,31 +1924,58 @@ function GridRender:update()
         end
 
         if anyGhost then
-            local playerObj = getSpecificPlayer(self.playerNum)
-            local q = ISTimedActionQueue.getTimedActionQueue(playerObj)
-            local activeTransfers = {}
-
-            if q then
-                if q.action and q.action.item and type(q.action.item) == "userdata" and q.action.item.getID then
-                    activeTransfers[q.action.item:getID()] = true
-                end
-                if q.queue then
-                    for i = 1, #q.queue do
-                        local act = q.queue[i]
-                        if act.item and type(act.item) == "userdata" and act.item.getID then
-                            activeTransfers[act.item:getID()] = true
-                        end
-                    end
-                end
-            end
-
             local currentTime = getTimeInMillis()
             for gId, gData in pairs(ghosts) do
-                -- Apaga o fantasma se não houver NENHUMA action pendente pra ele na queue
-                -- e já tiver passado 500ms desde a criação (pra não matar no 1º frame antes da action nascer)
-                if not activeTransfers[gId] and (currentTime - gData.timeAdded > 500) then
+                -- Safe-guard de ghost preso (sem InTransit): remove se não há
+                -- transfer pendente E o item NÃO está em trânsito E já passou 500ms.
+                if not activeTransfers[gId]
+                    and not (GridInventory_InTransit and GridInventory_InTransit[gId])
+                    and (currentTime - gData.timeAdded > 500) then
                     self.gridCore:removeGhostItem(gId)
                 end
+            end
+        end
+    end
+
+    -- Ciclo de vida do InTransit (roda todo frame). Sinais CONFIÁVEIS:
+    --  - saiu da ORIGEM (item:getContainer() != source) → entregue (alvo ou
+    --    overflow) → libera. Usa o item GUARDADO no registro (não o ghost) —
+    --    o refreshContainer DESTRÓI/recria o GridRender, então o ghost e o
+    --    info.grid ficam stale após a transferência.
+    --  - chegou no grid alvo (colocado) → libera;
+    --  - cancelada/presa (item nunca saiu da origem) → libera após 5s.
+    if GridInventory_InTransit then
+        local now = getTimeInMillis()
+        for itemId, info in pairs(GridInventory_InTransit) do
+            local item = info and info.item
+            local isTarget = info and info.grid == self
+            local placedHere = isTarget and self.gridCore.items[itemId] and not (ghosts and ghosts[itemId])
+            local movedAway = item and item.getContainer and info.source
+                and item:getContainer() ~= info.source
+            -- "stuck" só pode liberar item que NÃO está mais referenciado por
+            -- NENHUMA transferência (nem action.item, nem queueList, nem queue).
+            -- Transferência em lote de 100 twines demora ~100s: sem isso o guard
+            -- de 5s limparia o InTransit no meio e restauraria a posição.
+            local stuck = info.startedAt and (now - info.startedAt > 5000)
+                and not activeTransfers[itemId]
+            local cancelled = item and item.getContainer and info.source
+                and item:getContainer() == info.source
+                and not activeTransfers[itemId]
+
+            if placedHere or movedAway or stuck or cancelled then
+                if cancelled and info.previousX and info.previousY then
+                    local md = item:getModData()
+                    md.gridX = info.previousX
+                    md.gridY = info.previousY
+                    md.gridRot = info.previousRot or false
+                    md.gridContainer = info.previousContainer
+                    local sourceGrid = GridContainer.getOrCreate(item:getContainer(), self.playerNum)
+                    sourceGrid:refresh()
+                end
+                if ghosts and ghosts[itemId] then
+                    self.gridCore:removeGhostItem(itemId)
+                end
+                GridInventory_InTransit[itemId] = nil
             end
         end
     end
