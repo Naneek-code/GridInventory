@@ -50,22 +50,9 @@ function GlobalDragRender:render()
     local drawY = mouseY - (anchorData.grabOffsetY * cellSize) - (cellSize / 2)
 
     local extraCount = #itemsData - 1
-    
-    -- Efeito de pilha (cartas/slots atrás do item principal) se houver mais itens
-    if extraCount > 0 then
-        local maxStacks = math.min(extraCount, 3)
-        for i = maxStacks, 1, -1 do
-            local stackOffsetX = i * 4
-            local stackOffsetY = i * 4
-            self:drawRect(drawX + stackOffsetX, drawY + stackOffsetY, drawW, drawH, 0.4, 0.0, 0.5, 0.0)
-            self:drawRectBorder(drawX + stackOffsetX, drawY + stackOffsetY, drawW, drawH, 0.8, 0.0, 1.0, 0.0)
-        end
-    end
 
-    -- Desenha o fundo e a borda verde translúcida do item Principal
-    self:drawRect(drawX, drawY, drawW, drawH, 0.8, 0.0, 1.0, 0.0)
-    self:drawRectBorder(drawX, drawY, drawW, drawH, 1, 0.0, 1.0, 0.0)
-    
+    -- Sem fundo/borda: o ghost agora renderiza o item "cru", como na própria
+    -- grid (o feedback de validade fica por conta do preview do grid abaixo).
     if anchorData.itemObj then
         GridRender.drawItemIconRotated(self, anchorData.itemObj, drawX, drawY, drawW, drawH, anchorData.rotated, 1, 1, 1, 1)
     end

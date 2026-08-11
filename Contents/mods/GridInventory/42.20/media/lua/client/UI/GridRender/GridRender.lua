@@ -974,12 +974,15 @@ function GridRender:drawDropPreview()
     local ignoreSet = GridInventory_GlobalDrag.itemsMap
 
     -- Mesma checagem do drop real: se a célula sob o cursor não serve, o drop
-    -- auto-encaixa no primeiro espaço livre (findFreeSpace).
+    -- auto-encaixa no primeiro espaço livre (findFreeSpace) — SÓ em outro grid.
+    -- No MESMO grid o drop é estrito (tudo-ou-nada, sem autoSlot): inválido =
+    -- não acontece nada, então não mostra contorno de snap (evita "vai cair ali"
+    -- que não é verdade).
     local valid = self.gridCore:canPlaceItem(anchorData.id, targetX, targetY,
         effectiveW, effectiveH, nil, compatKey, rotated, stackInfo, ignoreSet)
 
     local snapX, snapY
-    if not valid then
+    if not valid and GridInventory_GlobalDrag.sourceGrid ~= self then
         snapX, snapY = self.gridCore:findFreeSpace(anchorData.id, effectiveW,
             effectiveH, compatKey, stackInfo, rotated)
     end
