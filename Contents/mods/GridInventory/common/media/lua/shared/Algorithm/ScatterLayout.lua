@@ -47,6 +47,16 @@ ScatterLayout.scatterModeOverride = nil
 function ScatterLayout.shouldScatter(inventory, playerNum)
     if not ScatterLayout.enabled then return false end
 
+    -- CHÃO: nunca espalha. O chão não persiste posição salva (fix do flicker:
+    -- o layout é recalculado do zero a cada refresh), então com o scatter ativo
+    -- TODO item re-sortearia posição a cada item adicionado/removido → o grid
+    -- inteiro "pula" de lugar constantemente. Sem scatter, o auto-fit organiza
+    -- de forma estável (itens novos entram na primeira vaga livre, os antigos
+    -- não se mexem). Mesmo critério do GridContainer.containerSignature.
+    if inventory and inventory.getType and inventory:getType() == "floor" then
+        return false
+    end
+
     local mode = ScatterLayout.scatterModeOverride or GridSandboxOptions.getScatterMode()
 
     if mode == "always" then

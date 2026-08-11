@@ -20,6 +20,15 @@ local function makeContainer(explored, isPlayerInv)
     }
 end
 
+-- Mock de container de CHÃO (getType() == "floor")
+local function makeFloor()
+    return {
+        isExplored = function() return false end,
+        isInCharacterInventory = function() return false end,
+        getType = function() return "floor" end,
+    }
+end
+
 local function reset()
     ScatterLayout.enabled = true
     ScatterLayout.scatterModeOverride = nil
@@ -57,6 +66,23 @@ do
     H.ok(ScatterLayout.shouldScatter(makeContainer(false, false), 0) == false, "never: world nunca explorado -> NÃO espalha")
     H.ok(ScatterLayout.shouldScatter(makeContainer(true, false), 0) == false, "never: world explorado -> NÃO espalha")
     H.ok(ScatterLayout.shouldScatter(makeContainer(false, true), 0) == false, "never: inventário -> NÃO espalha")
+end
+
+-- ─── CHÃO: NUNCA espalha (em qualquer modo) ─────────────────────────────────
+-- O chão não persiste posição salva (fix do flicker); com scatter ativo, todo
+-- item re-sortearia posição a cada refresh → grid pula de lugar ao adicionar/
+-- remover. Sem scatter, o auto-fit é estável (itens novos na 1ª vaga livre).
+do
+    reset()
+    H.ok(ScatterLayout.shouldScatter(makeFloor(), 0) == false, "chão auto -> não espalha")
+
+    reset()
+    ScatterLayout.scatterModeOverride = "always"
+    H.ok(ScatterLayout.shouldScatter(makeFloor(), 0) == false, "chão always -> NÃO espalha (forçado)")
+
+    reset()
+    ScatterLayout.scatterModeOverride = "never"
+    H.ok(ScatterLayout.shouldScatter(makeFloor(), 0) == false, "chão never -> não espalha")
 end
 
 -- ─── Leitura da Sandbox Option (getSandboxOptions) — valores 1-based ────────

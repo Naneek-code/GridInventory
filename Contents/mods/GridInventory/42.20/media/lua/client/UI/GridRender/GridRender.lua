@@ -1586,6 +1586,18 @@ function GridRender:onMouseUp(x, y)
 
     -- Se temos um drag global iniciado por nós mesmos, estamos soltando itens do próprio grid
     if GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid == self then
+        -- CHÃO: reorder desativado. O chão não persiste posição salva e o layout
+        -- é recalculado do zero a cada refresh (fix do flicker); reposicionar
+        -- manualmente não teria efeito durável. Consome o drop sem reposicionar.
+        if self.inventoryContainer and self.inventoryContainer.getType and self.inventoryContainer:getType() == "floor" then
+            if GridInventory_GlobalDrag.sourceGrid then
+                GridInventory_GlobalDrag.sourceGrid.selectedItems = {}
+            end
+            GridInventory_GlobalDrag = nil
+            ISMouseDrag.dragging = nil
+            ISMouseDrag.draggingFocus = nil
+            return
+        end
         -- Drop em bolsa já tratado pelo caminho vanilla (dropItemsInContainer
         -- transferiu os itens e chamou onMouseUp(0,0) só pra limpar o estado
         -- global). Nunca reposicionar itens que já saíram do container.
