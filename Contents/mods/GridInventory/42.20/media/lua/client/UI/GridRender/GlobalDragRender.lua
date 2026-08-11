@@ -61,6 +61,8 @@ function GlobalDragRender:render()
     local drawX = mouseX - (anchorData.grabOffsetX * cellSize) - (cellSize / 2)
     local drawY = mouseY - (anchorData.grabOffsetY * cellSize) - (cellSize / 2)
 
+    local extraCount = #itemsData - 1
+
     -- Fundo/borda de footprint posicionado SÓ quando o grid sob o cursor não
     -- está pintando o preview verde/vermelho (fora do grid, sobre o header ou
     -- paperdoll, ou multi-drag). Com o preview ativo o ghost fica "cru" pra
@@ -72,6 +74,18 @@ function GlobalDragRender:render()
     end
 
     if not previewActive then
+        -- Efeito de camadas (deck de cartas) ATRÁS do footprint quando são VÁRIOS
+        -- itens (multi-select ou pilha): cada card é o mesmo footprint deslocado
+        -- 4px, deixando claro que não é um item só.
+        if extraCount > 0 then
+            local maxStacks = math.min(extraCount, 3)
+            for i = maxStacks, 1, -1 do
+                local layerX = drawX + (i * 4)
+                local layerY = drawY + (i * 4)
+                self:drawRect(layerX, layerY, drawW, drawH, DRAG_BG.a, DRAG_BG.r, DRAG_BG.g, DRAG_BG.b)
+                self:drawRectBorder(layerX, layerY, drawW, drawH, DRAG_BORDER.a, DRAG_BORDER.r, DRAG_BORDER.g, DRAG_BORDER.b)
+            end
+        end
         self:drawRect(drawX, drawY, drawW, drawH, DRAG_BG.a, DRAG_BG.r, DRAG_BG.g, DRAG_BG.b)
         self:drawRectBorder(drawX, drawY, drawW, drawH, DRAG_BORDER.a, DRAG_BORDER.r, DRAG_BORDER.g, DRAG_BORDER.b)
     end
@@ -81,7 +95,6 @@ function GlobalDragRender:render()
     end
 
     -- Badge de contagem: total de itens arrastados (pilha ou multi-drag)
-    local extraCount = #itemsData - 1
     if extraCount > 0 then
         local text = "+" .. tostring(extraCount)
         local textW = getTextManager():MeasureStringX(UIFont.Small, text)
