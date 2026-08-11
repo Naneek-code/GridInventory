@@ -48,9 +48,31 @@ local function makeContainer(items)
     }
 end
 
+-- Container de CHÃO (getType() == "floor"): grid fixo 6x15 (90 slots),
+-- posição salva ignorada, scatter desligado.
+local function makeFloorContainer(items)
+    local list = items
+    return {
+        getItems = function()
+            return { size = function() return #list end, get = function(_, i) return list[i + 1] end }
+        end,
+        getCapacity = function() return 90 end,
+        getType = function() return "floor" end,
+        getParent = function() return nil end,
+        getContainingItem = function() return nil end,
+        isInCharacterInventory = function() return false end,
+    }
+end
+
 local function freshContainer(items)
     GridContainer.instances = {}
     local inv = makeContainer(items)
+    return GridContainer.getOrCreate(inv, 0), inv
+end
+
+local function freshFloorContainer(items)
+    GridContainer.instances = {}
+    local inv = makeFloorContainer(items)
     return GridContainer.getOrCreate(inv, 0), inv
 end
 
@@ -198,6 +220,51 @@ do
     gc4:refresh()
     local md = item:getModData()
     H.ok(md.gridContainer == "container:crate", "refresh grava assinatura no modData [" .. tostring(md.gridContainer) .. "]")
+end
+
+-- ─── Teste 10: CHÃO abre grid extra quando o 1º grid enche ───────────────────
+-- Grid de chão = 6x15 (90 slots). 91 itens 1x1 não empilháveis → o 91º vai pro
+-- grid[2] (overflow vira grid REAL de chão, não lista 1x1). unpositioned = 0.
+do
+    local items = {}
+    for i = 1, 91 do
+        -- fullType ÚNICO por item (não empilham entre si)
+        table.insert(items, makeItem("f" .. i, "Base.FloorFill" .. i, 0.1, nil, nil))
+    end
+    local gc = freshFloorContainer(items)
+    local unpos = gc:refresh()
+    H.ok(#gc.grids == 2, "chão com 91 itens abre 2 grids [n=" .. #gc.grids .. "]")
+    H.ok(#unpos == 0, "chão com grids extras: unpositioned = 0 [n=" .. #unpos .. "]")
+    H.ok(gc.grids[1].width == 6 and gc.grids[1].height == 15,
+        "grid[1] mantém tamanho original (6x15) [(" .. gc.grids[1].width .. "x" .. gc.grids[1].height .. ")]")
+    H.ok(gc.grids[2].width == 6 and gc.grids[2].height == 15,
+        "grid[2] também é 6x15 (tamanho original do chão) [(" .. gc.grids[2].width .. "x" .. gc.grids[2].height .. ")]")
+end
+
+-- ─── Teste 11: CHÃO respeita o teto MAX_FLOOR_GRIDS (8) ──────────────────────
+-- 8 grids × 90 slots = 720 slots. 721 itens 1x1 → 720 cabem, 1 fica unpositioned.
+do
+    local items = {}
+    for i = 1, 721 do
+        table.insert(items, makeItem("g" .. i, "Base.FloorMax" .. i, 0.1, nil, nil))
+    end
+    local gc = freshFloorContainer(items)
+    local unpos = gc:refresh()
+    H.ok(#gc.grids == 8, "chão respeita teto de 8 grids [n=" .. #gc.grids .. "]")
+    H.ok(#unpos == 1, "1 item sem vaga além do teto [n=" .. #unpos .. "]")
+end
+
+-- ─── Teste 12: container NÃO-chão NÃO abre grids extras ──────────────────────
+-- Regressão: crate 6x2 (12 slots) com 13 itens → continua 1 grid + unpositioned.
+do
+    local items = {}
+    for i = 1, 13 do
+        table.insert(items, makeItem("c" .. i, "Base.CrateFill" .. i, 0.1, nil, nil))
+    end
+    local gc = freshContainer(items)
+    local unpos = gc:refresh()
+    H.ok(#gc.grids == 1, "crate não abre grid extra [n=" .. #gc.grids .. "]")
+    H.ok(#unpos == 1, "crate mantém overflow em unpositioned [n=" .. #unpos .. "]")
 end
 
 H.finish()

@@ -15,6 +15,9 @@ GridContainer.instances = {}
 -- Chão virtual: grid fixo (GetFloorContainer não existe no servidor, então a
 -- validação de chão é bounds-only com estas dimensões).
 GridContainer.FLOOR_W, GridContainer.FLOOR_H = 6, 15
+-- Teto de grids extras do CHÃO (overflow vira uma SEGUNDA grid de chão real,
+-- em vez de lista 1x1). 8 grids = 720 slots; na prática quase nunca alcança.
+GridContainer.MAX_FLOOR_GRIDS = 8
 
 --- Calcula as dimensões (w, h) do grid de um ItemContainer.
 --- Compartilhado cliente/servidor: o SERVIDOR usa a MESMA matemática para
@@ -460,8 +463,15 @@ function GridContainer:refresh()
             local compatKey, stackInfo = GridContainer.getStackInfo(item)
             local placed = false
             
-            -- Tenta encaixar no primeiro espaço livre
-            for _, grid in ipairs(self.grids) do
+            -- Tenta encaixar no primeiro espaço livre. No CHÃO, se o item não
+            -- couber em NENHUM grid existente, abre uma NOVA grid de chão (6x15)
+            -- até MAX_FLOOR_GRIDS: o overflow vira uma segunda grid REAL (com
+            -- footprints e interações normais), não a lista 1x1 do
+            -- OverflowGridRender. Nos demais containers o comportamento é o
+            -- mesmo de sempre (1 grid + unpositioned).
+            local gridIdx = 1
+            while gridIdx <= #self.grids do
+                local grid = self.grids[gridIdx]
                 local modData = item:getModData()
                 local savedX = tonumber(modData.gridX)
                 local savedY = tonumber(modData.gridY)
@@ -549,6 +559,16 @@ function GridContainer:refresh()
                         break
                     end
                 end
+
+                -- Chão: se o item ainda não coube em nenhum grid e não passamos
+                -- do teto, abre UMA nova grid de chão e tenta de novo no próximo
+                -- giro do while (o unpositioned do chão nunca vira lista 1x1).
+                if not placed and isFloor and gridIdx == #self.grids
+                    and #self.grids < GridContainer.MAX_FLOOR_GRIDS then
+                    table.insert(self.grids, GridCore.new(GridContainer.FLOOR_W, GridContainer.FLOOR_H))
+                end
+
+                gridIdx = gridIdx + 1
             end
 
             -- Se não coube em nenhum sub-grid (mochila cheia)

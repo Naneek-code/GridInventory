@@ -590,7 +590,12 @@ function GridRender:render()
             tex = self.fallbackIcon
         end
         
-        if self.gridIndex and self.gridIndex > 1 then
+        -- No CHÃO as grids extras são janelas de chão REAIS (não overflow 1x1):
+        -- o título continua "Floor" em todas, nunca "(Overflow)".
+        local isFloorTitle = self.inventoryContainer
+            and self.inventoryContainer.getType
+            and self.inventoryContainer:getType() == "floor"
+        if self.gridIndex and self.gridIndex > 1 and not isFloorTitle then
             text = text .. " (Overflow)"
         end
         

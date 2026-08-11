@@ -90,6 +90,10 @@ Events.OnGameBoot.Add(function()
             end
             local newUnpos = gc.unpositioned and #gc.unpositioned or 0
             currentBackpackHash = currentBackpackHash .. "UNPOS:" .. newUnpos .. "|"
+            -- Nº de grids: o chão abre grids extras (overflow vira grid real).
+            -- Como nesses casos o unpositioned fica 0, sem contar os grids o hash
+            -- NÃO muda e a 2ª grid de chão nunca nasceria na UI.
+            currentBackpackHash = currentBackpackHash .. "GRIDS:" .. (#gc.grids or 0) .. "|"
         end
 
         -- DETECÇÃO DE STALE: se o GridDevTool limpar as instâncias (GridContainer.
@@ -281,6 +285,22 @@ Events.OnGameBoot.Add(function()
                             if not needsHardRefresh and gridUi.gridCore then
                                 local gc = GridContainer.instances[inv]
                                 if gc and gc.grids and gc.grids[1] and gridUi.gridCore ~= gc.grids[1] then
+                                    needsHardRefresh = true
+                                end
+                            end
+
+                            -- CHÃO: grids extras. O refresh abriu/removeu grids de
+                            -- chão (overflow vira grid real, unpositioned=0) → a UI
+                            -- precisa nascer/morrer junto. Compara a contagem de
+                            -- grids do container com as UIs não-overflow dele.
+                            if not needsHardRefresh and inv.getType and inv:getType() == "floor" then
+                                local uiCount = 0
+                                for _, other in ipairs(self.gridContainerUis) do
+                                    if not other.isOverflow and other.inventoryContainer == inv then
+                                        uiCount = uiCount + 1
+                                    end
+                                end
+                                if uiCount ~= #gridContainer.grids then
                                     needsHardRefresh = true
                                 end
                             end
