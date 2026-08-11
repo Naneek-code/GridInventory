@@ -143,6 +143,9 @@ Events.OnGameBoot.Add(function()
                 -- Passar yOffset aqui fazia a UI Java gravar um tamanho gigantesco no cache
                 local gridUi = GridRender:new(10, 0, gridCoreInstance, self.player, inv, i, cItem, cIcon)
                 gridUi:initialise()
+                -- Marca o grid do CHÃO (assinatura "floor") pra ele ser SEMPRE o
+                -- último painel no FlexBox (ver prerender).
+                gridUi.isFloor = GridContainer.containerSignature(inv) == "floor"
                 
                 if self.inventoryPage and self.inventoryPage.onCharacter then
                     -- Margem de 25px para dar espaço para a scrollbar
@@ -169,6 +172,7 @@ Events.OnGameBoot.Add(function()
                     local OverflowGridRender = require("UI/GridRender/OverflowGridRender")
                     local overflowUi = OverflowGridRender:new(10, 0, gridContainer.unpositioned, self.player, true, inv, cItem, cIcon)
                     overflowUi:initialise()
+                    overflowUi.isFloor = GridContainer.containerSignature(inv) == "floor"
                     
                     overflowUi.baseX = 10
                     overflowUi:setX(overflowUi.baseX)
@@ -194,6 +198,7 @@ Events.OnGameBoot.Add(function()
             local OverflowGridRender = require("UI/GridRender/OverflowGridRender")
             local overflowUi = OverflowGridRender:new(10, 0, allPlayerUnpositioned, self.player, false, self.inventory, nil, nil)
             overflowUi:initialise()
+            overflowUi.isFloor = GridContainer.containerSignature(self.inventory) == "floor"
             
             overflowUi.baseX = self.width - overflowUi.width - 25
             overflowUi:setX(overflowUi.baseX)
@@ -287,7 +292,9 @@ Events.OnGameBoot.Add(function()
                 
                 if needsHardRefresh then
                     self:refreshContainer()
-                    return -- aborta este frame pra evitar conflitos de UI enquanto redesenha
+                    -- NÃO aborta o frame: o FlexBox abaixo reposiciona os grids
+                    -- recriados NO MESMO frame. Abortar deixava tudo no baseY=0
+                    -- por 1 frame (floor "pulava" por cima dos outros grids) = flicker.
                 end
             end
         end
@@ -321,7 +328,17 @@ Events.OnGameBoot.Add(function()
         local xGap = 15
         local yGap = 15
         
-        for _, gridUi in ipairs(self.gridContainerUis) do
+        -- O CHÃO é sempre o ÚLTIMO painel (assinatura "floor"): passada 1 = todos
+        -- os outros grids; passada 2 = floor (e seu overflow). Assim qualquer
+        -- redraw o reposiciona por último, na base do loot, sem "pular" por cima.
+        local orderedGrids = {}
+        for _, g in ipairs(self.gridContainerUis) do
+            if not g.isFloor then table.insert(orderedGrids, g) end
+        end
+        for _, g in ipairs(self.gridContainerUis) do
+            if g.isFloor then table.insert(orderedGrids, g) end
+        end
+        for _, gridUi in ipairs(orderedGrids) do
             local gW = gridUi.width
             local gH = gridUi.height
             

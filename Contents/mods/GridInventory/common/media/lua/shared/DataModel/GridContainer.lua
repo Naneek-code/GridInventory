@@ -415,6 +415,12 @@ function GridContainer:refresh()
     
     -- Ordena os itens garantindo que os que já estavam na grade sejam processados primeiro!
     table.sort(allItems, function(a, b)
+        -- No chão não há posição salva pra "defender": ordem fixa por ID torna
+        -- o layout uma função PURA do conjunto de itens (mesma square + mesmos
+        -- itens = mesmo layout, independente do histórico de caminhada).
+        if isFloor then
+            return a:getID() < b:getID()
+        end
         local aPrev = previouslyPlaced[a:getID()] and 1 or 0
         local bPrev = previouslyPlaced[b:getID()] and 1 or 0
         -- Se ambos estavam (ou ambos não estavam), tenta usar o ID original pra manter consistência
@@ -436,6 +442,16 @@ function GridContainer:refresh()
     -- ESTE container (item transferido de outro grid não pode herdar a posição).
     local containerSig = GridContainer.containerSignature(self.inventory)
 
+    -- O CHÃO é um container VIRTUAL por jogador (GetFloorContainer): os itens
+    -- mudam conforme o jogador anda entre squares, mas a assinatura "floor" NÃO
+    -- inclui o square. Se persistíssemos posição no chão, itens de um square
+    -- anterior seriam tratados como válidos no square atual → conflitos de
+    -- posição → itens caindo pro overflow → overflow nascendo/morrendo → hard
+    -- refresh (todos os grids recriados no Y=0) → FLICKER do grid de chão.
+    -- Fix: o chão NUNCA persiste nem usa posição salva — o layout é sempre
+    -- recalculado de forma determinística (scatter/auto-fit) a cada refresh.
+    local isFloor = containerSig == "floor"
+
     -- 2. Itera sobre os itens reais do jogo
     for _, item in ipairs(allItems) do
         
@@ -453,7 +469,8 @@ function GridContainer:refresh()
                 
                 -- A posição salva só vale se pertencer a ESTE container (ou for
                 -- item legado sem assinatura — compat com saves antigos).
-                local posValid = savedX and savedY
+                -- No CHÃO a posição salva é sempre ignorada (ver isFloor acima).
+                local posValid = not isFloor and savedX and savedY
                     and (not modData.gridContainer or modData.gridContainer == containerSig)
 
                 -- Transferência pendente: o item ainda está na origem, mas já
@@ -519,11 +536,14 @@ function GridContainer:refresh()
                         
                         grid:insertItem(item:getID(), freeX, freeY, finalW, finalH, didRotate, item, compatKey, stackInfo)
                         
-                        -- Salva a nova posição gerada automaticamente
-                        modData.gridX = freeX
-                        modData.gridY = freeY
-                        modData.gridRot = didRotate
-                        modData.gridContainer = containerSig
+                        -- Salva a nova posição gerada automaticamente (nunca no
+                        -- chão — mantém o layout determinístico, sem conflitos).
+                        if not isFloor then
+                            modData.gridX = freeX
+                            modData.gridY = freeY
+                            modData.gridRot = didRotate
+                            modData.gridContainer = containerSig
+                        end
                         
                         placed = true
                         break
