@@ -1,5 +1,6 @@
 require "ISUI/ISUIElement"
 local GridRender = require "UI/GridRender/GridRender"
+local GridInventory_BagDrop = require "System/GridInventory_BagDrop"
 
 GridInventory_GlobalDrag = nil
 
@@ -32,6 +33,23 @@ end
 function GlobalDragRender:prerender()
     if not GridInventory_GlobalDrag or not GridInventory_GlobalDrag.itemsData then return end
     self:bringToTop()
+
+    -- Zera o preview de drop: só vale o publish DESTE frame. Cada grid pinta e
+    -- publica GridInventory_DropPreview no render() quando o mouse está sobre
+    -- uma célula dele; se nada publicou (header, fora do grid), o ghost mantém
+    -- o fundo/borda — sem o "stale" do frame anterior deixando o ghost cru.
+    GridInventory_DropPreview = nil
+
+    -- Descobre o alvo de put-in sob o cursor (páginas do jogador dono do
+    -- drag) — usado como fallback de drop no mouseUp (sem feedback visual).
+    local playerNum = GridInventory_GlobalDrag.sourceGrid
+        and GridInventory_GlobalDrag.sourceGrid.playerNum or 0
+    local bag = GridInventory_BagDrop.findBagUnderMouse(playerNum)
+
+    -- Caminho próprio de drop: mouse solto sobre a bolsa → transfere. É
+    -- idempotente com o caminho vanilla (se o dropItemsInContainer já
+    -- transferiu, o GridInventory_GlobalDrag já foi zerado e isto é no-op).
+    GridInventory_BagDrop.tryHandleMouseUp(playerNum, bag)
 end
 
 function GlobalDragRender:render()
@@ -66,17 +84,20 @@ function GlobalDragRender:render()
     -- Fundo/borda de footprint posicionado SÓ quando o grid sob o cursor não
     -- está pintando o preview verde/vermelho (fora do grid, sobre o header ou
     -- paperdoll, ou multi-drag). Com o preview ativo o ghost fica "cru" pra
-    -- deixar a validação de posição visível por baixo.
+    -- deixar a validação de posição visível por baixo. O DropPreview é zerado
+    -- no prerender e publicado só pelo grid realmente sob o mouse neste frame,
+    -- então não precisa re-checar isMouseOver (evita o "stale" do frame
+    -- anterior — ex.: header de bolsa mostrando ghost cru).
     local previewActive = false
     local preview = GridInventory_DropPreview
-    if preview and preview.grid and preview.dragRef == GridInventory_GlobalDrag and preview.grid:isMouseOver() then
+    if preview and preview.grid and preview.dragRef == GridInventory_GlobalDrag then
         previewActive = true
     end
 
     if not previewActive then
-        -- Efeito de camadas (deck de cartas) ATRÁS do footprint quando são VÁRIOS
-        -- itens (multi-select ou pilha): cada card é o mesmo footprint deslocado
-        -- 4px, deixando claro que não é um item só.
+        -- Efeito de camadas (deck de cartas) ATRÁS do footprint quando são
+        -- VÁRIOS itens (multi-select ou pilha): cada card é o mesmo footprint
+        -- deslocado 4px, deixando claro que não é um item só.
         if extraCount > 0 then
             local maxStacks = math.min(extraCount, 3)
             for i = maxStacks, 1, -1 do

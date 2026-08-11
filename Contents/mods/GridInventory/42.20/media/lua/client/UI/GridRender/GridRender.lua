@@ -9,6 +9,7 @@ local GridContainer = require("DataModel/GridContainer")
 local GridClientNetwork = require("Network/GridClientNetwork")
 local GridReorder = require("Algorithm/GridReorder")
 local GridSandboxOptions = require("GridSandboxOptions")
+local GridInventory_BagDrop = require("System/GridInventory_BagDrop")
 
 GridRender = ISPanel:derive("GridRender")
 
@@ -21,6 +22,7 @@ GridInventory_InTransit = GridInventory_InTransit or {}
 
 local GridRender = ISPanel:derive("GridRender")
 local GRID_PADDING = 10
+
 local ITEM_BG_COLOR = {r=0.4, g=0.4, b=0.4, a=0.5}
 local ITEM_BG_FROZEN = {r=0.2, g=0.6, b=0.9, a=0.5}
 local ITEM_BG_HOT = {r=0.9, g=0.2, b=0.2, a=0.5}
@@ -519,6 +521,16 @@ local function formatWeight(value)
     return str
 end
 
+--- Container deste grid é uma bolsa ANINHADA NO MUNDO (bolsa dentro de bolsa
+--- em container de objeto)? O engine recusa mexer no conteúdo — o grid fica
+--- "travado" (só leitura: sem drag in/out, sem reorder, sem autoSlot). Bolsa
+--- aninhada dentro do inventário do jogador NÃO trava.
+function GridRender:isLocked()
+    if not self.inventoryContainer then return false end
+    local playerObj = getSpecificPlayer(self.playerNum)
+    return GridInventory_BagDrop.isNestedLocked(self.inventoryContainer, playerObj)
+end
+
 function GridRender:render()
     local mouseX = self:getMouseX()
     local mouseY = self:getMouseY()
@@ -643,6 +655,8 @@ function GridRender:render()
 
     local playerObj = getSpecificPlayer(self.playerNum)
     local hotbar = getPlayerHotbar(self.playerNum)
+    local locked = self.inventoryContainer
+        and GridInventory_BagDrop.isNestedLocked(self.inventoryContainer, playerObj)
 
     -- Membros de pilha: mesmo sem render individual, precisam do tick de
     -- idade/umidade (o vanilla faz isso ao renderizar itens em containers
@@ -751,6 +765,7 @@ function GridRender:render()
         end
     end
     end
+
     if self.gridCore.ghostItems then
         for gId, gData in pairs(self.gridCore.ghostItems) do
             local drawX = GRID_PADDING + ((gData.x - 1) * self.cellSize)
@@ -783,9 +798,16 @@ function GridRender:render()
     end
 
     -- Preview do drop sob o cursor (verde/vermelho) durante o arrasto
-    self:drawDropPreview()
+    -- (Grid travado: nada de preview/put-in — o overlay de lock cobre tudo).
+    if not locked then
+        self:drawDropPreview()
 
-    if GridInventory_GlobalDrag and GridInventory_GlobalDrag.itemsData and #GridInventory_GlobalDrag.itemsData > 0 then
+        -- Feedback de put-in: destaque verde + "Put in" sobre o footprint de bolsa
+        -- que aceita o drag (desenha no espaço local do grid, scroll incluso).
+        GridInventory_BagDrop.drawPutInFeedback(self)
+    end
+
+    if GridInventory_GlobalDrag and GridInventory_GlobalDrag.itemsData and #GridInventory_GlobalDrag.itemsData > 0 and not locked then
         local firstItem = GridInventory_GlobalDrag.itemsData[1].itemObj
         if firstItem and self.inventoryContainer then
             local playerObj = getSpecificPlayer(self.playerNum)
@@ -864,7 +886,11 @@ function GridRender:render()
                 self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
                 local msg = getText("IGUI_Overloaded") or "Overloaded"
                 if fitsToAdd > 0 and fitsToAdd < totalToAdd then
-                    msg = string.format(getText("IGUI_OverloadedPartial") or "Only %d of %d fit", fitsToAdd, totalToAdd)
+                    -- O getText do jogo stringifica os args antes do format →
+                    -- %d explodiria (IllegalFormatConversionException); passar
+                    -- tostring explícito + %s nas traduções é à prova de bala.
+                    msg = getText("IGUI_OverloadedPartial", tostring(fitsToAdd), tostring(totalToAdd))
+                        or ("Only " .. tostring(fitsToAdd) .. " of " .. tostring(totalToAdd) .. " fit")
                 end
                 self:drawTextCentre(msg, self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
 
@@ -911,6 +937,15 @@ function GridRender:render()
             end
         end
     end
+
+    -- Grid travado (bolsa aninhada NO MUNDO): escurece o grid inteiro + cadeado.
+    -- "Meio apagada" = o conteúdo continua visível (só leitura), mas fica claro
+    -- que o engine não deixa mexer (sem drag in/out, sem put-in, sem autoSlot).
+    if locked then
+        self:drawRect(0, 0, self.width, self.height, 0.55, 0.05, 0.05, 0.05)
+        self:drawRectBorder(0, 0, self.width, self.height, 0.9, 1.0, 0.85, 0.3)
+        self:drawTextCentre(getText("IGUI_LockedNestedBag") or "Locked", self.width/2, self.height/2 - 10, 1.0, 0.9, 0.6, 1, UIFont.Large)
+    end
 end
 
 -- ============================================================================
@@ -933,11 +968,22 @@ end
 -- ÚNICO ou pilha (uma unidade lógica, um footprint). Multi-drag de células
 -- diferentes não desenha preview (o drop é auto-sort) — o ghost mantém o fundo.
 -- Quando o preview é desenhado, publica GridInventory_DropPreview pra
--- GlobalDragRender renderizar o ghost "cru" (sem fundo/borda).
+-- GlobalDragRender renderizar o ghost "cru" (sem fundo/borda). O preview é
+-- zerado no prerender da GlobalDragRender e reposto a cada frame por quem
+-- estiver sob o cursor — nunca é "stale" de um frame anterior.
 function GridRender:drawDropPreview()
     if not GridInventory_GlobalDrag or not GridInventory_GlobalDrag.itemsData then return end
     local itemsData = GridInventory_GlobalDrag.itemsData
     if #itemsData == 0 then return end
+
+    -- PUT-IN: mouse sobre o footprint de uma bolsa que ACEITA o drag → o preview
+    -- de posicionamento (verde/vermelho do item) cede lugar ao destaque verde da
+    -- bolsa (drawPutInFeedback) — dois verdes competindo confundiriam. Se a bolsa
+    -- NÃO aceita, o preview normal continua (o drop é de grid, não de put-in).
+    local bagAtPoint = GridInventory_BagDrop.bagAtPoint(self)
+    if bagAtPoint and GridInventory_BagDrop.canTransfer(bagAtPoint) then
+        return
+    end
 
     local dropCol, dropRow = self:getGridCellAtMouse(self:getMouseX(), self:getMouseY())
     if not dropCol or not dropRow then return end
@@ -1042,6 +1088,13 @@ function GridRender:onMouseDown(x, y)
             
             return -- Aborta o resto do clique pois foi no header
         end
+    end
+
+    -- Grid travado (bolsa aninhada no mundo): só leitura — nada de arrastar,
+    -- selecionar, marquis ou double-click. O contexto (botão direito) e o
+    -- duplo clique (doDoubleClick/onRightMouseUp) também são bloqueados.
+    if self:isLocked() then
+        return
     end
 
     local col, row = self:getGridCellAtMouse(x, y)
@@ -1247,6 +1300,12 @@ function GridRender:onMouseMove(dx, dy)
 end
 
 function GridRender:doDoubleClick(x, y)
+    -- Grid travado (bolsa aninhada no mundo): duplo clique também é "tirar"
+    -- (o vanilla transfere pro inventário do jogador) — bloquear igual.
+    if self:isLocked() then
+        return
+    end
+
     local col, row = self:getGridCellAtMouse(x, y)
     if not col or not row then return end
     
@@ -1411,6 +1470,10 @@ end
 function GridRender:onMouseDoubleClick(x, y)
     -- O Zomboid chama isso se os pixels não mudarem mais de 5 e for dentro de 500ms.
     -- Como nós já interceptamos no onMouseDown de forma mais robusta, apenas chamamos nosso método.
+    -- Grid travado: consome o clique pra nada cair no vanilla (que transferiria).
+    if self:isLocked() then
+        return true
+    end
     self:doDoubleClick(x, y)
     return true
 end
@@ -1454,6 +1517,34 @@ function GridRender:onMouseUp(x, y)
     end
     self.ctrlStackPeel = nil
     self.clickedItemId = nil
+
+    -- PUT-IN: se soltou sobre uma bolsa (footprint) ou sobre o header de um
+    -- grid, transfere ANTES do posicionamento normal — idempotente com os
+    -- caminhos de update()/prerender (o drag é zerado se transferir).
+    if GridInventory_GlobalDrag then
+        if GridInventory_BagDrop.tryHandleMouseUp(self.playerNum) then
+            return
+        end
+    end
+
+    -- Grid travado (bolsa aninhada no mundo): consome o drop SEM mover nada.
+    -- O engine recusa a transferência — se o grid reposicionasse/autoSlotasse
+    -- antes, o item ficaria com posição fantasma (gridX/gridY no container
+    -- travado) sem nunca entrar nele.
+    if self:isLocked() then
+        if GridInventory_GlobalDrag then
+            if GridInventory_GlobalDrag.sourceGrid then
+                GridInventory_GlobalDrag.sourceGrid.selectedItems = {}
+            end
+            GridInventory_GlobalDrag = nil
+            ISMouseDrag.dragging = nil
+            ISMouseDrag.draggingFocus = nil
+        end
+        self.selectedItems = {}
+        self.draggingMarquis = false
+        return
+    end
+
     if self.draggingMarquis then
         self.draggingMarquis = false
         local mX = self:getMouseX()
@@ -1480,6 +1571,19 @@ function GridRender:onMouseUp(x, y)
 
     -- Se temos um drag global iniciado por nós mesmos, estamos soltando itens do próprio grid
     if GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid == self then
+        -- Drop em bolsa já tratado pelo caminho vanilla (dropItemsInContainer
+        -- transferiu os itens e chamou onMouseUp(0,0) só pra limpar o estado
+        -- global). Nunca reposicionar itens que já saíram do container.
+        if GridInventory_GlobalDrag.handledByBag then
+            if GridInventory_GlobalDrag.sourceGrid then
+                GridInventory_GlobalDrag.sourceGrid.selectedItems = {}
+            end
+            GridInventory_GlobalDrag = nil
+            ISMouseDrag.dragging = nil
+            ISMouseDrag.draggingFocus = nil
+            return
+        end
+
         local dropCol, dropRow = self:getGridCellAtMouse(x, y)
         local itemsData = GridInventory_GlobalDrag.itemsData
         
@@ -1875,6 +1979,12 @@ function GridRender:onRightMouseUp(x, y)
             draggedItem.grabOffsetX, draggedItem.grabOffsetY = draggedItem.grabOffsetY, draggedItem.grabOffsetX
         end
     else
+        -- Grid travado (bolsa aninhada no mundo): o menu de contexto é a porta
+        -- de entrada do "Take/Loot" do vanilla — bloqueia pra não deixar tirar.
+        if self:isLocked() then
+            return
+        end
+
         local col, row = self:getGridCellAtMouse(x, y)
         if col and row then
             local itemId = self.gridCore.cells[col][row]
@@ -2083,6 +2193,14 @@ function GridRender:update()
 
     -- Se o mouse foi solto (em qualquer lugar da tela)
     if GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid == self and not isMouseButtonDown(0) then
+        -- Drop em cima de uma bolsa (caminho próprio do mod): transfere pra
+        -- dentro da bolsa e limpa. Idempotente com o vanilla: se o
+        -- dropItemsInContainer já transferiu, o GridInventory_GlobalDrag já
+        -- foi zerado e isto é no-op. Volta cedo pra não cair no drop-no-chão.
+        if GridInventory_BagDrop.tryHandleMouseUp(self.playerNum) then
+            return
+        end
+
         local mx = getMouseX()
         local my = getMouseY()
         local uis = UIManager.getUI()
