@@ -7,3 +7,11 @@ option GridInventory.ScatterMode
     translation = GridInventory_ScatterMode,
     valueTranslation = GridInventory_ScatterMode,
 }
+
+option GridInventory.ReorderTimeAction
+{
+    type = enum, numValues = 2, default = 1,
+    page = GridInventory,
+    translation = GridInventory_ReorderTimeAction,
+    valueTranslation = GridInventory_ReorderTimeAction,
+}

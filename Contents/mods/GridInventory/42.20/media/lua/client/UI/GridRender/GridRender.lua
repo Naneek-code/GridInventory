@@ -7,6 +7,8 @@ require "TimedActions/ISUnequipAction"
 local ItemFootprint = require("Algorithm/ItemFootprint")
 local GridContainer = require("DataModel/GridContainer")
 local GridClientNetwork = require("Network/GridClientNetwork")
+local GridReorder = require("Algorithm/GridReorder")
+local GridSandboxOptions = require("GridSandboxOptions")
 
 GridRender = ISPanel:derive("GridRender")
 
@@ -1413,6 +1415,31 @@ function GridRender:onMouseDoubleClick(x, y)
     return true
 end
 
+--- Aplica um reorder (revalida + remove tudo + insere) e sincroniza no MP.
+--- Compartilhado entre o caminho IMEDIATO (opção off) e o perform() da
+--- GridReorderAction (opção on): a revalidação no apply() torna a ação
+--- atrasada segura mesmo se o grid mudar entre o drop e o perform.
+function GridRender:performGridReorder(targets)
+    if not self or not self.gridCore then return false end
+    if not GridReorder.apply(self.gridCore, targets) then
+        self.selectedItems = {}
+        return false
+    end
+    for _, t in ipairs(targets) do
+        if t.item.itemObj then
+            local modData = t.item.itemObj:getModData()
+            modData.gridX = t.tx
+            modData.gridY = t.ty
+            modData.gridRot = t.item.rotated
+            modData.gridContainer = GridContainer.containerSignature(self.inventoryContainer)
+            -- MP server-mandatory: o servidor grava e broadcasta a posição.
+            GridClientNetwork.sendItemMove(self.inventoryContainer, t.item.itemObj:getID(), t.tx, t.ty, t.item.rotated, modData.gridContainer)
+        end
+    end
+    self.selectedItems = {}
+    return true
+end
+
 function GridRender:onMouseUp(x, y)
     -- Ctrl+CLIQUE (sem arrasto) num stack: abre o STACK PICKER. Se foi um
     -- Ctrl+DRAG, o flag já foi consumido no onMouseMove (peel de 1 item).
@@ -1457,58 +1484,31 @@ function GridRender:onMouseUp(x, y)
         local itemsData = GridInventory_GlobalDrag.itemsData
         
         if dropCol and dropRow then
-            -- Tenta colocar todos ou nenhum (modo estrito para evitar perda de itens)
-            local allCanPlace = true
-            local targets = {}
-            
-            -- Set de TODOS os itens em movimento: arrastar uma PILHA inteira
-            -- significa que os membros ainda ocupam a origem, mas vão sair — o
-            -- alvo pode sobrepor a origem sem "colidir" com eles (phantom block).
-            local movedSet = {}
-            for _, di in ipairs(itemsData) do
-                movedSet[di.id] = true
-            end
-            
-            for _, draggedItem in ipairs(itemsData) do
-                local effectiveW = draggedItem.rotated and draggedItem.originalH or draggedItem.originalW
-                local effectiveH = draggedItem.rotated and draggedItem.originalW or draggedItem.originalH
-                
-                local targetX = dropCol - draggedItem.grabOffsetX
-                local targetY = dropRow - draggedItem.grabOffsetY
-                
-                if targetX < 1 then targetX = 1 end
-                if targetY < 1 then targetY = 1 end
-                
-                if not self.gridCore:canPlaceItem(draggedItem.id, targetX, targetY, effectiveW, effectiveH, draggedItem.id, draggedItem.compatKey, draggedItem.rotated, draggedItem.stackInfo, movedSet) then
-                    allCanPlace = false
-                    break
-                end
-                
-                table.insert(targets, {item = draggedItem, tx = targetX, ty = targetY, ew = effectiveW, eh = effectiveH})
-            end
-            
-            if allCanPlace then
-                -- Remove TODOS os itens movidos ANTES de inserir: inserir um a um
-                -- com o alvo sobrepondo a origem faz a promoção da origem (no
-                -- removeItem) sobrescrever células onde já entrou um membro no
-                -- alvo → pilhas com 3+ quebram (ordem arbitrária do pairs). Limpar
-                -- tudo primeiro deixa o grid livre pra reassentar a pilha inteira.
-                for _, t in ipairs(targets) do
-                    self.gridCore:removeItem(t.item.id)
-                end
-                for _, t in ipairs(targets) do
-                    self.gridCore:insertItem(t.item.id, t.tx, t.ty, t.ew, t.eh, t.item.rotated, t.item.itemObj, t.item.compatKey, t.item.stackInfo, movedSet)
-                    if t.item.itemObj then
-                        local modData = t.item.itemObj:getModData()
-                        modData.gridX = t.tx
-                        modData.gridY = t.ty
-                        modData.gridRot = t.item.rotated
-                        modData.gridContainer = GridContainer.containerSignature(self.inventoryContainer)
-                        -- MP server-mandatory: o servidor grava e broadcasta a posição.
-                        GridClientNetwork.sendItemMove(self.inventoryContainer, t.item.itemObj:getID(), t.tx, t.ty, t.item.rotated, modData.gridContainer)
+            -- Tenta colocar todos ou nenhum (modo estrito para evitar perda de
+            -- itens). O GridReorder.computeTargets calcula e valida os alvos de
+            -- uma vez com o movedSet de TODOS os itens arrastados (pilhas podem
+            -- sobrepor a própria origem sem colidir com os membros em movimento).
+            local targets = GridReorder.computeTargets(self.gridCore, itemsData, dropCol, dropRow)
+
+            if targets then
+                -- Drop na própria posição (no-op): consome o drop sem animação,
+                -- sem broadcast redundante e sem "movimento" de mentira.
+                if not GridReorder.isNoOp(self.gridCore, targets) then
+                    if GridSandboxOptions.isReorderTimed() then
+                        -- Caminho atrasado: a GridReorderAction faz a animação de
+                        -- transferência e aplica no perform (~0.5s). No MP isso
+                        -- dá uma janela pro servidor processar o movimento.
+                        local playerObj = getSpecificPlayer(self.playerNum)
+                        if playerObj then
+                            local GridReorderAction = require("TimedActions/GridReorderAction")
+                            ISTimedActionQueue.add(GridReorderAction:new(playerObj, self, targets))
+                        else
+                            self:performGridReorder(targets)
+                        end
+                    else
+                        self:performGridReorder(targets)
                     end
                 end
-                self.selectedItems = {} -- Limpa seleção após mover com sucesso
             end
         end
 

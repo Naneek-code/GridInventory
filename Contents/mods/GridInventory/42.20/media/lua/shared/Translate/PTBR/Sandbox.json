@@ -4,5 +4,9 @@
     "Sandbox_GridInventory_ScatterMode_tooltip": "Como itens sem posição salva são colocados nos containers.\n\nAutomático (loot natural): só containers que nunca foram vasculhados ganham layout aleatório natural; o inventário do jogador e containers explorados preenchem organizados.\n\nSempre espalhar (bagunçado): itens caem espalhados em tudo, inclusive no seu inventário. Transferência rápida fica bagunçada; arrastar com precisão (x,y) mantém organizado.\n\nNunca espalhar (arrumado): tudo preenche automaticamente do topo-esquerda, nunca aleatório.",
     "Sandbox_GridInventory_ScatterMode_option1": "Automático (loot natural)",
     "Sandbox_GridInventory_ScatterMode_option2": "Sempre espalhar (bagunçado)",
-    "Sandbox_GridInventory_ScatterMode_option3": "Nunca espalhar (arrumado)"
+    "Sandbox_GridInventory_ScatterMode_option3": "Nunca espalhar (arrumado)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Animação de Reorganização",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Mover itens dentro do mesmo container com uma animação curta de transferência.\n\nAnimado: o personagem faz a animação de transferência e o movimento é aplicado ~0.5s depois. No multiplayer dá tempo do servidor processar antes do próximo movimento.\n\nInstantâneo: itens se movem na hora do drop, como antes.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animado",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Instantâneo"
 }

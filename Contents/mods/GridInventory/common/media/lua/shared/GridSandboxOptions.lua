@@ -13,6 +13,10 @@ local GridSandboxOptions = {}
 local OPTION_NAME_SCATTER = "GridInventory.ScatterMode"
 local SCATTER_AUTO, SCATTER_ALWAYS, SCATTER_NEVER = 1, 2, 3
 
+-- Reorder dentro do mesmo grid: 1 = animação de transferência (padrão), 2 = instantâneo.
+local OPTION_NAME_REORDER_TIME = "GridInventory.ReorderTimeAction"
+local REORDER_TIMED = 1
+
 --- Lê o modo de scatter atual.
 --- @return "auto" | "always" | "never"
 function GridSandboxOptions.getScatterMode()
@@ -27,6 +31,22 @@ function GridSandboxOptions.getScatterMode()
         end
     end
     return "auto"
+end
+
+--- Se o reorder dentro do MESMO grid usa a ação de transferência (animação +
+--- pequena latência que dá tempo do servidor processar antes do broadcast).
+--- false = aplica instantaneamente, como antes.
+--- @return boolean
+function GridSandboxOptions.isReorderTimed()
+    if getSandboxOptions then
+        local ok, opt = pcall(function()
+            return getSandboxOptions():getOptionByName(OPTION_NAME_REORDER_TIME)
+        end)
+        if ok and opt and opt.getValue then
+            return opt:getValue() == REORDER_TIMED
+        end
+    end
+    return true
 end
 
 return GridSandboxOptions

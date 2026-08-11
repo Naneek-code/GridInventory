@@ -4,5 +4,9 @@
     "Sandbox_GridInventory_ScatterMode_tooltip": "How items without a saved position are placed in containers.\n\nAutomatic (natural loot): only containers that were never looted get a natural random layout; the player inventory and explored containers fill organized.\n\nAlways scatter (messy): items land scattered everywhere, including your own inventory. Quick transfers get messy; precise drag & drop with x,y keeps things organized.\n\nNever scatter (neat): everything auto-fills from the top-left, never random.",
     "Sandbox_GridInventory_ScatterMode_option1": "Automatic (natural loot)",
     "Sandbox_GridInventory_ScatterMode_option2": "Always scatter (messy)",
-    "Sandbox_GridInventory_ScatterMode_option3": "Never scatter (neat)"
+    "Sandbox_GridInventory_ScatterMode_option3": "Never scatter (neat)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Item Reorder Animation",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Moves items within the same container with a short transfer animation.\n\nAnimated: the character does the transfer animation and the move is applied ~0.5s later. In multiplayer this gives the server time to process before the next move.\n\nInstant: items move immediately on drop, like before.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animated",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Instant"
 }
