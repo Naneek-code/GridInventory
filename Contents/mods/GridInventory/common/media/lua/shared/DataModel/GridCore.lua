@@ -421,40 +421,4 @@ function GridCoreInstance:findCompatibleStack(itemId, w, h, compatKey, stackInfo
     return nil
 end
 
---- Checagem AGREGADA de espaço (heuristic) para um drag de múltiplos itens.
---- O drop multi-drag limpa as posições e o auto-sort empacota o container alvo,
---- então não dá pra validar célula exata — compara a ÁREA total necessária com
---- as células livres do grid:
----   - cada unidade = { id, w, h, compatKey?, stackInfo? } (dimensões EFETIVAS,
----     já considerando rotação);
----   - unidade empilhável que encontra pilha compatível já existente não
----     consome célula nova (findCompatibleStack);
----   - movedSet = ids que ESTÃO SAINDO deste grid (conta a célula deles como
----     livre — drop no mesmo grid).
----@param units table Lista de unidades lógicas (um footprint por célula de origem)
----@param movedSet table? ids dos itens em movimento (presentes neste grid)
----@return boolean
-function GridCoreInstance:canFitItems(units, movedSet)
-    local freeCells = 0
-    for x = 1, self.width do
-        for y = 1, self.height do
-            local occ = self.cells[x][y]
-            if not occ or (movedSet and movedSet[occ]) then
-                freeCells = freeCells + 1
-            end
-        end
-    end
-    local needed = 0
-    for _, u in ipairs(units) do
-        local fitsInStack = false
-        if u.compatKey then
-            fitsInStack = self:findCompatibleStack(u.id, u.w, u.h, u.compatKey, u.stackInfo) ~= nil
-        end
-        if not fitsInStack then
-            needed = needed + ((u.w or 1) * (u.h or 1))
-        end
-    end
-    return needed <= freeCells
-end
-
 return GridCore
