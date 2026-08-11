@@ -63,7 +63,20 @@ end
 ---@param stackInfo table? { limit = number, units = number } — limite de
 ---   UNIDADES da pilha e unidades deste item. Nil = sem limite (pilha infinita).
 ---@return boolean
-function GridCoreInstance:canPlaceItem(itemId, x, y, w, h, ignoreItemId, compatKey, isRotated, stackInfo)
+--- True se um item ocupante deve ser ignorado pela checagem de colisão:
+--- - o próprio item sendo movido (itemId);
+--- - o ignoreItemId simples (item único em movimento);
+--- - OU qualquer item no ignoreSet (conjunto de itens movidos JUNTOS — ex.:
+---   arrastar uma PILHA inteira: os membros ainda estão na origem, mas vão
+---   sair, então o alvo pode sobrepor a origem sem "colidir" com eles).
+local function isIgnored(id, itemId, ignoreItemId, ignoreSet)
+    if id == nil then return false end
+    if id == itemId or id == ignoreItemId then return true end
+    if ignoreSet and ignoreSet[id] then return true end
+    return false
+end
+
+function GridCoreInstance:canPlaceItem(itemId, x, y, w, h, ignoreItemId, compatKey, isRotated, stackInfo, ignoreSet)
     x, y, w, h = tonumber(x), tonumber(y), tonumber(w), tonumber(h)
     
     if not self:isWithinBounds(x, y, w, h) then
@@ -74,7 +87,7 @@ function GridCoreInstance:canPlaceItem(itemId, x, y, w, h, ignoreItemId, compatK
     -- compatível (mesmo compatKey e retângulo exatamente igual).
     if compatKey then
         local occ = self.cells[x][y]
-        if occ ~= nil and occ ~= itemId and occ ~= ignoreItemId then
+        if occ ~= nil and not isIgnored(occ, itemId, ignoreItemId, ignoreSet) then
             local occData = self.items[occ]
             if occData
                 and occData.compatKey == compatKey
@@ -86,7 +99,7 @@ function GridCoreInstance:canPlaceItem(itemId, x, y, w, h, ignoreItemId, compatK
                 for cx = x, x + w - 1 do
                     for cy = y, y + h - 1 do
                         local o = self.cells[cx][cy]
-                        if o ~= nil and o ~= occ and o ~= itemId and o ~= ignoreItemId then
+                        if o ~= nil and o ~= occ and not isIgnored(o, itemId, ignoreItemId, ignoreSet) then
                             allLeader = false
                             break
                         end
@@ -114,7 +127,7 @@ function GridCoreInstance:canPlaceItem(itemId, x, y, w, h, ignoreItemId, compatK
     for cx = x, x + w - 1 do
         for cy = y, y + h - 1 do
             local occupant = self.cells[cx][cy]
-            if occupant ~= nil and occupant ~= ignoreItemId and occupant ~= itemId then
+            if occupant ~= nil and not isIgnored(occupant, itemId, ignoreItemId, ignoreSet) then
                 return false
             end
         end
@@ -123,7 +136,7 @@ function GridCoreInstance:canPlaceItem(itemId, x, y, w, h, ignoreItemId, compatK
     -- Verifica interseção com ghost items (transferências pendentes)
     if self.ghostItems then
         for gId, gData in pairs(self.ghostItems) do
-            if gId ~= ignoreItemId and gId ~= itemId then
+            if not isIgnored(gId, itemId, ignoreItemId, ignoreSet) then
                 local gx, gy, gw, gh = tonumber(gData.x), tonumber(gData.y), tonumber(gData.w), tonumber(gData.h)
                 -- Ghost de pilha compatível com retângulo igual não bloqueia
                 local compatibleGhost = compatKey and gData.compatKey == compatKey
@@ -143,9 +156,10 @@ end
 --- Attempts to insert an item into the grid at a specific location
 ---@param compatKey string? Chave de empilhamento (ver canPlaceItem)
 ---@param stackInfo table? { limit, units } — limite e unidades da pilha (nil = sem limite)
+---@param ignoreSet table? set de itemIds movidos juntos (pilha inteira)
 ---@return boolean true if inserted successfully, false otherwise
-function GridCoreInstance:insertItem(itemId, x, y, w, h, isRotated, itemObj, compatKey, stackInfo)
-    if not self:canPlaceItem(itemId, x, y, w, h, nil, compatKey, isRotated, stackInfo) then
+function GridCoreInstance:insertItem(itemId, x, y, w, h, isRotated, itemObj, compatKey, stackInfo, ignoreSet)
+    if not self:canPlaceItem(itemId, x, y, w, h, nil, compatKey, isRotated, stackInfo, ignoreSet) then
         return false
     end
 
@@ -255,7 +269,15 @@ function GridCoreInstance:removeItem(itemId)
             members[itemId] = nil
             members[nextLeader] = nil
             local left = 0
-            for _ in pairs(members) do left = left + 1 end
+            for mId, _ in pairs(members) do
+                left = left + 1
+                -- CRÍTICO: os membros restantes continuam apontando pro líder
+                -- ANTIGO (itemId) no stackMemberOf — sem isso pilhas com 3+
+                -- quebram ao mover (membros órfãos/duplicados em stacks).
+                if self.items[mId] then
+                    self.items[mId].stackMemberOf = nextLeader
+                end
+            end
             if left > 0 then
                 self.stacks[nextLeader] = { members = members }
             end

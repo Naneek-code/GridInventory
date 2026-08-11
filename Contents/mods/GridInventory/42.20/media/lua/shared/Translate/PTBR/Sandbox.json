@@ -1,0 +1,8 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Modo de Dispersão",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Como itens sem posição salva são colocados nos containers.\n\nAutomático (loot natural): só containers que nunca foram vasculhados ganham layout aleatório natural; o inventário do jogador e containers explorados preenchem organizados.\n\nSempre espalhar (bagunçado): itens caem espalhados em tudo, inclusive no seu inventário. Transferência rápida fica bagunçada; arrastar com precisão (x,y) mantém organizado.\n\nNunca espalhar (arrumado): tudo preenche automaticamente do topo-esquerda, nunca aleatório.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Automático (loot natural)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Sempre espalhar (bagunçado)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Nunca espalhar (arrumado)"
+}

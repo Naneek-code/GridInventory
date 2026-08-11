@@ -22,13 +22,50 @@
 ---     não achar vaga após N tentativas, cai no findFreeSpace original (nunca
 ---     aumenta o overflow).
 
+local GridSandboxOptions = require("GridSandboxOptions")
+
 local ScatterLayout = {}
 
 -- Liga/desliga o feature por completo.
 ScatterLayout.enabled = true
--- Se true, também espalha o inventário pessoal do jogador e mochilas.
--- (Padrão false: o inventário do jogador continua organizado/compactado.)
-ScatterLayout.scatterPlayerInventory = false
+-- Override programático (teste/admin) do modo de scatter:
+--   nil = usa a Sandbox Option; "auto" | "always" | "never" = força.
+ScatterLayout.scatterModeOverride = nil
+
+--- Decide se o container deve receber layout espalhado.
+--- Modo (Sandbox Option "GridInventoryScatterMode"):
+---   "auto"   → só container NUNCA VASCULHADO espalha (isExplored=false);
+---             inventário/mochilas do jogador nunca espalham.
+---   "always" → espalha em TUDO, inclusive inventário do jogador (penaliza
+---             transferência rápida; drag&drop com x,y mantém organizado).
+---   "never"  → nunca espalha, nem em world containers (auto-fit organizado).
+--- O isExplored é marcado pelo vanilla assim que o jogador abre o container e é
+--- sincronizado no MP pelos pacotes de container.
+---@param inventory ItemContainer
+---@param playerNum number
+---@return boolean
+function ScatterLayout.shouldScatter(inventory, playerNum)
+    if not ScatterLayout.enabled then return false end
+
+    local mode = ScatterLayout.scatterModeOverride or GridSandboxOptions.getScatterMode()
+
+    if mode == "always" then
+        return true
+    end
+    if mode == "never" then
+        return false
+    end
+
+    -- modo "auto": só nunca vasculhado, nunca o inventário do jogador
+    if inventory and inventory.isExplored and inventory:isExplored() then
+        return false
+    end
+    local player = playerNum ~= nil and getSpecificPlayer(playerNum) or nil
+    if player and inventory:isInCharacterInventory(player) then
+        return false
+    end
+    return true
+end
 -- Número máximo de posições sorteadas por item antes do fallback organizado.
 ScatterLayout.maxAttempts = 16
 
@@ -83,22 +120,6 @@ function ScatterLayout.buildSeedKey(inventory)
         end)
     end
     return key
-end
-
---- Decide se o container deve receber layout espalhado.
---- Containers de loot (mundo, cadáveres, chão) sim; inventário/mochilas do
---- jogador apenas se scatterPlayerInventory estiver ligado.
----@param inventory ItemContainer
----@param playerNum number
----@return boolean
-function ScatterLayout.shouldScatter(inventory, playerNum)
-    if not ScatterLayout.enabled then return false end
-    if ScatterLayout.scatterPlayerInventory then return true end
-    local player = playerNum ~= nil and getSpecificPlayer(playerNum) or nil
-    if player and inventory:isInCharacterInventory(player) then
-        return false
-    end
-    return true
 end
 
 --- Sorteia uma posição livre para um item sem posição salva.

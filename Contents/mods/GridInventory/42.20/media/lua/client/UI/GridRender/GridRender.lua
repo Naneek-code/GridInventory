@@ -47,6 +47,27 @@ local function isInContainerTree(item, rootContainer)
     return false
 end
 
+--- Capacidade de PESO real de um container: o teto que o jogo realmente aplica
+--- (getEffectiveCapacity — o MESMO usado pelo hasRoomFor pra bloquear). Ex.: o
+--- inventário do jogador mostra getMaxWeight() = 12 ("confortável", força), mas
+--- o jogador consegue carregar até getEffectiveCapacity = 50. Usar o teto real
+--- evita "Overloaded" prematuro (o jogador ainda cabe). Fallback pra getMaxWeight
+--- / getCapacity se getEffectiveCapacity não existir.
+local function gridCapacity(container, playerObj)
+    if container and container.getEffectiveCapacity and playerObj then
+        local ec = container:getEffectiveCapacity(playerObj)
+        if ec and tonumber(ec) and ec > 0 then return ec end
+    end
+    if container and container.getMaxWeight then
+        local mw = container:getMaxWeight()
+        if mw and tonumber(mw) and mw > 0 then return mw end
+    end
+    if container and container.getCapacity then
+        return container:getCapacity()
+    end
+    return 0
+end
+
 function GridRender:new(x, y, gridCore, playerNum, inventoryContainer, gridIndex, containerItem, fallbackIcon, noHeader)
     local headerH = 28
     if noHeader then headerH = 0 end
@@ -550,6 +571,9 @@ function GridRender:render()
 
         -- ── PESO: calcula o TEXTO e a COR antes de desenhar qualquer coisa,
         -- só pra saber a largura que ele vai ocupar (ainda não desenha na tela).
+        -- O DISPLAY mantém o getMaxWeight() (a capacidade "confortável" do
+        -- personagem, ex.: 12) — é o que o jogador enxerga no vanilla. O teto
+        -- real (getEffectiveCapacity, ex.: 50) só é usado no FEEDBACK.
         local weightStr = nil
         local weightR, weightG, weightB = 0.9, 0.9, 0.9
         local hasWeightDisplay = self.inventoryContainer and self.inventoryContainer.getCapacityWeight and self.inventoryContainer.getMaxWeight
@@ -757,12 +781,14 @@ function GridRender:render()
             local playerObj = getSpecificPlayer(self.playerNum)
 
             -- Capacidade de peso com matemática PRÓPRIA e precisa:
-            --  - limite = getMaxWeight() (o MESMO do header), não getCapacity();
+            --  - limite = getEffectiveCapacity (o MESMO do hasRoomFor / teto real,
+            --    ex.: 50 no inventário do jogador), NÃO getMaxWeight (que é o
+            --    "confortável" baseado em força, ex.: 12 — dispara Overloaded cedo);
             --  - itens arrastados que JÁ estão na árvore do container alvo (ex.:
             --    tirar de dentro de uma bolsa pra raiz) já estão somados no
             --    getCapacityWeight() → não podem ser somados de novo, senão o
             --    "Sobrepeso" aparece ANTES de bater o peso máximo.
-            local capacity = self.inventoryContainer.getMaxWeight and self.inventoryContainer:getMaxWeight() or self.inventoryContainer:getCapacity()
+            local capacity = gridCapacity(self.inventoryContainer, playerObj)
             local currentWeight = self.inventoryContainer.getCapacityWeight and self.inventoryContainer:getCapacityWeight() or self.inventoryContainer:getContentsWeight()
             local addWeight = 0
             for _, d in ipairs(GridInventory_GlobalDrag.itemsData) do
@@ -1327,6 +1353,14 @@ function GridRender:onMouseUp(x, y)
             local allCanPlace = true
             local targets = {}
             
+            -- Set de TODOS os itens em movimento: arrastar uma PILHA inteira
+            -- significa que os membros ainda ocupam a origem, mas vão sair — o
+            -- alvo pode sobrepor a origem sem "colidir" com eles (phantom block).
+            local movedSet = {}
+            for _, di in ipairs(itemsData) do
+                movedSet[di.id] = true
+            end
+            
             for _, draggedItem in ipairs(itemsData) do
                 local effectiveW = draggedItem.rotated and draggedItem.originalH or draggedItem.originalW
                 local effectiveH = draggedItem.rotated and draggedItem.originalW or draggedItem.originalH
@@ -1337,7 +1371,7 @@ function GridRender:onMouseUp(x, y)
                 if targetX < 1 then targetX = 1 end
                 if targetY < 1 then targetY = 1 end
                 
-                if not self.gridCore:canPlaceItem(draggedItem.id, targetX, targetY, effectiveW, effectiveH, draggedItem.id, draggedItem.compatKey, draggedItem.rotated, draggedItem.stackInfo) then
+                if not self.gridCore:canPlaceItem(draggedItem.id, targetX, targetY, effectiveW, effectiveH, draggedItem.id, draggedItem.compatKey, draggedItem.rotated, draggedItem.stackInfo, movedSet) then
                     allCanPlace = false
                     break
                 end
@@ -1346,15 +1380,24 @@ function GridRender:onMouseUp(x, y)
             end
             
             if allCanPlace then
+                -- Remove TODOS os itens movidos ANTES de inserir: inserir um a um
+                -- com o alvo sobrepondo a origem faz a promoção da origem (no
+                -- removeItem) sobrescrever células onde já entrou um membro no
+                -- alvo → pilhas com 3+ quebram (ordem arbitrária do pairs). Limpar
+                -- tudo primeiro deixa o grid livre pra reassentar a pilha inteira.
                 for _, t in ipairs(targets) do
-                    self.gridCore:insertItem(t.item.id, t.tx, t.ty, t.ew, t.eh, t.item.rotated, t.item.itemObj, t.item.compatKey, t.item.stackInfo)
+                    self.gridCore:removeItem(t.item.id)
+                end
+                for _, t in ipairs(targets) do
+                    self.gridCore:insertItem(t.item.id, t.tx, t.ty, t.ew, t.eh, t.item.rotated, t.item.itemObj, t.item.compatKey, t.item.stackInfo, movedSet)
                     if t.item.itemObj then
                         local modData = t.item.itemObj:getModData()
                         modData.gridX = t.tx
                         modData.gridY = t.ty
                         modData.gridRot = t.item.rotated
+                        modData.gridContainer = GridContainer.containerSignature(self.inventoryContainer)
                         -- MP server-mandatory: o servidor grava e broadcasta a posição.
-                        GridClientNetwork.sendItemMove(self.inventoryContainer, t.item.itemObj:getID(), t.tx, t.ty, t.item.rotated)
+                        GridClientNetwork.sendItemMove(self.inventoryContainer, t.item.itemObj:getID(), t.tx, t.ty, t.item.rotated, modData.gridContainer)
                     end
                 end
                 self.selectedItems = {} -- Limpa seleção após mover com sucesso
@@ -1412,6 +1455,7 @@ function GridRender:onMouseUp(x, y)
                         modData.gridX = nil
                         modData.gridY = nil
                         modData.gridRot = false
+                        modData.gridContainer = nil
                         
                         if itemObj == self.containerItem or not self.inventoryContainer:isItemAllowed(itemObj) then
                             -- Ignora, não pode guardar dentro de si mesmo ou item não é permitido
@@ -1469,8 +1513,9 @@ function GridRender:onMouseUp(x, y)
                                 modData.gridX = targetX
                                 modData.gridY = targetY
                                 modData.gridRot = rotated
+                                modData.gridContainer = GridContainer.containerSignature(self.inventoryContainer)
                                 -- MP server-mandatory: servidor grava a posição (drop coords, não autoSlot).
-                                GridClientNetwork.sendItemMove(self.inventoryContainer, itemObj:getID(), targetX, targetY, rotated)
+                                GridClientNetwork.sendItemMove(self.inventoryContainer, itemObj:getID(), targetX, targetY, rotated, modData.gridContainer)
                                 
                                 if isFromPaperDoll and srcContainer == self.inventoryContainer then
                                     local playerObj = getSpecificPlayer(self.playerNum)

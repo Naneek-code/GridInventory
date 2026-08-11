@@ -1,0 +1,9 @@
+VERSION = 1,
+
+option GridInventory.ScatterMode
+{
+    type = enum, numValues = 3, default = 1,
+    page = GridInventory,
+    translation = GridInventory_ScatterMode,
+    valueTranslation = GridInventory_ScatterMode,
+}

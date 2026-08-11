@@ -54,6 +54,38 @@ function GridContainer.getGridSize(inventory)
     return w, h
 end
 
+--- Identidade estável de um container (onde o item "vive"). Usada pra validar a
+--- posição salva: um item só pode usar a posição salva (gridX/gridY) ENQUANTO
+--- estiver NESSE container. Quando ele é transferido pra outro (chão, armário,
+--- inventário), a assinatura não bate → a posição antiga é IGNORADA e o item cai
+--- no auto-fit/scatter do container novo (não tenta voltar pro 1,1 de 20min atrás).
+--- Compartilhado cliente/servidor (idempotente).
+---@param container ItemContainer
+---@return string|nil
+function GridContainer.containerSignature(container)
+    if not container then return nil end
+    local parent = container.getParent and container:getParent()
+    if parent and instanceof and instanceof(parent, "IsoPlayer") then
+        return "player"
+    end
+    local containingItem = container.getContainingItem and container:getContainingItem()
+    if containingItem then
+        local ft = containingItem.getFullType and containingItem:getFullType() or nil
+        return "bag:" .. tostring(ft or containingItem:getID())
+    end
+    if container.getType and container:getType() == "floor" then
+        return "floor"
+    end
+    if parent and parent.getSquare then
+        local sq = parent:getSquare()
+        if sq and sq.getX then
+            return "world:" .. tostring(sq:getX()) .. "_" .. tostring(sq:getY()) .. "_" .. tostring(sq:getZ())
+        end
+    end
+    local ctype = container.getType and container:getType() or "?"
+    return "container:" .. tostring(ctype)
+end
+
 --- Chave de empilhamento de um item (nil = não-empilhável).
 --- REGRA (ordem de prioridade):
 ---   1. Override explícito do GridDevTool (`stackable=true` força stack;
@@ -393,6 +425,10 @@ function GridContainer:refresh()
     local applyScatter = ScatterLayout.shouldScatter(self.inventory, self.playerNum)
     local seedKey = ScatterLayout.buildSeedKey(self.inventory)
 
+    -- Assinatura do container: valida se a posição salva dos itens pertence a
+    -- ESTE container (item transferido de outro grid não pode herdar a posição).
+    local containerSig = GridContainer.containerSignature(self.inventory)
+
     -- 2. Itera sobre os itens reais do jogo
     for _, item in ipairs(allItems) do
         
@@ -408,12 +444,18 @@ function GridContainer:refresh()
                 local savedY = tonumber(modData.gridY)
                 local isRot = modData.gridRot or false
                 
+                -- A posição salva só vale se pertencer a ESTE container (ou for
+                -- item legado sem assinatura — compat com saves antigos).
+                local posValid = savedX and savedY
+                    and (not modData.gridContainer or modData.gridContainer == containerSig)
+                
                 local effectiveW = isRot and h or w
                 local effectiveH = isRot and w or h
 
                 -- Tenta colocar na posição salva primeiro (Persistência)
-                if savedX and savedY and grid:canPlaceItem(item:getID(), savedX, savedY, effectiveW, effectiveH, nil, compatKey, isRot, stackInfo) then
+                if posValid and grid:canPlaceItem(item:getID(), savedX, savedY, effectiveW, effectiveH, nil, compatKey, isRot, stackInfo) then
                     grid:insertItem(item:getID(), savedX, savedY, effectiveW, effectiveH, isRot, item, compatKey, stackInfo)
+                    modData.gridContainer = containerSig
                     placed = true
                     break
                 else
@@ -447,6 +489,7 @@ function GridContainer:refresh()
                         modData.gridX = freeX
                         modData.gridY = freeY
                         modData.gridRot = didRotate
+                        modData.gridContainer = containerSig
                         
                         placed = true
                         break

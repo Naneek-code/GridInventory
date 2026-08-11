@@ -1,0 +1,32 @@
+--- GridSandboxOptions.lua
+--- Leitura das Sandbox Options do GridInventory.
+---
+--- As opções são DEFINIDAS em media/sandbox-options.txt (mecanismo NATIVO do
+--- B42: o jogo registra e cria a página no menu de sandbox automaticamente a
+--- partir desse arquivo — sem bootstrap Lua). Este módulo só expõe leituras.
+
+local GridSandboxOptions = {}
+
+-- Nome completo da opção (prefixo da página + ponto + opção), como o
+-- getOptionByName espera. Valores do enum são 1-BASED (padrão do PZ):
+--   1 = auto, 2 = always, 3 = never
+local OPTION_NAME_SCATTER = "GridInventory.ScatterMode"
+local SCATTER_AUTO, SCATTER_ALWAYS, SCATTER_NEVER = 1, 2, 3
+
+--- Lê o modo de scatter atual.
+--- @return "auto" | "always" | "never"
+function GridSandboxOptions.getScatterMode()
+    if getSandboxOptions then
+        local ok, opt = pcall(function()
+            return getSandboxOptions():getOptionByName(OPTION_NAME_SCATTER)
+        end)
+        if ok and opt and opt.getValue then
+            local v = opt:getValue()
+            if v == SCATTER_ALWAYS then return "always" end
+            if v == SCATTER_NEVER then return "never" end
+        end
+    end
+    return "auto"
+end
+
+return GridSandboxOptions

@@ -93,7 +93,8 @@ end
 --- @param x number coordenada 1-indexada
 --- @param y number
 --- @param rotated boolean
-function GridClientNetwork.sendItemMove(container, itemId, x, y, rotated)
+--- @param gridContainer string|nil assinatura do container (valida a posição salva)
+function GridClientNetwork.sendItemMove(container, itemId, x, y, rotated, gridContainer)
     if not isClient() then return end
     local player = getPlayer()
     if not player or not container or itemId == nil then return end
@@ -107,6 +108,7 @@ function GridClientNetwork.sendItemMove(container, itemId, x, y, rotated)
         x = tonumber(x),
         y = tonumber(y),
         rotated = rotated and true or false,
+        gridContainer = gridContainer,
     })
 end
 
@@ -188,13 +190,16 @@ local function applyServerOverrides(overrides)
 end
 
 --- Aplica a posição autoritativa vinda do servidor num item local.
-function GridClientNetwork.applyItemPosition(itemId, x, y, rotated)
+function GridClientNetwork.applyItemPosition(itemId, x, y, rotated, gridContainer)
     local item = GridClientNetwork.findItem(itemId)
     if not item then return end
     local md = item:getModData()
     md.gridX = tonumber(x)
     md.gridY = tonumber(y)
     md.gridRot = rotated and true or false
+    if gridContainer ~= nil then
+        md.gridContainer = gridContainer
+    end
     if item.getContainer then
         refreshContainerGrid(item:getContainer(), getPlayer() and getPlayer():getPlayerNum() or 0)
     end
@@ -208,6 +213,7 @@ function GridClientNetwork.clearItemPosition(itemId)
     md.gridX = nil
     md.gridY = nil
     md.gridRot = false
+    md.gridContainer = nil
     if item.getContainer then
         refreshContainerGrid(item:getContainer(), getPlayer() and getPlayer():getPlayerNum() or 0)
     end
@@ -227,7 +233,7 @@ local function OnServerCommand(module, command, args)
         if args.clear then
             GridClientNetwork.clearItemPosition(args.itemId)
         else
-            GridClientNetwork.applyItemPosition(args.itemId, args.x, args.y, args.rotated)
+            GridClientNetwork.applyItemPosition(args.itemId, args.x, args.y, args.rotated, args.gridContainer)
         end
 
     elseif command == GridProtocol.COMMANDS.ERROR then

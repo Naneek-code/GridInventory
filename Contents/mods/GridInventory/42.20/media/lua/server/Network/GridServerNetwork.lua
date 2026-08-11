@@ -73,7 +73,7 @@ end
 
 --- Executa um movimento. Retorna "ok" | "notfound" | "invalid".
 local function processMove(player, args)
-    if not args or not args.itemId or args.x == nil or args.y == nil then return "invalid" end
+    if not args or not args.itemId then return "invalid" end
 
     local item = findItem(player, args.ref, args.itemId)
     if not item then return "notfound" end
@@ -81,15 +81,14 @@ local function processMove(player, args)
     -- Itens equipados/vestidos não vivem em grids → ignora.
     if item.isEquipped and item:isEquipped() then return "invalid" end
 
-    local x, y = tonumber(args.x), tonumber(args.y)
-    local rotated = args.rotated and true or false
-
     -- Multi-drag/auto-sort: o servidor apenas LIMPA a posição (auto-fit recalcula).
+    -- O clear NÃO manda x/y — por isso vem ANTES da checagem de coordenadas.
     if args.clear then
         local md = item:getModData()
         md.gridX = nil
         md.gridY = nil
         md.gridRot = false
+        md.gridContainer = nil
         sendServerCommand(GridProtocol.MODULE, GridProtocol.COMMANDS.SYNC_ITEM, {
             itemId = item:getID(),
             clear = true,
@@ -97,6 +96,11 @@ local function processMove(player, args)
         })
         return "ok"
     end
+
+    if args.x == nil or args.y == nil then return "invalid" end
+
+    local x, y = tonumber(args.x), tonumber(args.y)
+    local rotated = args.rotated and true or false
 
     -- VALIDAÇÃO AUTORITATIVA contra o container ALVO (resolvido do ref), não o
     -- container atual do item — que ainda pode ser a origem durante o transfer
@@ -123,6 +127,9 @@ local function processMove(player, args)
     md.gridX = x
     md.gridY = y
     md.gridRot = rotated
+    if args.gridContainer ~= nil then
+        md.gridContainer = args.gridContainer
+    end
 
     -- Broadcast pros clientes (incluindo o autor — que ignora o eco).
     sendServerCommand(GridProtocol.MODULE, GridProtocol.COMMANDS.SYNC_ITEM, {
@@ -130,6 +137,7 @@ local function processMove(player, args)
         x = x,
         y = y,
         rotated = rotated,
+        gridContainer = md.gridContainer,
         sender = player:getUsername(),
     })
     return "ok"
