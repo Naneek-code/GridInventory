@@ -928,27 +928,35 @@ end
 -- item arrastado ocuparia se soltar na célula sob o cursor. Verde sutil = drop
 -- válido EXATAMENTE ali; vermelho = inválido no cursor (o drop real auto-encaixa
 -- no primeiro espaço livre — indica onde com um contorno verde). Só para item
--- ÚNICO ou pilha (uma unidade lógica, um footprint); multi-drag de células
--- diferentes continua com o overlay de peso/espaço do render().
+-- ÚNICO ou pilha (uma unidade lógica, um footprint). Multi-drag de células
+-- diferentes não tem footprint único: publica a decisão AGREGADA (verde/vermelho
+-- do ghost) via updateMultiDragPreview — o overlay de peso/espaço do render()
+-- continua cobrindo o feedback de peso.
 function GridRender:drawDropPreview()
     if not GridInventory_GlobalDrag or not GridInventory_GlobalDrag.itemsData then return end
     local itemsData = GridInventory_GlobalDrag.itemsData
     if #itemsData == 0 then return end
 
-    -- Multi-drag real (itens em células de origem diferentes) não tem footprint
-    -- único: o overlay de peso/espaço do render() já cobre esse feedback.
+    local dropCol, dropRow = self:getGridCellAtMouse(self:getMouseX(), self:getMouseY())
+    if not dropCol or not dropRow then return end
+
+    -- Multi-drag real (itens em células de origem diferentes): sem footprint
+    -- único. Publica a decisão pra GlobalDragRender tintar o mini-layout.
     if #itemsData > 1 then
         local first = itemsData[1]
+        local isMultiDrag = false
         for i = 2, #itemsData do
             local d = itemsData[i]
             if d.originalX ~= first.originalX or d.originalY ~= first.originalY then
-                return
+                isMultiDrag = true
+                break
             end
         end
+        if isMultiDrag then
+            self:updateMultiDragPreview(itemsData, dropCol, dropRow)
+            return
+        end
     end
-
-    local dropCol, dropRow = self:getGridCellAtMouse(self:getMouseX(), self:getMouseY())
-    if not dropCol or not dropRow then return end
 
     local anchorId = GridInventory_GlobalDrag.anchorId
     local anchorData = nil
@@ -1007,6 +1015,57 @@ function GridRender:drawDropPreview()
             self:drawRectBorder(sx, sy, pw, ph, 0.9, 0.3, 1.0, 0.45)
         end
     end
+end
+
+-- Decisão AGREGADA do preview pra multi-drag: publica GridInventory_MultiDragFit
+-- (consumido pela GlobalDragRender pra tintar o mini-layout). O drop multi-drag
+-- no MESMO grid é estrito (tudo-ou-nada, célula a célula — espelha o onMouseUp);
+-- em OUTRO grid limpa posições e o auto-sort empacota → checagem de área
+-- (GridCore:canFitItems), que também conta a célula de itens saindo como livre.
+function GridRender:updateMultiDragPreview(itemsData, dropCol, dropRow)
+    local movedSet = GridInventory_GlobalDrag.itemsMap
+    local fits = true
+
+    if GridInventory_GlobalDrag.sourceGrid == self then
+        for _, d in ipairs(itemsData) do
+            local fw, fh = 1, 1
+            if d.itemObj then fw, fh = ItemFootprint.getSize(d.itemObj) end
+            local ew = d.rotated and (d.originalH or fh) or (d.originalW or fw)
+            local eh = d.rotated and (d.originalW or fw) or (d.originalH or fh)
+            local tx = dropCol - (d.grabOffsetX or 0)
+            local ty = dropRow - (d.grabOffsetY or 0)
+            if tx < 1 then tx = 1 end
+            if ty < 1 then ty = 1 end
+            if not self.gridCore:canPlaceItem(d.id, tx, ty, ew, eh, d.id,
+                d.compatKey, d.rotated or false, d.stackInfo, movedSet) then
+                fits = false
+                break
+            end
+        end
+    else
+        -- Uma "unidade lógica" por célula de origem (membros de pilha
+        -- compartilham o footprint do líder).
+        local units = {}
+        local seen = {}
+        for _, d in ipairs(itemsData) do
+            local key = (d.originalX or 0) .. "," .. (d.originalY or 0)
+            if not seen[key] then
+                seen[key] = true
+                local fw, fh = 1, 1
+                if d.itemObj then fw, fh = ItemFootprint.getSize(d.itemObj) end
+                table.insert(units, {
+                    id = d.id,
+                    w = d.rotated and (d.originalH or fh) or (d.originalW or fw),
+                    h = d.rotated and (d.originalW or fw) or (d.originalH or fh),
+                    compatKey = d.compatKey,
+                    stackInfo = d.stackInfo,
+                })
+            end
+        end
+        fits = self.gridCore:canFitItems(units, movedSet)
+    end
+
+    GridInventory_MultiDragFit = { fits = fits, grid = self, dragRef = GridInventory_GlobalDrag }
 end
 
 function GridRender:onMouseDown(x, y)
