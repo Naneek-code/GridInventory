@@ -19,13 +19,16 @@ O runner:
 
 | Suite | O que cobre | Testes |
 |---|---|---|
-| `stack_test` | Stacking no GridCore: empilhar/remover/promover líder, findFreeSpace com/sem compatKey, rotação, ghost compatível, limite de unidades | 49 |
-| `refresh_stack_test` | `GridContainer:refresh()`: posição salva, auto-fit, empilhamento no refresh, não-empilháveis, limite de unidades, unpositioned, modData | 18 |
+| `stack_test` | Stacking no GridCore: empilhar/remover/promover líder, findFreeSpace com/sem compatKey, rotação, ghost compatível, limite de unidades | 70 |
+| `refresh_stack_test` | `GridContainer:refresh()`: posição salva, auto-fit, empilhamento no refresh, não-empilháveis, limite de unidades, unpositioned, modData | 22 |
+| `scatter_test` | Scatter (loot natural determinístico) no refresh | 15 |
+| `transfer_sim_test` | Drop de stack virtual (ex.: Twine): pre-write de posições + InTransit + absorção do `checkQueueList` (ação atual = `queue[1]`, não `q.action`) | 3 |
+| `drop_preview_test` | Lógica do preview de drop (`drawDropPreview`): verde/vermelho no cursor, snap no 1º espaço livre, ignoreSet de itens em movimento | 11 |
 | `mpsync_test` | Rede server-mandatory: buildContainerRef, isAdmin, processMove (ok/colisão/notfound/clear/equipado), CLEAR_HAND, overrides admin-only, eco SYNC_ITEM | 19 |
 | `wearhand_test` | Vestir item da mão (SP/MP): override do complete() + sanitizador (item vestido não pode estar na mão) | 26 |
 | `capacity_test` | Teto de peso real (`gridCapacity`): player usa 50 (não o "confortável" 12), bolsa usa a capacidade dela | 10 |
 
-Total: 122 testes.
+Total: 176 testes.
 
 ## Como as suites carregam os módulos
 

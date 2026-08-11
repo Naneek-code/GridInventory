@@ -780,6 +780,9 @@ function GridRender:render()
         self:drawRect(rx, ry, rw, rh, 0.2, 1.0, 1.0, 1.0)
     end
 
+    -- Preview do drop sob o cursor (verde/vermelho) durante o arrasto
+    self:drawDropPreview()
+
     if GridInventory_GlobalDrag and GridInventory_GlobalDrag.itemsData and #GridInventory_GlobalDrag.itemsData > 0 then
         local firstItem = GridInventory_GlobalDrag.itemsData[1].itemObj
         if firstItem and self.inventoryContainer then
@@ -919,6 +922,88 @@ function GridRender:getGridCellAtMouse(x, y)
         return col, row
     end
     return nil, nil
+end
+
+-- Preview de drop: enquanto um drag global está ativo, pinta o footprint que o
+-- item arrastado ocuparia se soltar na célula sob o cursor. Verde sutil = drop
+-- válido EXATAMENTE ali; vermelho = inválido no cursor (o drop real auto-encaixa
+-- no primeiro espaço livre — indica onde com um contorno verde). Só para item
+-- ÚNICO ou pilha (uma unidade lógica, um footprint); multi-drag de células
+-- diferentes continua com o overlay de peso/espaço do render().
+function GridRender:drawDropPreview()
+    if not GridInventory_GlobalDrag or not GridInventory_GlobalDrag.itemsData then return end
+    local itemsData = GridInventory_GlobalDrag.itemsData
+    if #itemsData == 0 then return end
+
+    -- Multi-drag real (itens em células de origem diferentes) não tem footprint
+    -- único: o overlay de peso/espaço do render() já cobre esse feedback.
+    if #itemsData > 1 then
+        local first = itemsData[1]
+        for i = 2, #itemsData do
+            local d = itemsData[i]
+            if d.originalX ~= first.originalX or d.originalY ~= first.originalY then
+                return
+            end
+        end
+    end
+
+    local dropCol, dropRow = self:getGridCellAtMouse(self:getMouseX(), self:getMouseY())
+    if not dropCol or not dropRow then return end
+
+    local anchorId = GridInventory_GlobalDrag.anchorId
+    local anchorData = nil
+    for _, d in ipairs(itemsData) do
+        if d.id == anchorId then
+            anchorData = d
+            break
+        end
+    end
+    if not anchorData or not anchorData.itemObj then return end
+
+    local fw, fh = ItemFootprint.getSize(anchorData.itemObj)
+    local rotated = anchorData.rotated or false
+    local effectiveW = rotated and (anchorData.originalH or fh) or (anchorData.originalW or fw)
+    local effectiveH = rotated and (anchorData.originalW or fw) or (anchorData.originalH or fh)
+
+    local targetX = dropCol - (anchorData.grabOffsetX or 0)
+    local targetY = dropRow - (anchorData.grabOffsetY or 0)
+    if targetX < 1 then targetX = 1 end
+    if targetY < 1 then targetY = 1 end
+
+    local compatKey, stackInfo = GridContainer.getStackInfo(anchorData.itemObj)
+    local ignoreSet = GridInventory_GlobalDrag.itemsMap
+
+    -- Mesma checagem do drop real: se a célula sob o cursor não serve, o drop
+    -- auto-encaixa no primeiro espaço livre (findFreeSpace).
+    local valid = self.gridCore:canPlaceItem(anchorData.id, targetX, targetY,
+        effectiveW, effectiveH, nil, compatKey, rotated, stackInfo, ignoreSet)
+
+    local snapX, snapY
+    if not valid then
+        snapX, snapY = self.gridCore:findFreeSpace(anchorData.id, effectiveW,
+            effectiveH, compatKey, stackInfo, rotated)
+    end
+
+    local px = GRID_PADDING + ((targetX - 1) * self.cellSize)
+    local py = GRID_PADDING + (self.headerH or 0) + ((targetY - 1) * self.cellSize)
+    local pw = effectiveW * self.cellSize
+    local ph = effectiveH * self.cellSize
+
+    if valid then
+        -- Verde sutil: cabe exatamente onde o mouse aponta.
+        self:drawRect(px, py, pw, ph, 0.28, 0.2, 0.85, 0.3)
+        self:drawRectBorder(px, py, pw, ph, 0.85, 0.3, 1.0, 0.45)
+    else
+        -- Vermelho: não pode cair aqui. Se houver espaço livre, o drop real
+        -- encaixa lá — indica com um contorno verde (só a borda, sem fundo).
+        self:drawRect(px, py, pw, ph, 0.3, 0.9, 0.2, 0.2)
+        self:drawRectBorder(px, py, pw, ph, 0.85, 1.0, 0.3, 0.3)
+        if snapX and snapY then
+            local sx = GRID_PADDING + ((snapX - 1) * self.cellSize)
+            local sy = GRID_PADDING + (self.headerH or 0) + ((snapY - 1) * self.cellSize)
+            self:drawRectBorder(sx, sy, pw, ph, 0.9, 0.3, 1.0, 0.45)
+        end
+    end
 end
 
 function GridRender:onMouseDown(x, y)
