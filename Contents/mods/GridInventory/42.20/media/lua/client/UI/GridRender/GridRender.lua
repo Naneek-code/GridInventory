@@ -5,6 +5,7 @@
 require "ISUI/ISPanel"
 require "TimedActions/ISUnequipAction"
 local ItemFootprint = require("Algorithm/ItemFootprint")
+local ItemCategory = require("Algorithm/ItemCategory")
 local GridContainer = require("DataModel/GridContainer")
 local GridClientNetwork = require("Network/GridClientNetwork")
 local GridReorder = require("Algorithm/GridReorder")
@@ -711,6 +712,11 @@ function GridRender:render()
                 
                 local bgR, bgG, bgB, bgA = ITEM_BG_COLOR.r, ITEM_BG_COLOR.g, ITEM_BG_COLOR.b, ITEM_BG_COLOR.a
                 
+                -- Cor de base vem da CATEGORIA do item (estilo Tetris): armas
+                -- roxo, comida vermelho, munição laranja, etc. MISC mantém o cinza.
+                local catColor = ItemCategory.getColor(data.itemObj)
+                bgR, bgG, bgB = catColor.r, catColor.g, catColor.b
+                
                 -- Checa se está congelado ou quente
                 local heat = 1
                 if data.itemObj.getHeat then heat = data.itemObj:getHeat()
@@ -724,6 +730,9 @@ function GridRender:render()
                 if data.itemObj.getFreezingTime then freezeTime = data.itemObj:getFreezingTime() / 100 end
                 if freezeTime > 1 then freezeTime = 1 end
                 
+                -- Estado de temperatura SOBREPÕE a categoria: item frio/quente usa
+                -- a cor interpolada sólida (sem degrade) pra destacar o estado.
+                local tempState = false
                 if (data.itemObj.isFrozen and data.itemObj:isFrozen()) or freezeTime > 0 or heat < 0.99 then
                     -- Frio / Congelando
                     local t = math.max(freezeTime, invHeat)
@@ -732,21 +741,39 @@ function GridRender:render()
                     bgR = ITEM_BG_COLOR.r + (ITEM_BG_FROZEN.r - ITEM_BG_COLOR.r) * t
                     bgG = ITEM_BG_COLOR.g + (ITEM_BG_FROZEN.g - ITEM_BG_COLOR.g) * t
                     bgB = ITEM_BG_COLOR.b + (ITEM_BG_FROZEN.b - ITEM_BG_COLOR.b) * t
+                    tempState = true
                 elseif heat > 1.01 then
                     -- Quente
                     local t = invHeat
                     bgR = ITEM_BG_COLOR.r + (ITEM_BG_HOT.r - ITEM_BG_COLOR.r) * t
                     bgG = ITEM_BG_COLOR.g + (ITEM_BG_HOT.g - ITEM_BG_COLOR.g) * t
                     bgB = ITEM_BG_COLOR.b + (ITEM_BG_HOT.b - ITEM_BG_COLOR.b) * t
+                    tempState = true
                 end
                 
+                -- Fundo: DEGRADE vertical neutro (topo) → categoria (base), ou
+                -- cor sólida quando em estado de temperatura. Selecionado ganha
+                -- um leve clareamento pra não sumir sob o destaque.
                 if isSelected then
-                    self:drawRect(drawX, drawY, drawW, drawH, bgA + 0.3, bgR + 0.3, bgG + 0.3, bgB + 0.3)
+                    local sR, sG, sB = math.min(1, bgR + 0.3), math.min(1, bgG + 0.3), math.min(1, bgB + 0.3)
+                    if tempState then
+                        self:drawRect(drawX, drawY, drawW, drawH, bgA + 0.3, sR, sG, sB)
+                    else
+                        for _, band in ipairs(ItemCategory.getGradient(data.itemObj, drawH)) do
+                            self:drawRect(drawX, drawY + band.y, drawW, band.h, bgA + 0.3, math.min(1, band.r + 0.3), math.min(1, band.g + 0.3), math.min(1, band.b + 0.3))
+                        end
+                    end
                 else
-                    self:drawRect(drawX, drawY, drawW, drawH, bgA, bgR, bgG, bgB)
+                    if tempState then
+                        self:drawRect(drawX, drawY, drawW, drawH, bgA, bgR, bgG, bgB)
+                    else
+                        for _, band in ipairs(ItemCategory.getGradient(data.itemObj, drawH)) do
+                            self:drawRect(drawX, drawY + band.y, drawW, band.h, bgA, band.r, band.g, band.b)
+                        end
+                    end
                 end
                 
-                self:drawRectBorder(drawX, drawY, drawW, drawH, 1, 0.7, 0.8, 1.0)
+                self:drawRectBorder(drawX, drawY, drawW, drawH, 1, 0.45, 0.5, 0.62)
 
                 self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, 1, 1, 1, 1)
                 

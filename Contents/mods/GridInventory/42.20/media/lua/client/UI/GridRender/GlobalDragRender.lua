@@ -1,6 +1,7 @@
 require "ISUI/ISUIElement"
 local GridRender = require "UI/GridRender/GridRender"
 local GridInventory_BagDrop = require "System/GridInventory_BagDrop"
+local ItemCategory = require "Algorithm/ItemCategory"
 
 GridInventory_GlobalDrag = nil
 
@@ -10,11 +11,11 @@ GridInventory_GlobalDrag = nil
 -- ghost "cru" (sem fundo/borda) pra não cobrir a validação.
 GridInventory_DropPreview = nil
 
--- Mesmo estilo do footprint de item posicionado no grid (ITEM_BG_COLOR + borda)
--- pra o ghost não parecer solto fora do contexto de um grid sob o cursor
--- (paperdoll, header, multi-drag que não desenha preview por célula).
+-- DRAG_BG (neutro) é usado SÓ no deck de camadas (multi-select). O footprint
+-- principal do ghost herda a cor da CATEGORIA do item arrastado (ItemCategory),
+-- mesmo padrão do GridRender.
 local DRAG_BG = { r = 0.4, g = 0.4, b = 0.4, a = 0.5 }
-local DRAG_BORDER = { r = 0.7, g = 0.8, b = 1.0, a = 1 }
+local DRAG_BORDER = { r = 0.45, g = 0.5, b = 0.62, a = 1 }
 
 GlobalDragRender = ISUIElement:derive("GlobalDragRender")
 
@@ -97,7 +98,8 @@ function GlobalDragRender:render()
     if not previewActive then
         -- Efeito de camadas (deck de cartas) ATRÁS do footprint quando são
         -- VÁRIOS itens (multi-select ou pilha): cada card é o mesmo footprint
-        -- deslocado 4px, deixando claro que não é um item só.
+        -- deslocado 4px, deixando claro que não é um item só. Deck SEMPRE em
+        -- cor neutra (DRAG_BG) — só o footprint principal herda a categoria.
         if extraCount > 0 then
             local maxStacks = math.min(extraCount, 3)
             for i = maxStacks, 1, -1 do
@@ -107,7 +109,16 @@ function GlobalDragRender:render()
                 self:drawRectBorder(layerX, layerY, drawW, drawH, DRAG_BORDER.a, DRAG_BORDER.r, DRAG_BORDER.g, DRAG_BORDER.b)
             end
         end
-        self:drawRect(drawX, drawY, drawW, drawH, DRAG_BG.a, DRAG_BG.r, DRAG_BG.g, DRAG_BG.b)
+        -- Footprint principal: cor da CATEGORIA do item arrastado (fundo),
+        -- borda neutra (mesmo estilo do GridRender). Usa o DEGRADE vertical
+        -- (neutro no topo → categoria na base), igual ao item posicionado.
+        if anchorData.itemObj then
+            for _, band in ipairs(ItemCategory.getGradient(anchorData.itemObj, drawH)) do
+                self:drawRect(drawX, drawY + band.y, drawW, band.h, DRAG_BG.a, band.r, band.g, band.b)
+            end
+        else
+            self:drawRect(drawX, drawY, drawW, drawH, DRAG_BG.a, DRAG_BG.r, DRAG_BG.g, DRAG_BG.b)
+        end
         self:drawRectBorder(drawX, drawY, drawW, drawH, DRAG_BORDER.a, DRAG_BORDER.r, DRAG_BORDER.g, DRAG_BORDER.b)
     end
 
