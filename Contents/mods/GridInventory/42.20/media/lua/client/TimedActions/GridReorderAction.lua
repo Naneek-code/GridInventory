@@ -37,7 +37,47 @@ function GridReorderAction:new(playerObj, gridRender, targets)
     o.maxTime = GridReorder.computeTimeUnits(o.inventoryContainer, playerObj, o.targets)
     o.loopSound = nil
     o.started = false
+    o.reorderGhosts = {}
+    -- Ghost "pra onde vai": registra ghosts nos alvos JÁ no enqueue (não no
+    -- start) pra o jogador ver pra onde cada item vai enquanto continua
+    -- arrastando outras coisas e criando a queue. Os ghosts são removidos no
+    -- perform (item aterrissa) ou no stop (ação cancelada).
+    o:addReorderGhosts()
     return o
+end
+
+--- Registra um ghost (gridCore.ghostItems) na posição alvo de cada item do
+--- reorder. O ghost fica marcado com reorderPending=true pra o safe-guard de
+--- ghost preso no GridRender:update NÃO removê-lo no meio da ação (ele não é
+--- nem transfer nem InTransit).
+function GridReorderAction:addReorderGhosts()
+    local core = self.gridCore
+    if not core or not core.addGhostItem then return end
+    for _, t in ipairs(self.targets) do
+        if t.item and t.item.id and t.item.itemObj then
+            core:addGhostItem(t.item.id, t.item.itemObj, t.tx, t.ty, t.ew, t.eh,
+                t.item.rotated, t.item.compatKey, t.item.stackInfo)
+            if core.ghostItems and core.ghostItems[t.item.id] then
+                core.ghostItems[t.item.id].reorderPending = true
+                self.reorderGhosts[t.item.id] = { tx = t.tx, ty = t.ty }
+            end
+        end
+    end
+end
+
+--- Remove os ghosts dos alvos desta ação. Só apaga se o ghost ainda está NA
+--- posição que esta ação registrou — se o jogador re-arrastou o item e outra
+--- ação pendente re-registrou o ghost num alvo novo, esta não apaga o do outro.
+function GridReorderAction:removeReorderGhosts()
+    local core = self.gridCore
+    if not core or not core.removeGhostItem then return end
+    for id, pos in pairs(self.reorderGhosts) do
+        local g = core.ghostItems and core.ghostItems[id]
+        if g and g.x == pos.tx and g.y == pos.ty then
+            core:removeGhostItem(id)
+        end
+    end
+    self.reorderGhosts = {}
 end
 
 function GridReorderAction:isValid()
@@ -89,6 +129,7 @@ function GridReorderAction:doActionAnim(cont)
 end
 
 function GridReorderAction:perform()
+    self:removeReorderGhosts()
     if self.gridRender and self.gridRender.performGridReorder then
         self.gridRender:performGridReorder(self.targets)
     end
@@ -102,6 +143,7 @@ function GridReorderAction:perform()
 end
 
 function GridReorderAction:stop()
+    self:removeReorderGhosts()
     self:stopLoopingSound()
     ISBaseTimedAction.stop(self)
     self.started = false

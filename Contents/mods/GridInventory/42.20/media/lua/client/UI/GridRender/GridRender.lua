@@ -2025,7 +2025,11 @@ function GridRender:update()
             for gId, gData in pairs(ghosts) do
                 -- Safe-guard de ghost preso (sem InTransit): remove se não há
                 -- transfer pendente E o item NÃO está em trânsito E já passou 500ms.
-                if not activeTransfers[gId]
+                -- Ghost de REORDER (reorderPending) é gerenciado pela própria
+                -- GridReorderAction (add no enqueue, remove no perform/stop) —
+                -- NÃO pode cair nesse guard, senão some no meio da ação.
+                if not gData.reorderPending
+                    and not activeTransfers[gId]
                     and not (GridInventory_InTransit and GridInventory_InTransit[gId])
                     and (currentTime - gData.timeAdded > 500) then
                     self.gridCore:removeGhostItem(gId)
