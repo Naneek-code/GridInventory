@@ -62,7 +62,19 @@ end
 --- o jogador consegue carregar até getEffectiveCapacity = 50. Usar o teto real
 --- evita "Overloaded" prematuro (o jogador ainda cabe). Fallback pra getMaxWeight
 --- / getCapacity se getEffectiveCapacity não existir.
+---
+--- CHÃO: o vanilla exibe getMaxWeight() = 50 (capacidade POR PILHA/quadrado), mas
+--- o grid de chão do mod agrega as pilhas de VÁRIOS quadrados vizinhos num
+--- container só. O teto que o jogo deixa acumular no chão é maior — hardcoded em
+--- 100 no engine (B42; mesmo cap do inventário do jogador). Se usássemos o
+--- getEffectiveCapacity do chão (50, por pilha), o feedback de Overloaded
+--- dispararia cedo quando o jogo ainda aceita o drop.
+local FLOOR_EFFECTIVE_CAPACITY = 100
+
 local function gridCapacity(container, playerObj)
+    if container and container.getType and container:getType() == "floor" then
+        return FLOOR_EFFECTIVE_CAPACITY
+    end
     if container and container.getEffectiveCapacity and playerObj then
         local ec = container:getEffectiveCapacity(playerObj)
         if ec and tonumber(ec) and ec > 0 then return ec end
@@ -897,7 +909,10 @@ function GridRender:render()
             -- Cabe no peso, mas o hasRoomFor vanilla ainda recusa. Só confiamos
             -- nele quando NENHUM item arrastado já está na árvore do container
             -- alvo (senão ele conta o peso 2x e recusa por engano).
-            elseif not anyInTree and not self.inventoryContainer:hasRoomFor(playerObj, firstItem) then
+            -- CHÃO: o hasRoomFor vanilla é por QUADRADO (getEffectiveCapacity=50),
+            -- mas nosso grid agrega vários quadrados (teto real 100) → pular o
+            -- check aqui: o weightOver acima (gridCapacity=100) já cobre o peso.
+            elseif not anyInTree and self.inventoryContainer:getType() ~= "floor" and not self.inventoryContainer:hasRoomFor(playerObj, firstItem) then
                 self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
                 self:drawTextCentre(getText("IGUI_ContainerRestricted") or "Selective Container", self.width/2, self.height/2 - 10, 1, 0.2, 0.2, 1, UIFont.Large)
 
