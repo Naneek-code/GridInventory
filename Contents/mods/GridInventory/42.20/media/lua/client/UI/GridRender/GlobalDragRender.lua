@@ -110,16 +110,24 @@ function GlobalDragRender:render()
             end
         end
         -- Footprint principal: cor da CATEGORIA do item arrastado (fundo),
-        -- borda neutra (mesmo estilo do GridRender). Usa o DEGRADE vertical
-        -- (neutro no topo → categoria na base), igual ao item posicionado.
+        -- borda em DEGRADE (mesmas faixas). Usa o DEGRADE vertical (neutro no
+        -- topo → categoria na base), igual ao item posicionado. MISC mantém a
+        -- borda neutra. O deck de camadas acima fica neutro.
         if anchorData.itemObj then
-            for _, band in ipairs(ItemCategory.getGradient(anchorData.itemObj, drawH)) do
+            local bands = ItemCategory.getGradient(anchorData.itemObj, drawH)
+            for _, band in ipairs(bands) do
                 self:drawRect(drawX, drawY + band.y, drawW, band.h, DRAG_BG.a, band.r, band.g, band.b)
+            end
+            local cat = ItemCategory.getCategory(anchorData.itemObj)
+            if cat ~= ItemCategory.MISC then
+                GridRender.drawGradientBorder(self, drawX, drawY, drawW, drawH, bands, DRAG_BORDER.a, 0)
+            else
+                self:drawRectBorder(drawX, drawY, drawW, drawH, DRAG_BORDER.a, DRAG_BORDER.r, DRAG_BORDER.g, DRAG_BORDER.b)
             end
         else
             self:drawRect(drawX, drawY, drawW, drawH, DRAG_BG.a, DRAG_BG.r, DRAG_BG.g, DRAG_BG.b)
+            self:drawRectBorder(drawX, drawY, drawW, drawH, DRAG_BORDER.a, DRAG_BORDER.r, DRAG_BORDER.g, DRAG_BORDER.b)
         end
-        self:drawRectBorder(drawX, drawY, drawW, drawH, DRAG_BORDER.a, DRAG_BORDER.r, DRAG_BORDER.g, DRAG_BORDER.b)
     end
 
     if anchorData.itemObj then

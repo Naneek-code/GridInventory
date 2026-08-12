@@ -57,6 +57,38 @@ local function isInContainerTree(item, rootContainer)
     return false
 end
 
+--- Desenha a borda do footprint com DEGRADE vertical (mesma ideia do fundo):
+--- cada faixa do ItemCategory.getGradient pinta um retângulo de 1px na borda
+--- esquerda/direita na altura da faixa, e o topo/base usam a 1ª/última cor.
+--- Isso dá um contorno colorido em degrade em vez da borda sólida.
+---@param self ISUIElement
+---@param x number
+---@param y number
+---@param w number
+---@param h number
+---@param bands table lista de faixas do ItemCategory.getGradient
+---@param alpha number
+---@param brighten number 0..1 adicionado a cada componente (seleção)
+local function drawGradientBorder(self, x, y, w, h, bands, alpha, brighten)
+    local n = #bands
+    if n == 0 then return end
+    -- Laterais: 1px por faixa
+    for _, band in ipairs(bands) do
+        local r = math.min(1, band.r + brighten)
+        local g = math.min(1, band.g + brighten)
+        local b = math.min(1, band.b + brighten)
+        self:drawRect(x, y + band.y, 1, band.h, alpha, r, g, b)
+        self:drawRect(x + w - 1, y + band.y, 1, band.h, alpha, r, g, b)
+    end
+    -- Topo e base: cor da 1ª/última faixa
+    local t = bands[1]
+    local bt = bands[n]
+    local tr, tg, tb = math.min(1, t.r + brighten), math.min(1, t.g + brighten), math.min(1, t.b + brighten)
+    local br, bg, bb = math.min(1, bt.r + brighten), math.min(1, bt.g + brighten), math.min(1, bt.b + brighten)
+    self:drawRect(x, y, w, 1, alpha, tr, tg, tb)
+    self:drawRect(x, y + h - 1, w, 1, alpha, br, bg, bb)
+end
+
 --- Capacidade de PESO real de um container: o teto que o jogo realmente aplica
 --- (getEffectiveCapacity — o MESMO usado pelo hasRoomFor pra bloquear). Ex.: o
 --- inventário do jogador mostra getMaxWeight() = 12 ("confortável", força), mas
@@ -714,8 +746,14 @@ function GridRender:render()
                 
                 -- Cor de base vem da CATEGORIA do item (estilo Tetris): armas
                 -- roxo, comida vermelho, munição laranja, etc. MISC mantém o cinza.
-                local catColor = ItemCategory.getColor(data.itemObj)
+                local category = ItemCategory.getCategory(data.itemObj)
+                local catColor = ItemCategory.getColorByCategory(category)
                 bgR, bgG, bgB = catColor.r, catColor.g, catColor.b
+                -- Borda: cor da CATEGORIA (exceto MISC, que fica no cinza neutro).
+                local borderR, borderG, borderB = 0.45, 0.45, 0.45
+                if category ~= ItemCategory.MISC then
+                    borderR, borderG, borderB = catColor.r, catColor.g, catColor.b
+                end
                 
                 -- Checa se está congelado ou quente
                 local heat = 1
@@ -773,8 +811,14 @@ function GridRender:render()
                     end
                 end
                 
-                self:drawRectBorder(drawX, drawY, drawW, drawH, 1, 0.45, 0.45, 0.45)
-
+                -- Borda: DEGRADE por faixa (mesma cor do fundo) quando a
+                -- categoria tem cor; MISC e estado de temperatura usam sólida.
+                if not tempState and category ~= ItemCategory.MISC then
+                    local bands = ItemCategory.getGradient(data.itemObj, drawH)
+                    drawGradientBorder(self, drawX, drawY, drawW, drawH, bands, 1, isSelected and 0.3 or 0)
+                else
+                    self:drawRectBorder(drawX, drawY, drawW, drawH, 1, borderR, borderG, borderB)
+                end
                 self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, 1, 1, 1, 1)
                 
                 -- ── Ícones de status (sistema flex) ─────────────────────────────────
@@ -2301,5 +2345,9 @@ function GridRender:update()
         end
     end
 end
+
+-- Expõe a borda em degrade pro GlobalDragRender (ghost do drag) reusar a MESMA
+-- lógica visual do item posicionado.
+GridRender.drawGradientBorder = drawGradientBorder
 
 return GridRender
