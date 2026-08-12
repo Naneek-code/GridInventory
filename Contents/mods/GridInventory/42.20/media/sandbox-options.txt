@@ -15,3 +15,10 @@ option GridInventory.ReorderTimeAction
     translation = GridInventory_ReorderTimeAction,
     valueTranslation = GridInventory_ReorderTimeAction,
 }
+
+option GridInventory.ReorderMoveWhileWalking
+{
+    type = boolean, default = true,
+    page = GridInventory,
+    translation = GridInventory_ReorderMoveWhileWalking,
+}

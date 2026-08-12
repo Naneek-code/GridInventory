@@ -55,6 +55,28 @@ do
     _G.getSandboxOptions = nil
 end
 
+-- ─── isReorderMoveWhileWalking: sandbox option (default LIGADA) ──────────────
+do
+    _G.getSandboxOptions = nil
+    H.ok(GridSandboxOptions.isReorderMoveWhileWalking() == true, "sem sandbox -> pode andar=true (default ligada)")
+
+    _G.getSandboxOptions = function()
+        return { getOptionByName = function() return { getValue = function() return true end } end }
+    end
+    H.ok(GridSandboxOptions.isReorderMoveWhileWalking() == true, "sandbox value=true -> pode andar")
+
+    _G.getSandboxOptions = function()
+        return { getOptionByName = function() return { getValue = function() return false end } end }
+    end
+    H.ok(GridSandboxOptions.isReorderMoveWhileWalking() == false, "sandbox value=false -> parado")
+
+    _G.getSandboxOptions = function()
+        return { getOptionByName = function() error("boom") end }
+    end
+    H.ok(GridSandboxOptions.isReorderMoveWhileWalking() == true, "getOptionByName falhando -> fallback true")
+    _G.getSandboxOptions = nil
+end
+
 -- ─── computeTargets: item único ─────────────────────────────────────────────
 do
     local g = freshGrid()

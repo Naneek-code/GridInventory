@@ -49,4 +49,22 @@ function GridSandboxOptions.isReorderTimed()
     return true
 end
 
+-- Reorder pode continuar enquanto o jogador ANDA (mas não corre): default true.
+local OPTION_NAME_REORDER_WALK = "GridInventory.ReorderMoveWhileWalking"
+
+--- Se a ação de reorder NÃO cancela quando o jogador anda (continua até o
+--- perform; parar de andar não interrompe). false = a ação só roda parado.
+--- @return boolean
+function GridSandboxOptions.isReorderMoveWhileWalking()
+    if getSandboxOptions then
+        local ok, opt = pcall(function()
+            return getSandboxOptions():getOptionByName(OPTION_NAME_REORDER_WALK)
+        end)
+        if ok and opt and opt.getValue then
+            return opt:getValue()
+        end
+    end
+    return true
+end
+
 return GridSandboxOptions

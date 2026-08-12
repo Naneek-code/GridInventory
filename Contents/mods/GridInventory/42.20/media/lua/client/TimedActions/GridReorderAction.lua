@@ -13,6 +13,7 @@
 
 require "TimedActions/ISBaseTimedAction"
 local GridReorder = require("Algorithm/GridReorder")
+local GridSandboxOptions = require("GridSandboxOptions")
 
 GridReorderAction = ISBaseTimedAction:derive("GridReorderAction")
 
@@ -25,7 +26,10 @@ function GridReorderAction:new(playerObj, gridRender, targets)
     o.gridCore = gridRender and gridRender.gridCore
     o.inventoryContainer = gridRender and gridRender.inventoryContainer
     o.targets = targets or {}
-    o.stopOnWalk = true
+    -- Sandbox "permitir andar enquanto organiza" (default ligado): com a opção
+    -- ativa o jogador pode ANDAR enquanto a ação roda (mas NÃO correr) — como
+    -- várias timed actions do vanilla. Desligada: a ação só executa parado.
+    o.stopOnWalk = not GridSandboxOptions.isReorderMoveWhileWalking()
     o.stopOnRun = true
     o.loopedAction = true
     -- Tempo COPIA o ISInventoryTransferAction (GridReorder.computeTimeUnits):

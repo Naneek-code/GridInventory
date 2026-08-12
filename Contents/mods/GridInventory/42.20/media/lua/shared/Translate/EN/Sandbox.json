@@ -8,5 +8,7 @@
     "Sandbox_GridInventory_ReorderTimeAction": "Item Reorder Animation",
     "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Moves items within the same container with a short transfer animation.\n\nAnimated: the character does the transfer animation and the move is applied ~0.5s later. In multiplayer this gives the server time to process before the next move.\n\nInstant: items move immediately on drop, like before.",
     "Sandbox_GridInventory_ReorderTimeAction_option1": "Animated",
-    "Sandbox_GridInventory_ReorderTimeAction_option2": "Instant"
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Instant",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Move while organizing",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Allows the character to walk while the item reorder action is running (running still cancels it).\n\nOn: you can walk while items reorganize, like many other timed actions.\n\nOff: the action only runs while standing still."
 }
