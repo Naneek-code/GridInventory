@@ -267,4 +267,59 @@ do
     H.ok(#unpos == 1, "crate mantém overflow em unpositioned [n=" .. #unpos .. "]")
 end
 
+-- ─── Teste 13: FLASH NÃO dispara na 1ª abertura do container ────────────────
+-- Loot de mundo novo (nunca vasculhado): previouslyPlaced vazio → TODOS os
+-- itens entram de uma vez e NADA pisca (senão tudo piscaria).
+do
+    GridInventory_AutoSlotFlash = nil
+    local items = {
+        makeItem("a1", "Base.FlashA", 0.1, nil, nil),
+        makeItem("a2", "Base.FlashB", 0.1, nil, nil),
+    }
+    local gc = freshContainer(items)
+    gc:refresh()
+    H.ok(GridInventory_AutoSlotFlash == nil or next(GridInventory_AutoSlotFlash) == nil,
+        "1ª abertura: nenhum flash (container novo, previouslyPlaced vazio)")
+    GridInventory_AutoSlotFlash = nil
+end
+
+-- ─── Teste 14: FLASH de autoSlot em container JÁ em uso ─────────────────────
+-- Container já tinha itens (previouslyPlaced não vazio): item novo sem posição
+-- entra por auto-fit → flasha. E NÃO re-marca no refresh seguinte.
+do
+    GridInventory_AutoSlotFlash = nil
+    local items = { makeItem("f1", "Base.F1", 0.1, 1, 1) } -- já posicionado
+    local gc = freshContainer(items)
+    gc:refresh()
+    -- adiciona item novo SEM posição e re-refresca (container em uso)
+    table.insert(items, makeItem("new1", "Base.FlashNew", 0.1, nil, nil))
+    gc:refresh()
+    H.ok(GridInventory_AutoSlotFlash ~= nil and GridInventory_AutoSlotFlash["new1"] ~= nil,
+        "container em uso: item novo marca flash [" .. tostring(GridInventory_AutoSlotFlash and GridInventory_AutoSlotFlash["new1"]) .. "]")
+
+    -- 3º refresh: o item já está no grid (previouslyPlaced) → NÃO re-marca
+    GridInventory_AutoSlotFlash = {}
+    gc:refresh()
+    H.ok(GridInventory_AutoSlotFlash["new1"] == nil,
+        "refresh seguinte NÃO re-marca (item já posicionado)")
+    GridInventory_AutoSlotFlash = nil
+end
+
+-- ─── Teste 15: FLASH de item EMPILHADO marca o LÍDER ────────────────────────
+do
+    GridInventory_AutoSlotFlash = nil
+    local items = { makeItem("ldr", "Base.Same2", 0.1, 1, 1) } -- líder já no grid
+    local gc = freshContainer(items)
+    gc:refresh()
+    -- membro novo sem posição empilha no líder no 2º refresh (container em uso)
+    table.insert(items, makeItem("mbr", "Base.Same2", 0.1, nil, nil))
+    gc:refresh()
+    H.ok(gc.grids[1]:getStackSize("ldr") == 2, "membro empilhou no líder")
+    H.ok(GridInventory_AutoSlotFlash ~= nil and GridInventory_AutoSlotFlash["mbr"] == nil,
+        "flash NÃO fica no membro")
+    H.ok(GridInventory_AutoSlotFlash["ldr"] ~= nil,
+        "flash fica no LÍDER da pilha")
+    GridInventory_AutoSlotFlash = nil
+end
+
 H.finish()

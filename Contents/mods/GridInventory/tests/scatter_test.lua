@@ -11,12 +11,19 @@ _G.getSpecificPlayer = function() return { _mockPlayer = true } end
 _G.getSandboxOptions = function() return nil end
 local ScatterLayout = require("Algorithm/ScatterLayout")
 
--- Mock de container com explored + playerInv
-local function makeContainer(explored, isPlayerInv)
+-- Mock de container com explored + playerInv + itens (getItems). O modo AUTO
+-- agora decide pelo estado das posições salvas (não pelo isExplored — o vanilla
+-- marca explored na abertura ANTES do nosso refresh). items = lista de mocks
+-- de item com getModData (gridX/gridY salvos).
+local function makeContainer(explored, isPlayerInv, items)
+    local list = items or {}
     return {
         isExplored = function() return explored end,
         isInCharacterInventory = function() return isPlayerInv or false end,
         getType = function() return "crate" end,
+        getItems = function()
+            return { size = function() return #list end, get = function(_, i) return list[i + 1] end }
+        end,
     }
 end
 
@@ -26,6 +33,21 @@ local function makeFloor()
         isExplored = function() return false end,
         isInCharacterInventory = function() return false end,
         getType = function() return "floor" end,
+        getItems = function()
+            return { size = function() return 0 end, get = function() return nil end }
+        end,
+    }
+end
+
+-- Mock de item com posição salva (ou sem)
+local function makeItem(gx, gy)
+    return {
+        getModData = function()
+            local md = {}
+            if gx then md.gridX = gx end
+            if gy then md.gridY = gy end
+            return md
+        end,
     }
 end
 
@@ -45,9 +67,11 @@ end
 -- ─── Modo AUTO (padrão) ─────────────────────────────────────────────────────
 do
     reset()
-    H.ok(ScatterLayout.shouldScatter(makeContainer(false, false), 0) == true, "auto: nunca explorado -> espalha")
-    H.ok(ScatterLayout.shouldScatter(makeContainer(true, false), 0) == false, "auto: explorado -> não espalha")
+    H.ok(ScatterLayout.shouldScatter(makeContainer(false, false), 0) == true, "auto: container SEM itens posicionados -> espalha")
+    H.ok(ScatterLayout.shouldScatter(makeContainer(true, false, { makeItem(1, 1) }), 0) == false, "auto: com item posicionado -> não espalha")
     H.ok(ScatterLayout.shouldScatter(makeContainer(false, true), 0) == false, "auto: inventário do player -> não espalha")
+    -- isExplored NÃO decide mais (o vanilla marca explored na abertura antes do refresh)
+    H.ok(ScatterLayout.shouldScatter(makeContainer(true, false), 0) == true, "auto: explorado mas SEM itens posicionados -> espalha (fix do bug)")
 end
 
 -- ─── Modo ALWAYS (Desorganizado) ────────────────────────────────────────────

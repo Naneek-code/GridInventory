@@ -375,9 +375,11 @@ function GridContainer:refresh()
 
     -- Salva quem já estava no grid para dar prioridade e evitar que itens novos roubem a vaga
     local previouslyPlaced = {}
+    local previousCount = 0
     for _, g in ipairs(self.grids) do
         for itemId, _ in pairs(g.items) do
             previouslyPlaced[itemId] = true
+            previousCount = previousCount + 1
         end
     end
 
@@ -545,6 +547,25 @@ function GridContainer:refresh()
                         local finalH = didRotate and w or h
                         
                         grid:insertItem(item:getID(), freeX, freeY, finalW, finalH, didRotate, item, compatKey, stackInfo)
+                        
+                        -- FLASH de autoSlot: item NOVO (não estava no grid antes)
+                        -- entrou SEM posição salva (auto-fit) → feedback visual
+                        -- "caiu aqui". Só marca na primeira aparição (o próximo
+                        -- refresh vê em previouslyPlaced). O GridRender decai e
+                        -- limpa. Empilhado sobre líder → flasha o líder.
+                        -- BLOQUEIO: não flasha na PRIMEIRA abertura do container
+                        -- (previousCount=0 = loot de mundo novo nunca vasculhado
+                        -- — TODOS os itens entram de uma vez e tudo piscaria).
+                        -- Container já em uso flasha itens novos.
+                        if not previouslyPlaced[item:getID()] and previousCount > 0 then
+                            GridInventory_AutoSlotFlash = GridInventory_AutoSlotFlash or {}
+                            local flashId = item:getID()
+                            local placedData = grid.items[flashId]
+                            if placedData and placedData.stackMemberOf then
+                                flashId = placedData.stackMemberOf
+                            end
+                            GridInventory_AutoSlotFlash[flashId] = getTimestampMs()
+                        end
                         
                         -- Salva a nova posição gerada automaticamente (nunca no
                         -- chão — mantém o layout determinístico, sem conflitos).

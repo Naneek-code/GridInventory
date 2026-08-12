@@ -66,13 +66,28 @@ function ScatterLayout.shouldScatter(inventory, playerNum)
         return false
     end
 
-    -- modo "auto": só nunca vasculhado, nunca o inventário do jogador
-    if inventory and inventory.isExplored and inventory:isExplored() then
-        return false
-    end
+    -- modo "auto": só container NUNCA VASCULHADO espalha (loot natural).
+    -- ATENÇÃO: NÃO usamos inventory:isExplored() aqui. O vanilla marca
+    -- setExplored(true) ASSIM QUE o jogador abre o container (ISInventoryPage),
+    -- ANTES do nosso refresh posicionar os itens — então no modo auto o container
+    -- já apareceria "explorado" e nunca espalharia (bug: só "always" funcionava).
+    -- Detectamos "nunca vasculhado" pela AUSÊNCIA de posição salva: se NENHUM
+    -- item tem gridX/gridY, é loot recém-gerado → espalha; se algum item já tem
+    -- posição, o jogador mexeu → não espalha (auto-fit organizado).
     local player = playerNum ~= nil and getSpecificPlayer(playerNum) or nil
     if player and inventory:isInCharacterInventory(player) then
         return false
+    end
+    if inventory and inventory.getItems then
+        local items = inventory:getItems()
+        local n = items and items:size() or 0
+        for i = 0, n - 1 do
+            local it = items:get(i)
+            local md = it and it.getModData and it:getModData()
+            if md and tonumber(md.gridX) and tonumber(md.gridY) then
+                return false -- algum item já posicionado → já foi vasculhado
+            end
+        end
     end
     return true
 end

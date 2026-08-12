@@ -839,6 +839,23 @@ function GridRender:render()
                 if self.gridCore:getStackSize(itemId) > 1 then
                     self:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH)
                 end
+
+                -- FLASH de autoSlot: item recém-entrado SEM posição (autoSort/
+                -- auto-fit) pisca amarelo no footprint — feedback "olha, caiu
+                -- aqui". Mesma cor do flash de container selecionado. Decai e
+                -- some sozinho (~1s). Só o LÍDER desenha (membros não renderizam).
+                if not data.stackMemberOf and GridInventory_AutoSlotFlash
+                    and GridInventory_AutoSlotFlash[itemId] then
+                    local FLASH_MS = 1000
+                    local elapsed = getTimeInMillis() - GridInventory_AutoSlotFlash[itemId]
+                    if elapsed >= FLASH_MS then
+                        GridInventory_AutoSlotFlash[itemId] = nil
+                    else
+                        local a = 1 - (elapsed / FLASH_MS)
+                        self:drawRect(drawX, drawY, drawW, drawH, a * 0.25, 1.0, 0.9, 0.3)
+                        self:drawRectBorder(drawX, drawY, drawW, drawH, a, 1.0, 0.9, 0.3)
+                    end
+                end
             end
         end
     end
