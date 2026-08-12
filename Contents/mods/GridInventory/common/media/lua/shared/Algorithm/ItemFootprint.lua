@@ -9,6 +9,11 @@ local ItemFootprint = {}
 -- BASE: populado a partir do GridOverrides.ini do usuário (essência do que ele
 -- ajustou manualmente). VHS: fita larga e baixa → sempre 2x1.
 ItemFootprint.Overrides = {
+    ["Base.CigarettePack"] = { w = 1, h = 1},
+    ["Base.NormalCarMuffler"] = { w = 3, h = 4},
+    ["Base.NormalCarMuffler2"] = { w = 3, h = 4},
+    ["Base.Tarp"] = { w = 2, h = 3},
+    ["Base.CarBatteryCharger"] = { w = 3, h = 2},
     ["Base.VHS_Retail"] = { w = 2, h = 1 },
     ["Base.VHS_Home"] = { w = 2, h = 1 },
     -- Cozinha: panelas e utensílios volumosos
@@ -38,7 +43,10 @@ ItemFootprint.Overrides = {
     ["Base.Whetstone"] = { w = 2, h = 1 },
     -- Comida embalada
     ["Base.Crisps"] = { w = 1, h = 2 },
+    ["Base.Crisps2"] = { w = 1, h = 2 },
     ["Base.Crisps3"] = { w = 1, h = 2 },
+    ["Base.Coffee2"] = { w = 1, h = 2 },
+    ["Base.Coffee"] = { w = 1, h = 2 },
     ["Base.Banana"] = { w = 1, h = 2 },
     ["Base.Milk"] = { w = 1, h = 2 },
     ["Base.MilkBottle"] = { w = 1, h = 2 },
@@ -112,6 +120,8 @@ ItemFootprint.Overrides = {
     ["Base.Stapler"] = { w = 2, h = 1 },
     ["Base.PaperclipBox"] = { w = 2, h = 1 },
     ["Base.IDcard"] = { w = 1, h = 1 },
+    ["Base.Base.IDcard_Male"] = { w = 1, h = 1 },
+    ["Base.Base.IDcard_Famale"] = { w = 1, h = 1 },
     -- Literatura/mídia
     ["Base.Phonebook"] = { w = 2, h = 2 },
     ["Base.ComicBook_Retail"] = { w = 1, h = 2 },
@@ -385,10 +395,8 @@ local function computeFormulaSize(item)
             w, h = 2, 3 -- Casacos pesados, Coletes Balísticos
         elseif weight >= 1.0 then
             w, h = 2, 2 -- Calças, Camisas
-        elseif weight >= 0.3 then
-            w, h = 1, 2 -- Luvas, Chapéus, Óculos
         else
-            w, h = 1, 1 -- Meias, Cuecas, anéis de tecido
+            w, h = 1, 2 -- Luvas, Chapéus, Óculos, acessórios de roupa
         end
     elseif isFood then
         if weight >= 1.0 then

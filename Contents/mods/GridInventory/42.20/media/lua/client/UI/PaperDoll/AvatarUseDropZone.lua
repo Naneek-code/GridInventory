@@ -38,9 +38,7 @@ local COLOR_BORDER = { a=0.15, r=0.5, g=0.5, b=0.5 }
 -- falha segura: valor novo fora da lista só usa o fallback genérico.
 local SAFE_ACTIONS = {
     "AnimalLure",
-    "ApplyAlcohol",
     "ApplyGlaze",
-    "Bandage",
     "BlowGlass",
     "BlowTorch",
     "Build",
@@ -70,7 +68,6 @@ local SAFE_ACTIONS = {
     "MakingElectrical",
     "MakingHammer_Surface",
     "MakingJewellery",
-    "MedicalCheck",
     "MixFluids",
     "MixingBowl",
     "MixingBucket",
