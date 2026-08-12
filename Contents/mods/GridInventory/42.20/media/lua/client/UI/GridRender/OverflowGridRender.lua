@@ -52,6 +52,20 @@ function OverflowGridRender:doDoubleClick(x, y)
     return
 end
 
+--- BUSCA (Tarkov): o overflow NÃO inicia vasculhada — ele é uma janela de
+--- saída dos itens que não couberam; a busca acontece no grid principal.
+--- Sem isso, clicar no overflow herdaria o GridRender.startSearch e revelaria
+--- TUDO de uma vez (o gridCore falso do overflow não tem as pilhas ocultas).
+function OverflowGridRender:startSearch()
+    return false
+end
+
+--- BUSCA (Tarkov): o overflow nunca pede "vasculhar" (bloqueia o onMouseDown
+--- herdado que iniciaria a busca).
+function OverflowGridRender:needsSearch()
+    return false
+end
+
 function OverflowGridRender:onMouseUp(x, y)
     -- O overflow é de SAÍDA APENAS. 
     -- Se tem um drag ativo que veio de fora, bloqueia.

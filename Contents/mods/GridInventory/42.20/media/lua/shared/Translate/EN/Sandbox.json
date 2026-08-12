@@ -10,5 +10,9 @@
     "Sandbox_GridInventory_ReorderTimeAction_option1": "Animated",
     "Sandbox_GridInventory_ReorderTimeAction_option2": "Instant",
     "Sandbox_GridInventory_ReorderMoveWhileWalking": "Move while organizing",
-    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Allows the character to walk while the item reorder action is running (running still cancels it).\n\nOn: you can walk while items reorganize, like many other timed actions.\n\nOff: the action only runs while standing still."
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Allows the character to walk while the item reorder action is running (running still cancels it).\n\nOn: you can walk while items reorganize, like many other timed actions.\n\nOff: the action only runs while standing still.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Search world containers",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Makes world containers (crates, shelves, corpses...) need to be searched before you can interact with the items inside, like Tarkov.\n\nWhen on, opening a container hides unidentified items behind a dark mask. Click the grid to start searching: items are revealed one stack at a time. You can stop anytime and keep what you already found; click again to resume. Items you put in yourself are revealed immediately.\n\nOff: containers always show their contents.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Search time per item",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Time in milliseconds to reveal each stack while searching a container. Scales with the number of stacks: more items, longer search.\n\n0 = instant (reveals everything on click)."
 }

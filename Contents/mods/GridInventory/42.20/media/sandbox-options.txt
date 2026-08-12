@@ -22,3 +22,17 @@ option GridInventory.ReorderMoveWhileWalking
     page = GridInventory,
     translation = GridInventory_ReorderMoveWhileWalking,
 }
+
+option GridInventory.SearchWorldContainers
+{
+    type = boolean, default = false,
+    page = GridInventory,
+    translation = GridInventory_SearchWorldContainers,
+}
+
+option GridInventory.SearchTimePerItem
+{
+    type = integer, min = 0, max = 1000, default = 300,
+    page = GridInventory,
+    translation = GridInventory_SearchTimePerItem,
+}

@@ -368,7 +368,8 @@ local ACTION_TRANSLATION_KEYS = {
     ISReloadWeaponAction      = "IGUI_ActionBar_Reloading",
     ISRackFirearm             = "IGUI_ActionBar_RackingFirearm",
     ISTakeWaterAction         = "IGUI_ActionBar_TakeWater",
-    GridReorderAction         = "IGUI_ActionBar_GridReorder"
+    GridReorderAction         = "IGUI_ActionBar_GridReorder",
+    GridSearchAction          = "IGUI_ActionBar_Searching"
 }
 
 function PaperDollWindow:render()

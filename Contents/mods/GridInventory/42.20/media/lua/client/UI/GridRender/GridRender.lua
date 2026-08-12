@@ -11,6 +11,10 @@ local GridClientNetwork = require("Network/GridClientNetwork")
 local GridReorder = require("Algorithm/GridReorder")
 local GridSandboxOptions = require("GridSandboxOptions")
 local GridInventory_BagDrop = require("System/GridInventory_BagDrop")
+local GridInventory_Search = require("System/GridInventory_Search")
+
+-- Ícone de item não identificado (busca Tarkov): interrogação nativa do PZ.
+local GridInventory_QuestionTex = getTexture("media/ui/foraging/questionMark.png")
 
 GridRender = ISPanel:derive("GridRender")
 
@@ -565,6 +569,81 @@ function GridRender:isLocked()
     return GridInventory_BagDrop.isNestedLocked(self.inventoryContainer, playerObj)
 end
 
+--- Chave estável de busca do container (nil = nunca oculta: chão/inventário
+--- do jogador — mochilas vestidas/equipadas/nas mãos).
+function GridRender:searchKey()
+    if not self.inventoryContainer then return nil end
+    local playerObj = getSpecificPlayer(self.playerNum)
+    return GridInventory_Search.containerKey(self.inventoryContainer, playerObj)
+end
+
+--- Item está OCULTO (não vasculhado) pra este jogador?
+---@param itemObj InventoryItem
+---@return boolean
+function GridRender:isItemHidden(itemObj)
+    if not itemObj then return false end
+    -- Equipado/vestido (roupa em corpse): já visível, nunca oculta.
+    if GridInventory_Search.isAlwaysRevealed(itemObj) then return false end
+    if not GridSandboxOptions.isSearchWorldContainers() then return false end
+    local key = self:searchKey()
+    if not key then return false end -- chão/inventário nunca ocultam
+    return not GridInventory_Search.isSearched(self.playerNum, key, itemObj:getID())
+end
+
+--- Container precisa ser vasculhado AGORA (tem pelo menos um item oculto)?
+---@return boolean
+function GridRender:needsSearch()
+    if not self.inventoryContainer then return false end
+    if not GridSandboxOptions.isSearchWorldContainers() then return false end
+    local key = self:searchKey()
+    if not key then return false end
+    return GridInventory_Search.hasHiddenItems(self.playerNum, key, self.inventoryContainer:getItems())
+end
+
+--- Inicia (ou retoma) a busca do container: cria uma GridSearchAction com as
+--- pilhas ainda ocultas. Se o tempo por item é 0, revela tudo na hora. Também
+--- torna este container o ALVO ativo (selectContainer) — vasculhar = interagir
+--- com ele, então o painel de loot passa a apontar pra cá.
+---@return boolean true se iniciou (ou já revelou tudo)
+function GridRender:startSearch()
+    if not self.inventoryContainer then return false end
+    if not GridSandboxOptions.isSearchWorldContainers() then return false end
+    local key = self:searchKey()
+    if not key then return false end
+
+    -- Torna o container o alvo ativo do painel (mesma lógica do duplo clique
+    -- no fundo / clique no header).
+    local pLoot = getPlayerLoot(self.playerNum)
+    local pInv = getPlayerInventory(self.playerNum)
+    for _, page in ipairs({pLoot, pInv}) do
+        if page and page.backpacks then
+            for _, btn in ipairs(page.backpacks) do
+                if btn.inventory == self.inventoryContainer then
+                    if page.selectContainer then
+                        page:selectContainer(btn)
+                    end
+                    break
+                end
+            end
+        end
+    end
+
+    local playerObj = getSpecificPlayer(self.playerNum)
+    if not playerObj then return false end
+
+    local msPer = GridSandboxOptions.getSearchTimePerItem()
+    if msPer <= 0 then
+        -- Instantâneo: revela tudo agora, sem timed action.
+        GridInventory_Search.revealAll(self.playerNum, key, self.inventoryContainer:getItems())
+        return true
+    end
+
+    -- Retoma: a ação re-coleta só as pilhas ainda ocultas no construtor.
+    local GridSearchAction = require("TimedActions/GridSearchAction")
+    ISTimedActionQueue.add(GridSearchAction:new(playerObj, self, key))
+    return true
+end
+
 function GridRender:render()
     local mouseX = self:getMouseX()
     local mouseY = self:getMouseY()
@@ -679,6 +758,22 @@ function GridRender:render()
             local rightX = self.width - GRID_PADDING - 5
             self:drawTextRight(weightStr, rightX, GRID_PADDING + 4, weightR, weightG, weightB, 1, UIFont.Small)
         end
+
+        -- ── BUSCA (Tarkov): aviso "Vasculhar (X)" no header enquanto houver
+        -- pilhas ocultas. Desenhado à esquerda do peso, em âmbar.
+        if self:needsSearch() then
+            local hidden = GridInventory_Search.countHiddenStacks(self.playerNum, self:searchKey(), self.inventoryContainer:getItems())
+            local searchText = getText("IGUI_GridSearch") or "Search"
+            if hidden and hidden > 0 then
+                searchText = searchText .. " (" .. tostring(hidden) .. ")"
+            end
+            local sw = getTextManager():MeasureStringX(UIFont.Small, searchText)
+            local rightX = self.width - GRID_PADDING - 5
+            if weightStr then
+                rightX = rightX - (getTextManager():MeasureStringX(UIFont.Small, weightStr) + 10)
+            end
+            self:drawTextRight(searchText, rightX, GRID_PADDING + 4, 1.0, 0.75, 0.3, 1, UIFont.Small)
+        end
     end
 
     -- Desenha a malha do grid (os quadrados de cada slot)
@@ -696,6 +791,20 @@ function GridRender:render()
     local hotbar = getPlayerHotbar(self.playerNum)
     local locked = self.inventoryContainer
         and GridInventory_BagDrop.isNestedLocked(self.inventoryContainer, playerObj)
+
+    -- BUSCA de container do mundo (estilo Tarkov): se a opção está ligada e o
+    -- container precisa ser vasculhado, itens não identificados ficam ocultos.
+    -- self.searchKey = chave estável do container (nil = nunca oculta: chão/
+    -- inventário). self.searchPending = tem item oculto agora.
+    local searchKey = nil
+    local searchPending = false
+    if GridSandboxOptions.isSearchWorldContainers() and self.inventoryContainer then
+        searchKey = GridInventory_Search.containerKey(self.inventoryContainer, playerObj)
+        if searchKey then
+            local items = self.inventoryContainer:getItems()
+            searchPending = GridInventory_Search.hasHiddenItems(self.playerNum, searchKey, items)
+        end
+    end
 
     -- Membros de pilha: mesmo sem render individual, precisam do tick de
     -- idade/umidade (o vanilla faz isso ao renderizar itens em containers
@@ -794,6 +903,12 @@ function GridRender:render()
                         end
                     end
                 end
+
+                -- BUSCA: item oculto → slot do footprint bem escuro (quase se
+                -- funde com a silhueta, mas alpha alto cobre o degrade por baixo).
+                if searchPending and self:isItemHidden(data.itemObj) then
+                    self:drawRect(drawX, drawY, drawW, drawH, 0.85, 0.12, 0.12, 0.12)
+                end
                 
                 -- Borda: DEGRADE por faixa (mesma cor do fundo) quando a
                 -- categoria tem cor; MISC usa um degrade SUTIL (neutro → slot
@@ -809,10 +924,30 @@ function GridRender:render()
                     local bands = ItemCategory.getSubtleGradient(drawH)
                     drawGradientBorder(self, drawX, drawY, drawW, drawH, bands, 1, isSelected and SEL_BRIGHTEN or 0)
                 end
-                self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, 1, 1, 1, 1)
+                -- BUSCA (Tarkov): item não identificado → SPRITE VIRA SILHUETA
+                -- PRETA (tint 0,0,0 no próprio sprite, não retângulo por cima):
+                -- esconde o conteúdo mas mantém a forma — e o slot fica claro
+                -- pra dar contraste. Ícones de status também suprimidos (não
+                -- revelam info de item oculto).
+                local itemHidden = searchPending and self:isItemHidden(data.itemObj)
+                self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, itemHidden and 0 or 1, itemHidden and 0 or 1, itemHidden and 0 or 1, 1)
                 
                 -- ── Ícones de status (sistema flex) ─────────────────────────────────
-                self:drawItemStatusIcons(data.itemObj, drawX + 2, drawY + 2, playerObj, hotbar)
+                if not itemHidden then
+                    self:drawItemStatusIcons(data.itemObj, drawX + 2, drawY + 2, playerObj, hotbar)
+                end
+
+                -- BUSCA: interrogação nativa do PZ no centro do footprint, POR
+                -- CIMA da silhueta preta — reforça "não identificado".
+                if itemHidden then
+                    local qTex = GridInventory_QuestionTex
+                    if qTex then
+                        local qSize = math.min(drawW, drawH) * 0.5
+                        local qx = drawX + (drawW - qSize) / 2
+                        local qy = drawY + (drawH - qSize) / 2
+                        self:drawTextureScaled(qTex, qx, qy, qSize, qSize, 1, 1, 1, 0.9)
+                    end
+                end
                 
                 -- Feedback visual de falta de espaço
                 if data.outOfSpaceTimer then
@@ -958,7 +1093,13 @@ function GridRender:render()
 
             -- Favorito: protege item de sair do inventário do jogador
             local isInPlayerInv = self.inventoryContainer:isInCharacterInventory(playerObj)
-            if firstItem.isFavorite and firstItem:isFavorite() and not isInPlayerInv then
+            -- BUSCA (Tarkov): container com itens ocultos → NÃO dá pra soltar
+            -- nada dentro (o drop seria bloqueado no mouseUp). Mostra "Search
+            -- First" em vez dos feedbacks normais, que seriam enganosos.
+            if self:needsSearch() then
+                self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
+                self:drawTextCentre(getText("IGUI_SearchFirst") or "Search First", self.width/2, self.height/2 - 10, 1, 1, 0.8, 0.3, UIFont.Large)
+            elseif firstItem.isFavorite and firstItem:isFavorite() and not isInPlayerInv then
                 self:drawRect(0, 0, self.width, self.height, 0.7, 0.2, 0.05, 0.05)
                 self:drawTextCentre(getText("IGUI_FavoriteProtected") or "Item is Favorited", self.width/2, self.height/2 - 10, 1, 1, 0.8, 0.2, UIFont.Large)
             
@@ -1195,6 +1336,29 @@ function GridRender:onMouseDown(x, y)
         return
     end
 
+    -- BUSCA (Tarkov): se o container tem itens ocultos, um clique na grid
+    -- inicia/retoma a vasculhada — exceto se o clique foi num item JÁ revelado
+    -- (interação normal).
+    if self:needsSearch() then
+        local col, row = self:getGridCellAtMouse(x, y)
+        local clickedHidden = false
+        if col and row then
+            local cellId = self.gridCore.cells[col][row]
+            if cellId then
+                local cellData = self.gridCore.items[cellId]
+                if cellData and cellData.itemObj and self:isItemHidden(cellData.itemObj) then
+                    clickedHidden = true
+                end
+            end
+        end
+        -- Clique em item oculto OU em célula vazia → busca. Clique em item
+        -- revelado → interação normal (pegar/arrastar).
+        if clickedHidden or not (col and row and self.gridCore.cells[col][row]) then
+            self:startSearch()
+            return
+        end
+    end
+
     local col, row = self:getGridCellAtMouse(x, y)
     local itemId = nil
     
@@ -1402,6 +1566,24 @@ function GridRender:doDoubleClick(x, y)
     -- (o vanilla transfere pro inventário do jogador) — bloquear igual.
     if self:isLocked() then
         return
+    end
+
+    -- BUSCA: duplo clique em item OCULTO inicia/retoma a vasculhada (não usa).
+    if self:needsSearch() then
+        local col, row = self:getGridCellAtMouse(x, y)
+        if col and row then
+            local cellId = self.gridCore.cells[col][row]
+            if cellId then
+                local cellData = self.gridCore.items[cellId]
+                if cellData and cellData.itemObj and self:isItemHidden(cellData.itemObj) then
+                    self:startSearch()
+                    return
+                end
+            else
+                self:startSearch()
+                return
+            end
+        end
     end
 
     local col, row = self:getGridCellAtMouse(x, y)
@@ -1641,6 +1823,38 @@ function GridRender:onMouseUp(x, y)
         self.selectedItems = {}
         self.draggingMarquis = false
         return
+    end
+
+    -- BUSCA: se o container ainda tem itens ocultos, um drop DENTRO dele só
+    -- pode ser sobre itens JÁ revelados. Drop sobre item oculto/célula vazia é
+    -- consumido (sem mover) — não dá pra interagir com o que você não viu.
+    if self:needsSearch() then
+        local dropCol, dropRow = self:getGridCellAtMouse(x, y)
+        local dropOnHidden = false
+        if dropCol and dropRow then
+            local cellId = self.gridCore.cells[dropCol][dropRow]
+            if cellId then
+                local cellData = self.gridCore.items[cellId]
+                if cellData and cellData.itemObj and self:isItemHidden(cellData.itemObj) then
+                    dropOnHidden = true
+                end
+            else
+                dropOnHidden = true -- célula vazia (não revelou onde cai)
+            end
+        end
+        if dropOnHidden then
+            if GridInventory_GlobalDrag then
+                if GridInventory_GlobalDrag.sourceGrid then
+                    GridInventory_GlobalDrag.sourceGrid.selectedItems = {}
+                end
+                GridInventory_GlobalDrag = nil
+                ISMouseDrag.dragging = nil
+                ISMouseDrag.draggingFocus = nil
+            end
+            self.selectedItems = {}
+            self.draggingMarquis = false
+            return
+        end
     end
 
     if self.draggingMarquis then
@@ -2095,6 +2309,24 @@ function GridRender:onRightMouseUp(x, y)
             return
         end
 
+        -- BUSCA: contexto em item OCULTO inicia/retoma a vasculhada (sem menu).
+        if self:needsSearch() then
+            local col, row = self:getGridCellAtMouse(x, y)
+            if col and row then
+                local cellId = self.gridCore.cells[col][row]
+                if cellId then
+                    local cellData = self.gridCore.items[cellId]
+                    if cellData and cellData.itemObj and self:isItemHidden(cellData.itemObj) then
+                        self:startSearch()
+                        return
+                    end
+                else
+                    self:startSearch()
+                    return
+                end
+            end
+        end
+
         local col, row = self:getGridCellAtMouse(x, y)
         if col and row then
             local itemId = self.gridCore.cells[col][row]
@@ -2150,6 +2382,17 @@ function GridRender:updateTooltip()
         if itemId and self.gridCore.items[itemId] then
             hoveredItem = self.gridCore.items[itemId].itemObj
         end
+    end
+
+    -- BUSCA (Tarkov): item OCULTO não mostra tooltip (você não sabe o que é).
+    -- Suprime o tooltip e zera o render existente.
+    if hoveredItem and self:isItemHidden(hoveredItem) then
+        if self.toolRender then
+            self.toolRender:removeFromUIManager()
+            self.toolRender:setVisible(false)
+            self.toolRender = nil
+        end
+        return
     end
     
     if hoveredItem and not ISMouseDrag.dragging and not GridInventory_GlobalDrag and not self.draggingMarquis then

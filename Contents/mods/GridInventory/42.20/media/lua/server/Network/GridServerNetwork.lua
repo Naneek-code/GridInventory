@@ -195,6 +195,32 @@ local function OnClientCommand(module, command, player, args)
         return
     end
 
+    -- Busca Tarkov: o cliente revelou itens de um container. O servidor é a
+    -- fonte da verdade — grava no modData do JOGADOR (persiste no save, por
+    -- jogador) e broadcasta pros clientes. Sem isso, no MP o estado morria no
+    -- cliente e ao relogar tudo precisava ser vasculhado de novo.
+    if command == GridProtocol.COMMANDS.REQ_SEARCH then
+        if args and args.containerKey and args.itemIds then
+            local md = player.getModData and player:getModData()
+            if md then
+                local root = md["GridInventory_Searched"]
+                if not root then root = {} md["GridInventory_Searched"] = root end
+                local per = root[args.containerKey]
+                if not per then per = {} root[args.containerKey] = per end
+                for _, id in ipairs(args.itemIds) do
+                    per[tostring(id)] = true
+                end
+                -- Broadcast (incluindo o autor — que ignora o eco local).
+                sendServerCommand(GridProtocol.MODULE, GridProtocol.COMMANDS.SYNC_SEARCH, {
+                    containerKey = args.containerKey,
+                    itemIds = args.itemIds,
+                    sender = player:getUsername(),
+                })
+            end
+        end
+        return
+    end
+
     if command ~= GridProtocol.COMMANDS.REQUEST_MOVE then return end
 
     local status = processMove(player, args)

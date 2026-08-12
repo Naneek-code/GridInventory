@@ -67,4 +67,36 @@ function GridSandboxOptions.isReorderMoveWhileWalking()
     return true
 end
 
+-- Busca de containers do mundo (estilo Tarkov): default DESLIGADA.
+local OPTION_NAME_SEARCH_WORLD = "GridInventory.SearchWorldContainers"
+local OPTION_NAME_SEARCH_TIME = "GridInventory.SearchTimePerItem"
+
+--- Se containers do mundo precisam ser vasculhados pra revelar os itens.
+--- @return boolean
+function GridSandboxOptions.isSearchWorldContainers()
+    if getSandboxOptions then
+        local ok, opt = pcall(function()
+            return getSandboxOptions():getOptionByName(OPTION_NAME_SEARCH_WORLD)
+        end)
+        if ok and opt and opt.getValue then
+            return opt:getValue()
+        end
+    end
+    return false
+end
+
+--- Tempo (ms) por pilha revelada durante a busca. 0 = instantâneo.
+--- @return number
+function GridSandboxOptions.getSearchTimePerItem()
+    if getSandboxOptions then
+        local ok, opt = pcall(function()
+            return getSandboxOptions():getOptionByName(OPTION_NAME_SEARCH_TIME)
+        end)
+        if ok and opt and opt.getValue then
+            return tonumber(opt:getValue()) or 300
+        end
+    end
+    return 300
+end
+
 return GridSandboxOptions

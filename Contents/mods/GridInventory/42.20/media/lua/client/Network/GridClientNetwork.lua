@@ -243,7 +243,46 @@ local function OnServerCommand(module, command, args)
     elseif command == GridProtocol.COMMANDS.SYNC_OVERRIDES then
         -- Overrides do servidor (autoridade): aplica e recarrega grids.
         applyServerOverrides(args.overrides)
+
+    elseif command == GridProtocol.COMMANDS.SYNC_SEARCH then
+        -- Servidor confirmou/persistiu a revelação de itens (busca Tarkov).
+        -- Aplica localmente no cache de sessão (o modData do jogador já vem
+        -- do servidor). O eco do próprio envio também passa por aqui.
+        if args and args.containerKey and args.itemIds then
+            GridClientNetwork.applyServerSearch(args.containerKey, args.itemIds)
+        end
     end
+end
+
+--- Aplica uma revelação confirmada pelo servidor no cache de sessão local.
+---@param containerKey string
+---@param itemIds table lista de ids revelados
+function GridClientNetwork.applyServerSearch(containerKey, itemIds)
+    if not containerKey or not itemIds then return end
+    local GridInventory_Search = require("System/GridInventory_Search")
+    local playerNum = getPlayer() and getPlayer():getPlayerNum() or 0
+    for _, id in ipairs(itemIds) do
+        GridInventory_Search.markSearchedSession(playerNum, containerKey, id)
+    end
+    -- re-renderiza os grids afetados
+    local pInv = getPlayerInventory(playerNum)
+    local pLoot = getPlayerLoot(playerNum)
+    if pInv and pInv.inventoryPane then pInv.inventoryPane.gridRefreshDirty = true end
+    if pLoot and pLoot.inventoryPane then pLoot.inventoryPane.gridRefreshDirty = true end
+end
+
+--- Envia pro servidor a revelação de itens (busca Tarkov): o servidor persiste
+--- no modData do jogador e broadcasta — persistência real no MP.
+---@param containerKey string
+---@param itemIds table lista de ids revelados
+function GridClientNetwork.sendSearchReveal(containerKey, itemIds)
+    if not isClient() then return end
+    local player = getPlayer()
+    if not player or not containerKey or not itemIds or #itemIds == 0 then return end
+    sendClientCommand(player, GridProtocol.MODULE, GridProtocol.COMMANDS.REQ_SEARCH, {
+        containerKey = containerKey,
+        itemIds = itemIds,
+    })
 end
 
 Events.OnServerCommand.Add(OnServerCommand)

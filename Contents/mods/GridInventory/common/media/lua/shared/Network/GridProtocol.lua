@@ -17,6 +17,8 @@ GridProtocol.COMMANDS = {
     REQ_OVERRIDES = "ReqOverrides", -- Cliente envia overrides editados (admin/devtool)
     SYNC_OVERRIDES = "SyncOverrides", -- Servidor broadcasta os overrides (autoridade)
     CLEAR_HAND   = "ClearHand",     -- Cliente pede pro servidor tirar um item da MÃO (vestir da mão)
+    REQ_SEARCH   = "ReqSearch",     -- Cliente revela um item (busca Tarkov) — servidor persiste
+    SYNC_SEARCH  = "SyncSearch",    -- Servidor broadcasta a revelação (persistente) pros clientes
 }
 
 -- Chaves para salvar coisas no banco de dados do jogo
