@@ -114,6 +114,14 @@ function GridContainer.getStackableCompatKey(item)
         end
     end
 
+    -- 1b. CONTAINER NUNCA empilha por padrão (a menos que override force):
+    -- chaveiro/mochila vazios são leves e "stackariam" pelo peso — mas um
+    -- container tem conteúdo variável, empilhar dois com itens diferentes é
+    -- inválido (a pilha sumiria itens). Override do DevTool pode forçar.
+    if item.IsInventoryContainer and item:IsInventoryContainer() then
+        return nil
+    end
+
     -- 2. Fallback: item LEVE (peso base <= 0.5) pode empilhar — mesmo que o
     --    jogo não empilhe nativamente (panos/rags). Acima de 0.5 NÃO empilha
     --    por padrão (caixa de pregos 2.0, crowbar, etc.); o override do

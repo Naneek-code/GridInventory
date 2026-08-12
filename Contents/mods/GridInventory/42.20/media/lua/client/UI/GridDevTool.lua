@@ -224,16 +224,17 @@ function GridDevToolUI:prerender()
     ISPanel.prerender(self)
     self:drawTextCentre("Grid DevTool: " .. self.fullType, self.width / 2, 10, 1, 1, 1, 1, UIFont.Small)
     
-    local cy = 40
-    self:drawTextCentre(tostring(self.tempData.w), 205, cy + 2, 1, 1, 1, 1, UIFont.Small)
-    cy = cy + 40
-    self:drawTextCentre(tostring(self.tempData.h), 205, cy + 2, 1, 1, 1, 1, UIFont.Small)
+    -- Valores desenhados ALINHADOS com as linhas reais do initialise (valores
+    -- ABSOLUTOS, não incrementais — incrementar bugava a posição):
+    --   W (40), H (80), Stackable (120), MaxStack (160), [container:]
+    --   Cols (200), Rows (240). x=205 é o centro entre os botões -/+ (160/220).
+    self:drawTextCentre(tostring(self.tempData.w), 205, 42, 1, 1, 1, 1, UIFont.Small)
+    self:drawTextCentre(tostring(self.tempData.h), 205, 82, 1, 1, 1, 1, UIFont.Small)
     
     if self.isContainer then
-        cy = cy + 40
-        self:drawTextCentre(tostring(self.tempData.cols), 205, cy + 2, 1, 1, 1, 1, UIFont.Small)
-        cy = cy + 40
-        self:drawTextCentre(tostring(self.tempData.rows), 205, cy + 2, 1, 1, 1, 1, UIFont.Small)
+        -- Pula Stackable (120) e MaxStack (160) → Cols em 200, Rows em 240
+        self:drawTextCentre(tostring(self.tempData.cols), 205, 202, 1, 1, 1, 1, UIFont.Small)
+        self:drawTextCentre(tostring(self.tempData.rows), 205, 242, 1, 1, 1, 1, UIFont.Small)
     end
 end
 
