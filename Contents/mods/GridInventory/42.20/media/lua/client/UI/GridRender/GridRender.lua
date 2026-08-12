@@ -773,7 +773,7 @@ function GridRender:render()
                     end
                 end
                 
-                self:drawRectBorder(drawX, drawY, drawW, drawH, 1, 0.45, 0.5, 0.62)
+                self:drawRectBorder(drawX, drawY, drawW, drawH, 1, 0.45, 0.45, 0.45)
 
                 self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, 1, 1, 1, 1)
                 

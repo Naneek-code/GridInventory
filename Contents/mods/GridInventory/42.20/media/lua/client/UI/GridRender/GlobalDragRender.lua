@@ -15,7 +15,7 @@ GridInventory_DropPreview = nil
 -- principal do ghost herda a cor da CATEGORIA do item arrastado (ItemCategory),
 -- mesmo padrão do GridRender.
 local DRAG_BG = { r = 0.4, g = 0.4, b = 0.4, a = 0.5 }
-local DRAG_BORDER = { r = 0.45, g = 0.5, b = 0.62, a = 1 }
+local DRAG_BORDER = { r = 0.45, g = 0.45, b = 0.45, a = 1 }
 
 GlobalDragRender = ISUIElement:derive("GlobalDragRender")
 

@@ -171,11 +171,11 @@ do
 
     -- MISC = prata (base do degrade dos itens sem categoria rastreada)
     local misc = ItemCategory.getColorByCategory(ItemCategory.MISC)
-    H.ok(misc.r == 0.72 and misc.g == 0.74 and misc.b == 0.78, "MISC é prata (0.72,0.74,0.78)")
+    H.ok(misc.r == 0.47 and misc.g == 0.48 and misc.b == 0.51, "MISC é prata (0.47,0.48,0.51)")
 
     -- neutralColor (topo do degrade) é o cinza escuro fixo, independente do MISC
-    H.ok(ItemCategory.neutralColor.r == 0.4 and ItemCategory.neutralColor.g == 0.4 and ItemCategory.neutralColor.b == 0.4,
-        "neutralColor é cinza escuro fixo (0.4,0.4,0.4)")
+    H.ok(ItemCategory.neutralColor.r == 0.32 and ItemCategory.neutralColor.g == 0.32 and ItemCategory.neutralColor.b == 0.32,
+        "neutralColor é cinza escuro fixo (0.32,0.32,0.32)")
 
     -- Categorias distintas têm cores distintas (sem colisão acidental)
     local seen = {}

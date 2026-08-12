@@ -29,26 +29,27 @@ ItemCategory.CORPSEANIMAL = "CORPSEANIMAL"
 -- Paleta de fundo do footprint por categoria (r, g, b; alpha fica no caller).
 -- MISC = PRATA (itens sem categoria rastreada ainda ganham degrade, de cinza
 -- escuro no topo até a prata na base — charme metálico). Cores das categorias
--- são VIVAS/saturadas pra se destacar no fundo escuro do grid.
+-- são VIVAS/saturadas, porém ESCURECIDAS pra harmonizar com o fundo preto
+-- transparente do grid (cores claras destoavam demais).
 -- Matizes separados por matiz + clareza pra não colidirem (ex.: FOOD vermelho
 -- vs AMMO laranja; BOOK oliva vs KEY dourado).
 ItemCategory.colors = {
-    [ItemCategory.MISC] = { r = 0.72, g = 0.74, b = 0.78 },
-    [ItemCategory.MELEE] = { r = 0.55, g = 0.20, b = 0.85 },
-    [ItemCategory.RANGED] = { r = 0.30, g = 0.55, b = 1.0 },
-    [ItemCategory.AMMO] = { r = 1.0, g = 0.60, b = 0.20 },
-    [ItemCategory.MAGAZINE] = { r = 0.25, g = 0.75, b = 1.0 },
-    [ItemCategory.ATTACHMENT] = { r = 0.20, g = 0.85, b = 0.70 },
-    [ItemCategory.FOOD] = { r = 1.0, g = 0.30, b = 0.20 },
-    [ItemCategory.CLOTHING] = { r = 0.30, g = 0.45, b = 0.75 },
-    [ItemCategory.CONTAINER] = { r = 0.65, g = 0.48, b = 0.25 },
-    [ItemCategory.HEALING] = { r = 0.40, g = 0.95, b = 0.45 },
-    [ItemCategory.BOOK] = { r = 0.75, g = 0.60, b = 0.15 },
-    [ItemCategory.ENTERTAINMENT] = { r = 1.0, g = 0.30, b = 0.75 },
-    [ItemCategory.KEY] = { r = 0.95, g = 0.80, b = 0.30 },
-    [ItemCategory.SEED] = { r = 0.25, g = 0.70, b = 0.35 },
-    [ItemCategory.MOVEABLE] = { r = 0.45, g = 0.55, b = 0.75 },
-    [ItemCategory.CORPSEANIMAL] = { r = 0.75, g = 0.15, b = 0.15 },
+    [ItemCategory.MISC] = { r = 0.47, g = 0.48, b = 0.51 },
+    [ItemCategory.MELEE] = { r = 0.36, g = 0.13, b = 0.55 },
+    [ItemCategory.RANGED] = { r = 0.20, g = 0.36, b = 0.65 },
+    [ItemCategory.AMMO] = { r = 0.65, g = 0.39, b = 0.13 },
+    [ItemCategory.MAGAZINE] = { r = 0.16, g = 0.49, b = 0.65 },
+    [ItemCategory.ATTACHMENT] = { r = 0.13, g = 0.55, b = 0.46 },
+    [ItemCategory.FOOD] = { r = 0.65, g = 0.20, b = 0.13 },
+    [ItemCategory.CLOTHING] = { r = 0.20, g = 0.29, b = 0.49 },
+    [ItemCategory.CONTAINER] = { r = 0.42, g = 0.31, b = 0.16 },
+    [ItemCategory.HEALING] = { r = 0.26, g = 0.62, b = 0.29 },
+    [ItemCategory.BOOK] = { r = 0.49, g = 0.39, b = 0.10 },
+    [ItemCategory.ENTERTAINMENT] = { r = 0.65, g = 0.20, b = 0.49 },
+    [ItemCategory.KEY] = { r = 0.62, g = 0.52, b = 0.20 },
+    [ItemCategory.SEED] = { r = 0.16, g = 0.46, b = 0.23 },
+    [ItemCategory.MOVEABLE] = { r = 0.29, g = 0.36, b = 0.49 },
+    [ItemCategory.CORPSEANIMAL] = { r = 0.49, g = 0.10, b = 0.10 },
 }
 
 -- Cache por fullType: a categoria é 100% determinada pelo tipo do item.
@@ -162,7 +163,7 @@ ItemCategory.gradientSteps = 12
 
 -- Cor neutra (topo do degrade) = cinza escuro FIXO (não aponta pro MISC, que é
 -- a prata da BASE dos itens sem categoria — o topo precisa ser sempre o sóbrio).
-ItemCategory.neutralColor = { r = 0.40, g = 0.40, b = 0.40 }
+ItemCategory.neutralColor = { r = 0.32, g = 0.32, b = 0.32 }
 
 --- Interpola linear entre duas cores.
 ---@param from table {r,g,b}
