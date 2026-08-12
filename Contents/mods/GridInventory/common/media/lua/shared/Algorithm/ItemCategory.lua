@@ -27,29 +27,37 @@ ItemCategory.MOVEABLE = "MOVEABLE"
 ItemCategory.CORPSEANIMAL = "CORPSEANIMAL"
 
 -- Paleta de fundo do footprint por categoria (r, g, b; alpha fica no caller).
--- MISC = PRATA (itens sem categoria rastreada ainda ganham degrade, de cinza
--- escuro no topo até a prata na base — charme metálico). Cores das categorias
--- são VIVAS/saturadas, porém ESCURECIDAS pra harmonizar com o fundo preto
--- transparente do grid (cores claras destoavam demais).
--- Matizes separados por matiz + clareza pra não colidirem (ex.: FOOD vermelho
--- vs AMMO laranja; BOOK oliva vs KEY dourado).
+-- MISC = PRATA (degrade cinza escuro → prata na base, itens sem categoria).
+-- Matizes redistribuídos no círculo cromático (~20-25° de separação) pra
+-- eliminar colisões visuais.
 ItemCategory.colors = {
-    [ItemCategory.MISC] = { r = 0.47, g = 0.48, b = 0.51 },
-    [ItemCategory.MELEE] = { r = 0.36, g = 0.13, b = 0.55 },
-    [ItemCategory.RANGED] = { r = 0.20, g = 0.36, b = 0.65 },
-    [ItemCategory.AMMO] = { r = 0.65, g = 0.39, b = 0.13 },
-    [ItemCategory.MAGAZINE] = { r = 0.16, g = 0.49, b = 0.65 },
-    [ItemCategory.ATTACHMENT] = { r = 0.13, g = 0.55, b = 0.46 },
-    [ItemCategory.FOOD] = { r = 0.65, g = 0.20, b = 0.13 },
-    [ItemCategory.CLOTHING] = { r = 0.20, g = 0.29, b = 0.49 },
-    [ItemCategory.CONTAINER] = { r = 0.42, g = 0.31, b = 0.16 },
-    [ItemCategory.HEALING] = { r = 0.26, g = 0.62, b = 0.29 },
-    [ItemCategory.BOOK] = { r = 0.49, g = 0.39, b = 0.10 },
-    [ItemCategory.ENTERTAINMENT] = { r = 0.65, g = 0.20, b = 0.49 },
-    [ItemCategory.KEY] = { r = 0.62, g = 0.52, b = 0.20 },
-    [ItemCategory.SEED] = { r = 0.16, g = 0.46, b = 0.23 },
-    [ItemCategory.MOVEABLE] = { r = 0.29, g = 0.36, b = 0.49 },
-    [ItemCategory.CORPSEANIMAL] = { r = 0.49, g = 0.10, b = 0.10 },
+    -- neutros (sem carga emocional, itens "de fundo")
+    [ItemCategory.MISC]          = { r = 0.39, g = 0.40, b = 0.41 }, -- prata neutro
+    [ItemCategory.MOVEABLE]      = { r = 0.33, g = 0.31, b = 0.37 }, -- cinza-violeta (mobília)
+    [ItemCategory.CONTAINER]     = { r = 0.31, g = 0.26, b = 0.21 }, -- marrom lona/madeira
+
+    -- perigo / carne / violência
+    [ItemCategory.MELEE]         = { r = 0.48, g = 0.14, b = 0.12 }, -- vermelho sangue
+    [ItemCategory.CORPSEANIMAL]  = { r = 0.27, g = 0.13, b = 0.15 }, -- vinho escuro/carne podre
+
+    -- comida, metal quente (latão/ouro), papel
+    [ItemCategory.FOOD]          = { r = 0.69, g = 0.44, b = 0.15 }, -- âmbar apetitoso (pão, assado)
+    [ItemCategory.AMMO]          = { r = 0.41, g = 0.31, b = 0.15 }, -- latão/bronze fosco (cartucho)
+    [ItemCategory.KEY]           = { r = 0.79, g = 0.66, b = 0.13 }, -- dourado brilhante
+    [ItemCategory.BOOK]          = { r = 0.39, g = 0.34, b = 0.21 }, -- bege/papel envelhecido
+
+    -- vida / plantas
+    [ItemCategory.SEED]          = { r = 0.28, g = 0.43, b = 0.16 }, -- verde broto
+    [ItemCategory.HEALING]       = { r = 0.18, g = 0.54, b = 0.30 }, -- verde saúde
+
+    -- metal de arma / tecido
+    [ItemCategory.ATTACHMENT]    = { r = 0.15, g = 0.53, b = 0.46 }, -- teal metal
+    [ItemCategory.MAGAZINE]      = { r = 0.17, g = 0.52, b = 0.63 }, -- ciano aço
+    [ItemCategory.RANGED]        = { r = 0.17, g = 0.32, b = 0.59 }, -- azul aço/arma de fogo
+    [ItemCategory.CLOTHING]      = { r = 0.25, g = 0.22, b = 0.46 }, -- índigo tecido
+
+    -- diversão
+    [ItemCategory.ENTERTAINMENT] = { r = 0.62, g = 0.18, b = 0.47 }, -- magenta
 }
 
 -- Cache por fullType: a categoria é 100% determinada pelo tipo do item.

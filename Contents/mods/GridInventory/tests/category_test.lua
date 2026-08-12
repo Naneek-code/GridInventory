@@ -169,9 +169,9 @@ do
     end
     H.ok(#missing == 0, "toda categoria tem cor [faltando: " .. (#missing == 0 and "nenhuma" or table.concat(missing, ",")) .. "]")
 
-    -- MISC = prata (base do degrade dos itens sem categoria rastreada)
+    -- MISC = prata neutro (base do degrade dos itens sem categoria rastreada)
     local misc = ItemCategory.getColorByCategory(ItemCategory.MISC)
-    H.ok(misc.r == 0.47 and misc.g == 0.48 and misc.b == 0.51, "MISC é prata (0.47,0.48,0.51)")
+    H.ok(misc.r == 0.39 and misc.g == 0.40 and misc.b == 0.41, "MISC é prata neutro (0.39,0.40,0.41)")
 
     -- neutralColor (topo do degrade) é o cinza escuro fixo, independente do MISC
     H.ok(ItemCategory.neutralColor.r == 0.32 and ItemCategory.neutralColor.g == 0.32 and ItemCategory.neutralColor.b == 0.32,

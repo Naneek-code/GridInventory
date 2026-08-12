@@ -27,6 +27,9 @@ local GRID_PADDING = 10
 local ITEM_BG_COLOR = {r=0.4, g=0.4, b=0.4, a=0.5}
 local ITEM_BG_FROZEN = {r=0.2, g=0.6, b=0.9, a=0.5}
 local ITEM_BG_HOT = {r=0.9, g=0.2, b=0.2, a=0.5}
+-- Clareamento de itens SELECIONADOS (multi-select): sutil, não estoura o
+-- contraste com o fundo escuro (antes era 0.3 e ficava claro demais).
+local SEL_BRIGHTEN = 0.15
 
 -- A opção de "água tinta" é fixa por sessão: cacheia o valor para não buscar
 -- no SandboxOptions a cada item renderizado (getOptionByName é uma chamada Java).
@@ -749,11 +752,6 @@ function GridRender:render()
                 local category = ItemCategory.getCategory(data.itemObj)
                 local catColor = ItemCategory.getColorByCategory(category)
                 bgR, bgG, bgB = catColor.r, catColor.g, catColor.b
-                -- Borda: cor da CATEGORIA (exceto MISC, que fica no cinza neutro).
-                local borderR, borderG, borderB = 0.45, 0.45, 0.45
-                if category ~= ItemCategory.MISC then
-                    borderR, borderG, borderB = catColor.r, catColor.g, catColor.b
-                end
                 
                 -- Checa se está congelado ou quente
                 local heat = 1
@@ -793,12 +791,12 @@ function GridRender:render()
                 -- cor sólida quando em estado de temperatura. Selecionado ganha
                 -- um leve clareamento pra não sumir sob o destaque.
                 if isSelected then
-                    local sR, sG, sB = math.min(1, bgR + 0.3), math.min(1, bgG + 0.3), math.min(1, bgB + 0.3)
+                    local sR, sG, sB = math.min(1, bgR + SEL_BRIGHTEN), math.min(1, bgG + SEL_BRIGHTEN), math.min(1, bgB + SEL_BRIGHTEN)
                     if tempState then
-                        self:drawRect(drawX, drawY, drawW, drawH, bgA + 0.3, sR, sG, sB)
+                        self:drawRect(drawX, drawY, drawW, drawH, bgA + SEL_BRIGHTEN, sR, sG, sB)
                     else
                         for _, band in ipairs(ItemCategory.getGradient(data.itemObj, drawH)) do
-                            self:drawRect(drawX, drawY + band.y, drawW, band.h, bgA + 0.3, math.min(1, band.r + 0.3), math.min(1, band.g + 0.3), math.min(1, band.b + 0.3))
+                            self:drawRect(drawX, drawY + band.y, drawW, band.h, bgA + SEL_BRIGHTEN, math.min(1, band.r + SEL_BRIGHTEN), math.min(1, band.g + SEL_BRIGHTEN), math.min(1, band.b + SEL_BRIGHTEN))
                         end
                     end
                 else
@@ -813,15 +811,17 @@ function GridRender:render()
                 
                 -- Borda: DEGRADE por faixa (mesma cor do fundo) quando a
                 -- categoria tem cor; MISC usa um degrade SUTIL (neutro → slot
-                -- vazio, quase imperceptível); estado de temperatura usa sólida.
+                -- vazio, quase imperceptível). Estado de temperatura: borda
+                -- SÓLIDA na cor do ESTADO (bgR/G/B = azul frio / vermelho
+                -- quente) — acompanha o fundo em vez de brigar com ele.
                 if tempState then
-                    self:drawRectBorder(drawX, drawY, drawW, drawH, 1, borderR, borderG, borderB)
+                    self:drawRectBorder(drawX, drawY, drawW, drawH, 1, bgR, bgG, bgB)
                 elseif category ~= ItemCategory.MISC then
                     local bands = ItemCategory.getGradient(data.itemObj, drawH)
-                    drawGradientBorder(self, drawX, drawY, drawW, drawH, bands, 1, isSelected and 0.3 or 0)
+                    drawGradientBorder(self, drawX, drawY, drawW, drawH, bands, 1, isSelected and SEL_BRIGHTEN or 0)
                 else
                     local bands = ItemCategory.getSubtleGradient(drawH)
-                    drawGradientBorder(self, drawX, drawY, drawW, drawH, bands, 1, isSelected and 0.3 or 0)
+                    drawGradientBorder(self, drawX, drawY, drawW, drawH, bands, 1, isSelected and SEL_BRIGHTEN or 0)
                 end
                 self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, 1, 1, 1, 1)
                 
