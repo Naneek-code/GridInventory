@@ -288,6 +288,14 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
     
     local isCustomTint = (r ~= 1 or g ~= 1 or b ~= 1)
     
+    -- Padding do ícone DENTRO do footprint (1px cada lado): a borda do footprint
+    -- é 1px e alguns sprites nasciam tocando/cortando as bordas. Reduzimos a
+    -- ESCALA (área desenhável) em PAD e centralizamos no w/h original — assim o
+    -- sprite nunca encosta na borda, em qualquer tamanho/orientação.
+    local PAD = 2
+    local scaleW = math.max(1, w - PAD)
+    local scaleH = math.max(1, h - PAD)
+    
     -- Itens com máscara de fluido NÃO passam pelo DrawItemIcon nativo nem na
     -- posição normal: o Java desenha a máscara com geometria própria que, em
     -- alguns itens, nasce 1px menor que o conteúdo do item. O caminho manual
@@ -295,195 +303,173 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
     -- exato da textura base — o mesmo já usado nos itens rotacionados.
     local hasFluidMask = item.getTextureFluidMask and item:getTextureFluidMask() ~= nil
     
-    if not isRotated and not isCustomTint and not hasFluidMask then
-        -- Quando não há rotação, tint especial nem máscara de fluido, usamos o
-        -- renderizador NATIVO (DrawItemIcon).
-        -- Para evitar as margens invisíveis do jogo e deixar o item igualzinho ao tamanho real do Grid:
-        -- Calculamos a escala baseada nos pixels VISÍVEIS (getWidth).
-        local scale = math.min(w / texW, h / texH)
+    -- Caminho MANUAL (sempre): desenha com DrawTexture a textura VISÍVEL
+    -- centralizada, ignorando as margens/offsets nativos do DrawItemIcon
+    -- (getWidthOrig/getOffsetX) — que, em itens compridos EM PÉ, arrastavam o
+    -- sprite pra fora do footprint e o cortavam. Rotacionado/tint/máscara já
+    -- usavam este caminho e sempre ficaram certos; agora unifica tudo num só.
+    local visualTexW = isRotated and texH or texW
+    local visualTexH = isRotated and texW or texH
+    local scale = math.min(scaleW / visualTexW, scaleH / visualTexH)
+    
+    local drawW = (isRotated and texH or texW) * scale
+    local drawH = (isRotated and texW or texH) * scale
+    
+    local offsetX = (w - drawW) / 2
+    local offsetY = (h - drawH) / 2
+    
+    local absX = self:getAbsoluteX() + x + offsetX
+    local absY = self:getAbsoluteY() + y + offsetY
         
-        -- Descobrimos o tamanho que a imagem "com margens" (getWidthOrig) deve ter para o miolo bater na escala
-        local fullW = texture:getWidthOrig() * scale
-        local fullH = texture:getHeightOrig() * scale
+    local hasColorMask = item.getTextureColorMask and item:getTextureColorMask()
+    
+    local baseR, baseG, baseB = 1, 1, 1
+    if not hasColorMask and item.getColor and item:getColor() then
+        baseR = item:getColor():getR()
+        baseG = item:getColor():getG()
+        baseB = item:getColor():getB()
+    end
+    
+    local finalR = isCustomTint and r or baseR
+    local finalG = isCustomTint and g or baseG
+    local finalB = isCustomTint and b or baseB
+    
+    local renderTex = function(texToDraw, red, green, blue)
+        if not isRotated then
+            self.javaObject:DrawTexture(texToDraw, absX, absY, absX+drawW, absY, absX+drawW, absY+drawH, absX, absY+drawH, red, green, blue, a)
+        else
+            self.javaObject:DrawTexture(texToDraw, absX, absY+drawH, absX, absY, absX+drawW, absY, absX+drawW, absY+drawH, red, green, blue, a)
+        end
+    end
+    
+    -- Textura Base (já vem com a sprite de queimado/podre graças ao getTex())
+    renderTex(texture, finalR, finalG, finalB)
+    
+    -- Fluid Mask (Sangue/Água Suja)
+    if item.getTextureFluidMask and item:getTextureFluidMask() then
+        local fluidColor = {r=1, g=1, b=1}
+        local fc = getItemFluidContainer(item)
+        local fluidPercent = 1.0
         
-        -- Centralizamos o "miolo visível" (croppedW/H) dentro do Grid (w/h)
-        local croppedW = texW * scale
-        local croppedH = texH * scale
-        local centerOffsetX = (w - croppedW) / 2
-        local centerOffsetY = (h - croppedH) / 2
-        
-        -- Subtraímos o offset nativo do jogo (margem da esquerda/topo) pra anular o padding original do DrawItemIcon
-        local relX = x + centerOffsetX - (texture:getOffsetX() * scale)
-        local relY = y + centerOffsetY - (texture:getOffsetY() * scale)
-        
-        self.javaObject:DrawItemIcon(item, relX, relY, a, fullW, fullH)
-    else
-        -- Fallback manual (para itens deitados E para itens com máscara de
-        -- fluido na posição normal). Usa geometria de vértices nativos do
-        -- DrawTexture + SpriteRenderer com UVs (recorte de volume d'água).
-        local visualTexW = isRotated and texH or texW
-        local visualTexH = isRotated and texW or texH
-        local scale = math.min(w / visualTexW, h / visualTexH)
-        
-        local drawW = (isRotated and texH or texW) * scale
-        local drawH = (isRotated and texW or texH) * scale
-        
-        local offsetX = (w - drawW) / 2
-        local offsetY = (h - drawH) / 2
-        
-        local absX = self:getAbsoluteX() + x + offsetX
-        local absY = self:getAbsoluteY() + y + offsetY
-        
-        local hasColorMask = item.getTextureColorMask and item:getTextureColorMask()
-        
-        local baseR, baseG, baseB = 1, 1, 1
-        if not hasColorMask and item.getColor and item:getColor() then
-            baseR = item:getColor():getR()
-            baseG = item:getColor():getG()
-            baseB = item:getColor():getB()
+        if fc then
+            fluidColor.r = fc:getColor():getR()
+            fluidColor.g = fc:getColor():getG()
+            fluidColor.b = fc:getColor():getB()
+            
+            local cap = fc:getCapacity()
+            if cap > 0 then
+                fluidPercent = fc:getAmount() / cap
+            end
+        elseif instanceof(item, "DrainableComboItem") then
+            local maxUses = item:getMaxUses()
+            if maxUses > 0 then
+                fluidPercent = item:getCurrentUses() / maxUses
+            end
         end
         
-        local finalR = isCustomTint and r or baseR
-        local finalG = isCustomTint and g or baseG
-        local finalB = isCustomTint and b or baseB
+        if fluidPercent < 0.15 then fluidPercent = 0.15 end
+        if fluidPercent > 1.0 then fluidPercent = 1.0 end
         
-        local renderTex = function(texToDraw, red, green, blue)
+        local fmR = isCustomTint and finalR or fluidColor.r
+        local fmG = isCustomTint and finalG or fluidColor.g
+        local fmB = isCustomTint and finalB or fluidColor.b
+        
+        local fTex = item:getTextureFluidMask()
+        
+        if fTex then
+            local tx1 = fTex:getXStart()
+            local ty1 = fTex:getYStart()
+            local tx2 = fTex:getXEnd()
+            local ty2 = fTex:getYEnd()
+            
+            local missing = 1.0 - fluidPercent
+            local yD = ty2 - ty1
+            
+            local tlx, tly = tx1, ty1
+            local trx, try = tx2, ty1
+            local brx, bry = tx2, ty2
+            local blx, bly = tx1, ty2
+            
+            local relOffsetX = (fTex:getOffsetX() - texture:getOffsetX()) * scale
+            local relOffsetY = (fTex:getOffsetY() - texture:getOffsetY()) * scale
+            
             if not isRotated then
-                self.javaObject:DrawTexture(texToDraw, absX, absY, absX+drawW, absY, absX+drawW, absY+drawH, absX, absY+drawH, red, green, blue, a)
+                local maskDrawW = fTex:getWidth() * scale
+                local maskDrawH = fTex:getHeight() * scale
+                local maskAbsX = absX + relOffsetX
+                local maskAbsY = absY + relOffsetY
+                
+                tly = tly + yD * missing
+                try = try + yD * missing
+                
+                local screenMissing = maskDrawH * missing
+                local rx = maskAbsX
+                local ry = maskAbsY + screenMissing
+                local rw = maskDrawW
+                local rh = maskDrawH - screenMissing
+                
+                SpriteRenderer.instance:render(fTex, rx, ry, rw, rh, fmR, fmG, fmB, a, tlx, tly, trx, try, brx, bry, blx, bly)
             else
-                self.javaObject:DrawTexture(texToDraw, absX, absY+drawH, absX, absY, absX+drawW, absY, absX+drawW, absY+drawH, red, green, blue, a)
+                local maskDrawW = fTex:getHeight() * scale
+                local maskDrawH = fTex:getWidth() * scale
+                local maskAbsX = absX + relOffsetY
+                local maskAbsY = absY + drawH - relOffsetX - maskDrawH
+                
+                tly = tly + yD * missing
+                try = try + yD * missing
+                
+                local screenMissing = maskDrawW * missing
+                local rx = maskAbsX + screenMissing
+                local ry = maskAbsY
+                local rw = maskDrawW - screenMissing
+                local rh = maskDrawH
+                
+                -- UV mapping for Counter-Clockwise: TL->TR, TR->BR, BR->BL, BL->TL
+                local uv1X, uv1Y = trx, try
+                local uv2X, uv2Y = brx, bry
+                local uv3X, uv3Y = blx, bly
+                local uv4X, uv4Y = tlx, tly
+                
+                SpriteRenderer.instance:render(fTex, rx, ry, rw, rh, fmR, fmG, fmB, a, uv1X, uv1Y, uv2X, uv2Y, uv3X, uv3Y, uv4X, uv4Y)
             end
         end
-        
-        -- Textura Base (já vem com a sprite de queimado/podre graças ao getTex())
-        renderTex(texture, finalR, finalG, finalB)
-        
-        -- Fluid Mask (Sangue/Água Suja)
-        if item.getTextureFluidMask and item:getTextureFluidMask() then
-            local fluidColor = {r=1, g=1, b=1}
-            local fc = getItemFluidContainer(item)
-            local fluidPercent = 1.0
-            
-            if fc then
-                fluidColor.r = fc:getColor():getR()
-                fluidColor.g = fc:getColor():getG()
-                fluidColor.b = fc:getColor():getB()
-                
-                local cap = fc:getCapacity()
-                if cap > 0 then
-                    fluidPercent = fc:getAmount() / cap
-                end
-            elseif instanceof(item, "DrainableComboItem") then
-                local maxUses = item:getMaxUses()
-                if maxUses > 0 then
-                    fluidPercent = item:getCurrentUses() / maxUses
-                end
-            end
-            
-            if fluidPercent < 0.15 then fluidPercent = 0.15 end
-            if fluidPercent > 1.0 then fluidPercent = 1.0 end
-            
-            local fmR = isCustomTint and finalR or fluidColor.r
-            local fmG = isCustomTint and finalG or fluidColor.g
-            local fmB = isCustomTint and finalB or fluidColor.b
-            
-            local fTex = item:getTextureFluidMask()
-            
-            if fTex then
-                local tx1 = fTex:getXStart()
-                local ty1 = fTex:getYStart()
-                local tx2 = fTex:getXEnd()
-                local ty2 = fTex:getYEnd()
-                
-                local missing = 1.0 - fluidPercent
-                local yD = ty2 - ty1
-                
-                local tlx, tly = tx1, ty1
-                local trx, try = tx2, ty1
-                local brx, bry = tx2, ty2
-                local blx, bly = tx1, ty2
-                
-                local relOffsetX = (fTex:getOffsetX() - texture:getOffsetX()) * scale
-                local relOffsetY = (fTex:getOffsetY() - texture:getOffsetY()) * scale
-                
-                if not isRotated then
-                    local maskDrawW = fTex:getWidth() * scale
-                    local maskDrawH = fTex:getHeight() * scale
-                    local maskAbsX = absX + relOffsetX
-                    local maskAbsY = absY + relOffsetY
-                    
-                    tly = tly + yD * missing
-                    try = try + yD * missing
-                    
-                    local screenMissing = maskDrawH * missing
-                    local rx = maskAbsX
-                    local ry = maskAbsY + screenMissing
-                    local rw = maskDrawW
-                    local rh = maskDrawH - screenMissing
-                    
-                    SpriteRenderer.instance:render(fTex, rx, ry, rw, rh, fmR, fmG, fmB, a, tlx, tly, trx, try, brx, bry, blx, bly)
-                else
-                    local maskDrawW = fTex:getHeight() * scale
-                    local maskDrawH = fTex:getWidth() * scale
-                    local maskAbsX = absX + relOffsetY
-                    local maskAbsY = absY + drawH - relOffsetX - maskDrawH
-                    
-                    tly = tly + yD * missing
-                    try = try + yD * missing
-                    
-                    local screenMissing = maskDrawW * missing
-                    local rx = maskAbsX + screenMissing
-                    local ry = maskAbsY
-                    local rw = maskDrawW - screenMissing
-                    local rh = maskDrawH
-                    
-                    -- UV mapping for Counter-Clockwise: TL->TR, TR->BR, BR->BL, BL->TL
-                    local uv1X, uv1Y = trx, try
-                    local uv2X, uv2Y = brx, bry
-                    local uv3X, uv3Y = blx, bly
-                    local uv4X, uv4Y = tlx, tly
-                    
-                    SpriteRenderer.instance:render(fTex, rx, ry, rw, rh, fmR, fmG, fmB, a, uv1X, uv1Y, uv2X, uv2Y, uv3X, uv3Y, uv4X, uv4Y)
-                end
-            end
+    end
+    
+    -- Color Mask (Tintas de Cabelo, etc.)
+    if hasColorMask then
+        local maskR, maskG, maskB = 1, 1, 1
+        if item.getColor and item:getColor() then
+            maskR = item:getColor():getR()
+            maskG = item:getColor():getG()
+            maskB = item:getColor():getB()
         end
-        
-        -- Color Mask (Tintas de Cabelo, etc.)
-        if hasColorMask then
-            local maskR, maskG, maskB = 1, 1, 1
-            if item.getColor and item:getColor() then
-                maskR = item:getColor():getR()
-                maskG = item:getColor():getG()
-                maskB = item:getColor():getB()
-            end
-            local mR = isCustomTint and finalR or maskR
-            local mG = isCustomTint and finalG or maskG
-            local mB = isCustomTint and finalB or maskB
-            -- A máscara de cor NÃO é esticada pro retângulo da base: ela tem
-            -- geometria própria (offset/tamanho) e é alinhada ao MESMO "full
-            -- box" que a base e a máscara de fluido (mesma fórmula do fluido).
-            -- Antes era desenhada no retângulo da base e, quando a geometria
-            -- difere (ex.: WaterBottle_Mask2 do PopBottle, 14x16 vs 25x31 da
-            -- base), ficava maior que o item cobrindo ele inteiro.
-            local cmTex = hasColorMask
-            local cmOffX = (cmTex:getOffsetX() - texture:getOffsetX()) * scale
-            local cmOffY = (cmTex:getOffsetY() - texture:getOffsetY()) * scale
-            if not isRotated then
-                local rx = absX + cmOffX
-                local ry = absY + cmOffY
-                local rw = cmTex:getWidth() * scale
-                local rh = cmTex:getHeight() * scale
-                self.javaObject:DrawTexture(cmTex, rx, ry, rx+rw, ry, rx+rw, ry+rh, rx, ry+rh, mR, mG, mB, a)
-            else
-                local rw = cmTex:getHeight() * scale
-                local rh = cmTex:getWidth() * scale
-                local rx = absX + cmOffY
-                local ry = absY + drawH - cmOffX - rh
-                local tx1 = cmTex:getXStart(); local ty1 = cmTex:getYStart()
-                local tx2 = cmTex:getXEnd(); local ty2 = cmTex:getYEnd()
-                SpriteRenderer.instance:render(cmTex, rx, ry, rw, rh, mR, mG, mB, a,
-                    tx2, ty1, tx2, ty2, tx1, ty2, tx1, ty1)
-            end
+        local mR = isCustomTint and finalR or maskR
+        local mG = isCustomTint and finalG or maskG
+        local mB = isCustomTint and finalB or maskB
+        -- A máscara de cor NÃO é esticada pro retângulo da base: ela tem
+        -- geometria própria (offset/tamanho) e é alinhada ao MESMO "full
+        -- box" que a base e a máscara de fluido (mesma fórmula do fluido).
+        -- Antes era desenhada no retângulo da base e, quando a geometria
+        -- difere (ex.: WaterBottle_Mask2 do PopBottle, 14x16 vs 25x31 da
+        -- base), ficava maior que o item cobrindo ele inteiro.
+        local cmTex = hasColorMask
+        local cmOffX = (cmTex:getOffsetX() - texture:getOffsetX()) * scale
+        local cmOffY = (cmTex:getOffsetY() - texture:getOffsetY()) * scale
+        if not isRotated then
+            local rx = absX + cmOffX
+            local ry = absY + cmOffY
+            local rw = cmTex:getWidth() * scale
+            local rh = cmTex:getHeight() * scale
+            self.javaObject:DrawTexture(cmTex, rx, ry, rx+rw, ry, rx+rw, ry+rh, rx, ry+rh, mR, mG, mB, a)
+        else
+            local rw = cmTex:getHeight() * scale
+            local rh = cmTex:getWidth() * scale
+            local rx = absX + cmOffY
+            local ry = absY + drawH - cmOffX - rh
+            local tx1 = cmTex:getXStart(); local ty1 = cmTex:getYStart()
+            local tx2 = cmTex:getXEnd(); local ty2 = cmTex:getYEnd()
+            SpriteRenderer.instance:render(cmTex, rx, ry, rw, rh, mR, mG, mB, a,
+                tx2, ty1, tx2, ty2, tx1, ty2, tx1, ty1)
         end
     end
 end
