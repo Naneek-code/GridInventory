@@ -122,7 +122,8 @@ function GlobalDragRender:render()
             if cat ~= ItemCategory.MISC then
                 GridRender.drawGradientBorder(self, drawX, drawY, drawW, drawH, bands, DRAG_BORDER.a, 0)
             else
-                self:drawRectBorder(drawX, drawY, drawW, drawH, DRAG_BORDER.a, DRAG_BORDER.r, DRAG_BORDER.g, DRAG_BORDER.b)
+                -- MISC: degrade sutil (neutro → slot vazio), quase imperceptível
+                GridRender.drawGradientBorder(self, drawX, drawY, drawW, drawH, ItemCategory.getSubtleGradient(drawH), DRAG_BORDER.a, 0)
             end
         else
             self:drawRect(drawX, drawY, drawW, drawH, DRAG_BG.a, DRAG_BG.r, DRAG_BG.g, DRAG_BG.b)

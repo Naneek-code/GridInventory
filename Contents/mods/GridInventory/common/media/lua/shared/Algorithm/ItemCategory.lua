@@ -202,4 +202,30 @@ function ItemCategory.getGradient(item, heightPx)
     return bands
 end
 
+-- Cor alvo do degrade SUTIL (usado na borda de itens MISC): próximo da cor do
+-- slot vazio (0.45), sem o brilho metálico da prata — sutil, não puxa o olhar.
+ItemCategory.subtleNeutralColor = { r = 0.45, g = 0.45, b = 0.45 }
+
+--- Variante sutil do getGradient: desvanece do neutro até subtleNeutralColor
+--- (em vez da cor da categoria). Usado na borda de itens MISC pra dar um
+--- degradezim discreto, quase imperceptível, no lugar da borda sólida.
+---@param heightPx number altura total do footprint em pixels
+---@return table lista de faixas
+function ItemCategory.getSubtleGradient(heightPx)
+    local neutral = ItemCategory.neutralColor
+    local target = ItemCategory.subtleNeutralColor
+    local steps = ItemCategory.gradientSteps
+    local bands = {}
+    for i = 0, steps - 1 do
+        local yTop = math.floor(heightPx * i / steps)
+        local yBot = math.floor(heightPx * (i + 1) / steps)
+        if yBot > yTop then
+            local t = i / (steps - 1) -- 0 no topo (neutro), 1 na base (alvo sutil)
+            local r, g, b = ItemCategory.lerpColor(neutral, target, t)
+            bands[#bands + 1] = { y = yTop, h = yBot - yTop, r = r, g = g, b = b }
+        end
+    end
+    return bands
+end
+
 return ItemCategory

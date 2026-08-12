@@ -812,12 +812,16 @@ function GridRender:render()
                 end
                 
                 -- Borda: DEGRADE por faixa (mesma cor do fundo) quando a
-                -- categoria tem cor; MISC e estado de temperatura usam sólida.
-                if not tempState and category ~= ItemCategory.MISC then
+                -- categoria tem cor; MISC usa um degrade SUTIL (neutro → slot
+                -- vazio, quase imperceptível); estado de temperatura usa sólida.
+                if tempState then
+                    self:drawRectBorder(drawX, drawY, drawW, drawH, 1, borderR, borderG, borderB)
+                elseif category ~= ItemCategory.MISC then
                     local bands = ItemCategory.getGradient(data.itemObj, drawH)
                     drawGradientBorder(self, drawX, drawY, drawW, drawH, bands, 1, isSelected and 0.3 or 0)
                 else
-                    self:drawRectBorder(drawX, drawY, drawW, drawH, 1, borderR, borderG, borderB)
+                    local bands = ItemCategory.getSubtleGradient(drawH)
+                    drawGradientBorder(self, drawX, drawY, drawW, drawH, bands, 1, isSelected and 0.3 or 0)
                 end
                 self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, 1, 1, 1, 1)
                 

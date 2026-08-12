@@ -264,4 +264,28 @@ do
         "degrade MISC: cinza escuro no topo → prata na base")
 end
 
+-- ─── Degrade sutil (borda de MISC) ───────────────────────────────────────────
+do
+    local HGT = 100
+    local bands = ItemCategory.getSubtleGradient(HGT)
+    H.ok(#bands > 0, "degrade sutil tem faixas [n=" .. #bands .. "]")
+    -- Topo = neutro, base = subtleNeutralColor (próximo do slot vazio 0.45)
+    local top = bands[1]
+    local bottom = bands[#bands]
+    local neutral = ItemCategory.neutralColor
+    local subtle = ItemCategory.subtleNeutralColor
+    H.ok(math.abs(top.r - neutral.r) < 0.001, "sutil: topo = neutro")
+    H.ok(math.abs(bottom.r - subtle.r) < 0.001 and math.abs(bottom.g - subtle.g) < 0.001
+        and math.abs(bottom.b - subtle.b) < 0.001,
+        "sutil: base = subtleNeutralColor (0.45)")
+    -- Contíguo (mesmo fix de linhas pretas)
+    local prevEnd = 0
+    local continuous = true
+    for _, band in ipairs(bands) do
+        if band.y ~= prevEnd then continuous = false end
+        prevEnd = band.y + band.h
+    end
+    H.ok(continuous and prevEnd == HGT, "sutil: faixas contíguas cobrindo a altura")
+end
+
 H.finish()
