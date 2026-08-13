@@ -9,29 +9,13 @@ if not isServer() then return end
 local GridProtocol = require("Network/GridProtocol")
 local GridCore = require("DataModel/GridCore")
 local GridContainer = require("DataModel/GridContainer")
+local GridAdmin = require("System/GridAdmin")
 
 local GridServerNetwork = {}
 
 --- Admin check (B42): role/capability. Fail-closed — sem confirmação, não edita.
 function GridServerNetwork.isAdmin(player)
-    if not player then return false end
-    if player.getRole then
-        local role = player:getRole()
-        if role then
-            if role.hasCapability and Capability and Capability.Admin then
-                return role:hasCapability(Capability.Admin)
-            end
-            if role.getName then
-                local n = tostring(role:getName() or ""):lower()
-                if string.find(n, "admin") then return true end
-            end
-        end
-    end
-    if player.getAccessLevel then
-        local al = player:getAccessLevel()
-        if al and tostring(al):lower() == "admin" then return true end
-    end
-    return false
+    return GridAdmin.isAdmin(player)
 end
 
 -- Fila de pendências: movimentos que chegaram antes do transfer terminar no

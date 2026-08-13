@@ -14,5 +14,7 @@
     "Sandbox_GridInventory_SearchWorldContainers": "Vasculhar containers do mundo",
     "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Faz containers do mundo (caixas, prateleiras, cadáveres...) precisarem ser vasculhados antes de você interagir com os itens dentro, estilo Tarkov.\n\nLigado: abrir um container esconde itens não identificados atrás de uma máscara escura. Clique na grid para começar a vasculhar: os itens são revelados uma pilha por vez. Você pode parar quando quiser e manter o que já encontrou; clique de novo para retomar. Itens que você mesmo coloca são revelados na hora.\n\nDesligado: containers sempre mostram o conteúdo.",
     "Sandbox_GridInventory_SearchTimePerItem": "Tempo de busca por item",
-    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tempo em milissegundos para revelar cada pilha ao vasculhar um container. Escala com a quantidade de pilhas: mais itens, busca mais longa.\n\n0 = instantâneo (revela tudo no clique)."
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tempo em milissegundos para revelar cada pilha ao vasculhar um container. Escala com a quantidade de pilhas: mais itens, busca mais longa.\n\n0 = instantâneo (revela tudo no clique).",
+    "Sandbox_GridInventory_EnableDevTools": "Ativar DevTools",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Adiciona a opção \"[DevTool] Editar Tamanho do Grid\" no menu de contexto dos itens, permitindo redimensionar footprints de itens e grids de containers sem iniciar o jogo com -debug.\n\nLigado: DevTools disponível neste save. No multiplayer, quem não é admin vê a opção mas o servidor rejeita aplicar as mudanças.\n\nDesligado: só disponível quando o jogo é iniciado com -debug."
 }

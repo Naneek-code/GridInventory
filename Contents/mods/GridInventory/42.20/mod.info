@@ -1,6 +1,7 @@
 name=GridInventory
 id=GridInventory
 description=A modern, B42 native grid-based spatial inventory system.
-author=Montesi
+author=Naneek
 poster=poster.png
+icon=icon.png
 versionMin=42.0.0

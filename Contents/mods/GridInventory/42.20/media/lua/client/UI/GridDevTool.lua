@@ -53,6 +53,19 @@ function GridDevToolUI:new(x, y, item)
     else
         o.height = 280
     end
+
+    -- ALTURA final (o ISPanel:new criou com 200; corrige agora que sabemos)
+    o.height = o.isContainer and 380 or 280
+
+    -- Clamp: a janela nunca nasce (nem fica) fora da tela.
+    local sw = getCore() and getCore():getScreenWidth() or 1280
+    local sh = getCore() and getCore():getScreenHeight() or 720
+    if x + o.width > sw then x = math.max(0, sw - o.width) end
+    if x < 0 then x = 0 end
+    if y + o.height > sh then y = math.max(0, sh - o.height) end
+    if y < 0 then y = 0 end
+    o:setX(x)
+    o:setY(y)
     
     return o
 end
@@ -220,6 +233,69 @@ function GridDevToolUI:close()
     self:removeFromUIManager()
 end
 
+-- ─── Drag da janela ─────────────────────────────────────────────────────────
+-- Arrasta pela BARRA DE TÍTULO (topo, altura ~25px). Usa setCapture pra
+-- continuar seguindo o mouse mesmo fora do elemento. Clamp mantém a janela
+-- sempre dentro da tela (nunca "some" por arrastar demais).
+local DEVTOOL_TITLE_BAR = 25
+
+function GridDevToolUI:onMouseDown(x, y)
+    if y <= DEVTOOL_TITLE_BAR and x <= self:getWidth() - 24 then
+        -- Clique na barra de título (fora do botão fechar X, canto direito)
+        self.dragging = true
+        self.dragStartX = x
+        self.dragStartY = y
+        self:setCapture(true)
+        return true
+    end
+    return ISPanel.onMouseDown(self, x, y)
+end
+
+function GridDevToolUI:onMouseMove(dx, dy)
+    if self.dragging then
+        local mx = self:getMouseX()
+        local my = self:getMouseY()
+        local nx = self:getX() + (mx - self.dragStartX)
+        local ny = self:getY() + (my - self.dragStartY)
+        self:clampAndSet(nx, ny)
+        return true
+    end
+    return ISPanel.onMouseMove(self, dx, dy)
+end
+
+function GridDevToolUI:onMouseMoveOutside(dx, dy)
+    if self.dragging then
+        local mx = getMouseX()
+        local my = getMouseY()
+        local nx = self:getX() + (mx - (self:getX() + self.dragStartX))
+        local ny = self:getY() + (my - (self:getY() + self.dragStartY))
+        self:clampAndSet(nx, ny)
+        return true
+    end
+    return ISPanel.onMouseMoveOutside and ISPanel.onMouseMoveOutside(self, dx, dy)
+end
+
+function GridDevToolUI:onMouseUp(x, y)
+    if self.dragging then
+        self.dragging = false
+        self:setCapture(false)
+        return true
+    end
+    return ISPanel.onMouseUp(self, x, y)
+end
+
+--- Posiciona a janela garantindo que fique dentro da tela.
+function GridDevToolUI:clampAndSet(nx, ny)
+    local sw = getCore() and getCore():getScreenWidth() or 1280
+    local sh = getCore() and getCore():getScreenHeight() or 720
+    if nx + self:getWidth() > sw then nx = sw - self:getWidth() end
+    if nx < 0 then nx = 0 end
+    if ny + self:getHeight() > sh then ny = sh - self:getHeight() end
+    if ny < 0 then ny = 0 end
+    self:setX(nx)
+    self:setY(ny)
+end
+
 function GridDevToolUI:prerender()
     ISPanel.prerender(self)
     self:drawTextCentre("Grid DevTool: " .. self.fullType, self.width / 2, 10, 1, 1, 1, 1, UIFont.Small)
@@ -243,8 +319,13 @@ end
 -----------------------------------------------------------------------------------------
 
 local function OnFillInventoryObjectContextMenu(player, context, items)
-    -- DevTool é ferramenta de DEV: só aparece com o jogo iniciado em -debug.
-    if not isDebugEnabled() then return end
+    -- DevTool: aparece com o jogo iniciado em -debug OU com a Sandbox Option
+    -- "Ativar DevTools" ligada. No MP o SERVIDOR é fail-closed: rejeita aplicar
+    -- overrides de quem não é admin (GridServerNetwork.isAdmin) — então o menu
+    -- pode aparecer pra todos; o servidor decide na hora de salvar. No SP o
+    -- jogador é o dono e sempre pode.
+    local GridSandboxOptions = require("GridSandboxOptions")
+    if not (isDebugEnabled() or GridSandboxOptions.isDevToolsEnabled()) then return end
 
     local testItem = items[1]
     if not testItem then return end

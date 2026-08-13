@@ -36,3 +36,10 @@ option GridInventory.SearchTimePerItem
     page = GridInventory,
     translation = GridInventory_SearchTimePerItem,
 }
+
+option GridInventory.EnableDevTools
+{
+    type = boolean, default = false,
+    page = GridInventory,
+    translation = GridInventory_EnableDevTools,
+}

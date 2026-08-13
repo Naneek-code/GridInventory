@@ -14,5 +14,7 @@
     "Sandbox_GridInventory_SearchWorldContainers": "Search world containers",
     "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Makes world containers (crates, shelves, corpses...) need to be searched before you can interact with the items inside, like Tarkov.\n\nWhen on, opening a container hides unidentified items behind a dark mask. Click the grid to start searching: items are revealed one stack at a time. You can stop anytime and keep what you already found; click again to resume. Items you put in yourself are revealed immediately.\n\nOff: containers always show their contents.",
     "Sandbox_GridInventory_SearchTimePerItem": "Search time per item",
-    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Time in milliseconds to reveal each stack while searching a container. Scales with the number of stacks: more items, longer search.\n\n0 = instant (reveals everything on click)."
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Time in milliseconds to reveal each stack while searching a container. Scales with the number of stacks: more items, longer search.\n\n0 = instant (reveals everything on click).",
+    "Sandbox_GridInventory_EnableDevTools": "Enable DevTools",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Adds the \"[DevTool] Edit Grid Size\" option to the item context menu, so you can resize item footprints and container grids without launching the game with -debug.\n\nOn: DevTools available in this save. In multiplayer, non-admin players can see the option but the server rejects applying changes.\n\nOff: only available when the game is started with -debug."
 }

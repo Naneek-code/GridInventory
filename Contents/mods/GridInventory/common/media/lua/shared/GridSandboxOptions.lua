@@ -99,4 +99,22 @@ function GridSandboxOptions.getSearchTimePerItem()
     return 300
 end
 
+-- DevTools do GridInventory: habilita o menu de contexto "[DevTool] Edit Grid
+-- Size" SEM precisar iniciar o jogo com -debug.
+local OPTION_NAME_DEVTOOLS = "GridInventory.EnableDevTools"
+
+--- Se o jogador pode usar o DevTool de footprint/grid (override por item).
+--- @return boolean
+function GridSandboxOptions.isDevToolsEnabled()
+    if getSandboxOptions then
+        local ok, opt = pcall(function()
+            return getSandboxOptions():getOptionByName(OPTION_NAME_DEVTOOLS)
+        end)
+        if ok and opt and opt.getValue then
+            return opt:getValue()
+        end
+    end
+    return false
+end
+
 return GridSandboxOptions
