@@ -178,7 +178,10 @@ end
 -- Monta o cenário completo: 100 Twines empilhados na origem em (3,3).
 local function setupScenario()
     local sourceInv = makeContainer("inventorymale", 12)
-    local targetInv = makeContainer("floor", 90) -- 6x15
+    -- Alvo = container de MUNDO (caixa), não chão: o chão ignora posição salva
+    -- por design (fix do flicker no GridContainer:refresh) — num alvo de chão
+    -- nenhum item jamais fica em (5,5) e o teste mediria 0 nas três asserções.
+    local targetInv = makeContainer("crate", 90) -- 6x15
     local items = {}
     for i = 1, 100 do
         items[i] = makeItem("t" .. i, sourceInv)
