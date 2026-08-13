@@ -12,6 +12,21 @@ require "ISUI/ISInventoryPaneContextMenu"
 require "DevTool/GridOverrides"
 
 local GridClientNetwork = require("Network/GridClientNetwork")
+local GridAdmin = require("System/GridAdmin")
+
+--- Gate do DevTool (fail-closed no CLIENTE).
+--- O servidor já rejeita REQ_OVERRIDES de não-admin, mas sem esse gate o
+--- override seria aplicado LOCALMENTE (applyOverrides + clearCaches) antes do
+--- servidor rejeitar — o não-admin veria o item ajustado na própria grid mesmo
+--- sem broadcast. Então o menu nem aparece e o save não aplica pra não-admin.
+--- SP (host): -debug ou sandbox option ligada. MP: SÓ admin.
+local function canUseDevTools(player)
+    if isClient() then
+        return GridAdmin.isAdmin(player or getPlayer())
+    end
+    local GridSandboxOptions = require("GridSandboxOptions")
+    return isDebugEnabled() or GridSandboxOptions.isDevToolsEnabled()
+end
 
 -----------------------------------------------------------------------------------------
 -- UI Panel
@@ -206,6 +221,13 @@ function GridDevToolUI:updateMaxButton()
 end
 
 function GridDevToolUI:onSave()
+    -- Fail-closed local: mesmo que alguém abra a UI por outro caminho, não
+    -- aplica override na própria grid se não puder usar o DevTool.
+    if not canUseDevTools(self.player) then
+        self:close()
+        return
+    end
+
     GridDevTool.applyOverrides(self.fullType, self.tempData.w, self.tempData.h,
         self.isContainer and self.tempData.cols or nil,
         self.isContainer and self.tempData.rows or nil,
@@ -319,13 +341,11 @@ end
 -----------------------------------------------------------------------------------------
 
 local function OnFillInventoryObjectContextMenu(player, context, items)
-    -- DevTool: aparece com o jogo iniciado em -debug OU com a Sandbox Option
-    -- "Ativar DevTools" ligada. No MP o SERVIDOR é fail-closed: rejeita aplicar
-    -- overrides de quem não é admin (GridServerNetwork.isAdmin) — então o menu
-    -- pode aparecer pra todos; o servidor decide na hora de salvar. No SP o
-    -- jogador é o dono e sempre pode.
-    local GridSandboxOptions = require("GridSandboxOptions")
-    if not (isDebugEnabled() or GridSandboxOptions.isDevToolsEnabled()) then return end
+    -- DevTool: só quem pode usar vê o menu. SP: -debug ou sandbox option.
+    -- MP: fail-closed no CLIENTE — o menu nem aparece pra não-admin (o servidor
+    -- também rejeita o envio, mas sem o gate local o override seria aplicado
+    -- na própria grid antes da rejeição).
+    if not canUseDevTools(player) then return end
 
     local testItem = items[1]
     if not testItem then return end
@@ -341,6 +361,7 @@ local function OnFillInventoryObjectContextMenu(player, context, items)
 
     local devOption = context:addOption("[DevTool] Edit Grid Size", nil, function()
         local ui = GridDevToolUI:new(getMouseX() + 20, getMouseY(), testItem)
+        ui.player = player
         ui:initialise()
         ui:addToUIManager()
     end)
