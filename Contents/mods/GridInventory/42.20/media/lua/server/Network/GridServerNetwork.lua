@@ -183,16 +183,34 @@ local function OnClientCommand(module, command, player, args)
     -- fonte da verdade — grava no modData do JOGADOR (persiste no save, por
     -- jogador) e broadcasta pros clientes. Sem isso, no MP o estado morria no
     -- cliente e ao relogar tudo precisava ser vasculhado de novo.
+    -- O estado é POR ITEM (itemId -> true, plano): mover um item revelado de
+    -- um container pra outro NÃO o esconde de novo. Formato antigo
+    -- (container -> {itens}) é migrado na primeira gravação.
     if command == GridProtocol.COMMANDS.REQ_SEARCH then
-        if args and args.containerKey and args.itemIds then
+        if args and args.itemIds then
             local md = player.getModData and player:getModData()
             if md then
                 local root = md["GridInventory_Searched"]
                 if not root then root = {} md["GridInventory_Searched"] = root end
-                local per = root[args.containerKey]
-                if not per then per = {} root[args.containerKey] = per end
+                -- Migra formato antigo (chave com valor tabela = containerKey).
+                local oldFormat = false
+                for _, v in pairs(root) do
+                    if type(v) == "table" then oldFormat = true break end
+                end
+                if oldFormat then
+                    local flat = {}
+                    for k, v in pairs(root) do
+                        if type(v) == "table" then
+                            for id in pairs(v) do flat[tostring(id)] = true end
+                        else
+                            flat[k] = true
+                        end
+                    end
+                    for k in pairs(root) do root[k] = nil end
+                    for id in pairs(flat) do root[id] = true end
+                end
                 for _, id in ipairs(args.itemIds) do
-                    per[tostring(id)] = true
+                    root[tostring(id)] = true
                 end
                 -- Broadcast (incluindo o autor — que ignora o eco local).
                 sendServerCommand(GridProtocol.MODULE, GridProtocol.COMMANDS.SYNC_SEARCH, {

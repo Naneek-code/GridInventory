@@ -218,6 +218,51 @@ do
         "pilha (mesma posição) conta como 1 [" .. GridInventory_Search.countHiddenStacks(0, key, container:getItems()) .. "]")
 end
 
+-- ─── Regressão: item revelado segue revelado em OUTRO container ─────────────
+-- O estado é POR ITEM (não por container): mover um item já vasculhado de um
+-- container de mundo pra outro NÃO pode escondê-lo de novo.
+do
+    local item = makeItem("m1")
+    local containerA = makeWorldContainer({ item }, 1)
+    local containerB = makeWorldContainer({ item }, 2)
+    local keyA = GridInventory_Search.containerKey(containerA)
+    local keyB = GridInventory_Search.containerKey(containerB)
+    H.ok(keyA ~= keyB, "containers diferentes têm chaves diferentes")
+
+    GridInventory_Search.markSearched(_players[0], keyA, "m1")
+    H.ok(GridInventory_Search.isSearched(0, keyA, "m1") == true, "revelado em A")
+    H.ok(GridInventory_Search.isSearched(0, keyB, "m1") == true,
+        "item revelado em A também é visto em B (persistência POR ITEM)")
+
+    -- e sobrevive a relogar (novo cache de sessão)
+    GridInventory_Search.sessions = {}
+    H.ok(GridInventory_Search.isSearched(0, keyB, "m1") == true,
+        "após reset de sessão, continua revelado em B (modData persistente)")
+
+    -- countHiddenStacks também respeita (B não re-esconde o item revelado em A)
+    H.ok(GridInventory_Search.countHiddenStacks(0, keyB, containerB:getItems()) == 0,
+        "B não conta o item revelado em A como pilha oculta")
+end
+
+-- ─── Migração do formato antigo (container -> {itens}) ──────────────────────
+do
+    -- simula save antigo: md["GridInventory_Searched"][containerKey][itemId] = true
+    local md = _players[0]:getModData()
+    local root = {}
+    root["obj:1_2_0:3:crate"] = { old1 = true, old2 = true }
+    md["GridInventory_Searched"] = root
+    GridInventory_Search.sessions = {}
+    H.ok(GridInventory_Search.isSearched(0, "qualquer", "old1") == true,
+        "migração: item do formato antigo (container->itens) vira plano")
+    H.ok(GridInventory_Search.isSearched(0, "qualquer", "old2") == true,
+        "migração: segundo item também migra")
+    H.ok(GridInventory_Search.isSearched(0, "qualquer", "inexistente") == false,
+        "migração: item não marcado segue oculto")
+    local flat = md["GridInventory_Searched"]
+    H.ok(flat["old1"] == true and flat["old2"] == true, "modData reescrito no formato plano")
+    H.ok(type(flat["obj:1_2_0:3:crate"]) ~= "table", "container antigo removido do modData")
+end
+
 -- ─── Auto-revela: item transferido pelo jogador ─────────────────────────────
 -- ISInventoryPane já foi mockado no topo (antes do require → hook instalado).
 do

@@ -4,18 +4,26 @@
 ---
 --- Estado POR JOGADOR e PERSISTENTE: cada jogador tem sua própria descoberta,
 --- guardada no player:getModData() (salvo pelo jogo, sobrevive a relogar). O
---- cache de sessão (GridInventory_Searched[playerNum]) é só pra leitura rápida
---- no render; o source da verdade é o modData do jogador.
+--- cache de sessão (GridInventory_Search.sessions[playerNum]) é só pra leitura
+--- rápida no render; o source da verdade é o modData do jogador.
+---
+--- Persistência POR ITEM (não por container): o jogador marca um ITEM como
+--- vasculhado, e essa marca o acompanha em QUALQUER container onde ele esteja.
+--- Mover um item já revelado de um container pra outro NÃO o esconde de novo —
+--- o jogador já sabe o que é. O formato antigo (container -> {itens}) é migrado
+--- automaticamente pro formato plano (itemId -> true) na primeira leitura.
 ---
 --- Chave de container: string estável (containerRef serializado) — o MESMO
---- container re-resolvido entre sessões mapeia pra mesma chave. Chão e
---- inventário do jogador nunca são ocultados.
+--- container re-resolvido entre sessões mapeia pra mesma chave. A chave ainda
+--- é usada pro "abri o container" (primeira abertura) e no protocolo de rede,
+--- mas NÃO para o estado de itens revelados. Chão e inventário do jogador
+--- nunca são ocultados.
 
 local GridProtocol = require("Network/GridProtocol")
 
 local GridInventory_Search = {}
 
--- Cache de sessão: GridInventory_Searched[playerNum][containerKey][itemId] = true
+-- Cache de sessão: GridInventory_Search.sessions[playerNum][itemId] = true
 GridInventory_Search.sessions = {}
 
 -- MODDATA keys (persistem no save do jogador)
@@ -59,30 +67,56 @@ function GridInventory_Search.containerKey(container, playerObj)
     return key
 end
 
---- Tabela de itens vasculhados de um jogador (modData persistente). Cria se faltar.
+--- Conjunto de itens vasculhados do jogador (modData persistente, FLAT).
+--- itemId -> true. Migra automaticamente o formato antigo
+--- (containerKey -> {itemId}) na primeira leitura, achando as sub-tabelas.
 ---@param playerObj IsoPlayer
----@param containerKey string
 ---@return table (string -> true)
-local function getPersistedTable(playerObj, containerKey)
+local function getPersistedSet(playerObj)
     local md = playerObj.getModData and playerObj:getModData()
     if not md then return {} end
     local root = md[MD_SEARCHED]
     if not root then root = {} md[MD_SEARCHED] = root end
-    local per = root[containerKey]
-    if not per then per = {} root[containerKey] = per end
-    return per
+
+    -- Detectar formato antigo (alguma chave com valor tabela = containerKey).
+    local oldFormat = false
+    for _, v in pairs(root) do
+        if type(v) == "table" then oldFormat = true break end
+    end
+    if not oldFormat then return root end
+
+    -- Achata [containerKey][itemId] em [itemId], preservando entradas planas
+    -- que já existirem (formato misto).
+    local flat = {}
+    for k, v in pairs(root) do
+        if type(v) == "table" then
+            for id in pairs(v) do flat[tostring(id)] = true end
+        else
+            flat[k] = true
+        end
+    end
+    -- Reescreve o modData no formato plano.
+    for k in pairs(root) do root[k] = nil end
+    for id in pairs(flat) do root[id] = true end
+    return root
 end
 
---- Cache de sessão de um jogador+container. Cria se faltar.
+--- Cache de sessão de um jogador (flat, itemId -> true). Cria se faltar e
+--- SEMEIA do modData persistente (relogar não perde o estado).
 ---@param playerNum number
----@param containerKey string
----@return table
-local function getSessionTable(playerNum, containerKey)
+---@return table (string -> true)
+local function getSessionSet(playerNum)
     local byPlayer = GridInventory_Search.sessions[playerNum]
-    if not byPlayer then byPlayer = {} GridInventory_Search.sessions[playerNum] = byPlayer end
-    local per = byPlayer[containerKey]
-    if not per then per = {} byPlayer[containerKey] = per end
-    return per
+    if not byPlayer then
+        byPlayer = {}
+        GridInventory_Search.sessions[playerNum] = byPlayer
+        local playerObj = getSpecificPlayer and getSpecificPlayer(playerNum)
+        if playerObj then
+            local persisted = getPersistedSet(playerObj)
+            for id in pairs(persisted) do byPlayer[id] = true end
+        end
+    end
+    return byPlayer
 end
 
 --- Verdadeiro se o jogador JÁ ABRIU o container alguma vez (persistente).
@@ -112,24 +146,25 @@ end
 --- Marca um ITEM como vasculhado (persistente + cache de sessão).
 --- No MP, envia pro servidor (server-mandatory): o servidor grava no modData
 --- do jogador e persiste no save — sem isso, relogar perdia tudo. No SP marca
---- direto no modData local.
+--- direto no modData local. O containerKey só é usado pra encaminhar ao
+--- servidor (protocolo); o estado em si é POR ITEM, vale em qualquer container.
 ---@param playerObj IsoPlayer
----@param containerKey string
+---@param containerKey string|nil
 ---@param itemId string|number
 function GridInventory_Search.markSearched(playerObj, containerKey, itemId)
-    if not playerObj or not containerKey or itemId == nil then return end
+    if not playerObj or itemId == nil then return end
     local pn = playerObj.getPlayerNum and playerObj:getPlayerNum() or 0
-    getSessionTable(pn, containerKey)[tostring(itemId)] = true
+    getSessionSet(pn)[tostring(itemId)] = true
 
     if isClient and isClient() then
         -- MP: servidor é a autoridade. Acumula num buffer (lote por frame) e
         -- envia — não grava no modData local (o eco do servidor aplica).
         GridInventory_Search._buffer = GridInventory_Search._buffer or {}
-        GridInventory_Search._buffer[containerKey] = GridInventory_Search._buffer[containerKey] or {}
-        GridInventory_Search._buffer[containerKey][tostring(itemId)] = true
+        GridInventory_Search._buffer[containerKey or "_"] = GridInventory_Search._buffer[containerKey or "_"] or {}
+        GridInventory_Search._buffer[containerKey or "_"][tostring(itemId)] = true
     else
         -- SP: modData local persiste direto.
-        getPersistedTable(playerObj, containerKey)[tostring(itemId)] = true
+        getPersistedSet(playerObj)[tostring(itemId)] = true
     end
 end
 
@@ -161,11 +196,11 @@ end
 --- Marca um item como vasculhado SÓ na sessão local (sem enviar ao servidor).
 --- Usado no eco do servidor (SYNC_SEARCH) — o servidor já persistiu.
 ---@param playerNum number
----@param containerKey string
+---@param containerKey string|nil
 ---@param itemId string|number
 function GridInventory_Search.markSearchedSession(playerNum, containerKey, itemId)
-    if containerKey == nil or itemId == nil then return end
-    getSessionTable(playerNum, containerKey)[tostring(itemId)] = true
+    if itemId == nil then return end
+    getSessionSet(playerNum)[tostring(itemId)] = true
 end
 
 --- Item NUNCA precisa ser vasculhado? Itens EQUIPADOS/vestidos (ex.: roupas em
@@ -181,23 +216,24 @@ function GridInventory_Search.isAlwaysRevealed(item)
 end
 
 --- Item vasculhado? (sessão, mais rápido). Fallback pro modData.
+--- O item fica revelado em QUALQUER container (conhecimento por item, não por
+--- container), então o containerKey não entra no estado.
 ---@param playerNum number
----@param containerKey string
+---@param containerKey string|nil
 ---@param itemId string|number
 ---@return boolean
 function GridInventory_Search.isSearched(playerNum, containerKey, itemId)
-    if not containerKey or itemId == nil then return true end
+    if itemId == nil then return true end
+    local sid = tostring(itemId)
     local byPlayer = GridInventory_Search.sessions[playerNum]
-    if byPlayer then
-        local per = byPlayer[containerKey]
-        if per and per[tostring(itemId)] then return true end
-    end
-    -- Fallback: o modData pode ter sido carregado depois do cache da sessão
+    if byPlayer and byPlayer[sid] then return true end
+    -- Fallback: o modData pode ter sido sincronizado (MP) depois do seed da
+    -- sessão; confere o persistido e cacheia.
     local playerObj = playerNum ~= nil and getSpecificPlayer(playerNum)
     if playerObj then
-        local persisted = getPersistedTable(playerObj, containerKey)
-        if persisted[tostring(itemId)] then
-            getSessionTable(playerNum, containerKey)[tostring(itemId)] = true
+        local persisted = getPersistedSet(playerObj)
+        if persisted[sid] then
+            getSessionSet(playerNum)[sid] = true
             return true
         end
     end
@@ -238,17 +274,8 @@ function GridInventory_Search.hasHiddenItems(playerNum, containerKey, items)
             -- Equipado/vestido (ex.: roupa em corpse): já visível, nunca oculta.
             if GridInventory_Search.isAlwaysRevealed(it) then
                 -- skip
-            else
-                local id = tostring(it:getID())
-                local byPlayer = GridInventory_Search.sessions[playerNum]
-                local per = byPlayer and byPlayer[containerKey]
-                if not (per and per[id]) then
-                    -- fallback modData
-                    local playerObj = playerNum ~= nil and getSpecificPlayer(playerNum)
-                    if playerObj and not getPersistedTable(playerObj, containerKey)[id] then
-                        return true
-                    end
-                end
+            elseif not GridInventory_Search.isSearched(playerNum, containerKey, it:getID()) then
+                return true
             end
         end
     end
@@ -317,6 +344,8 @@ end
 -- ============================================================================
 -- O que VOCÊ coloca num container nasce revelado (você sabe o que acabou de
 -- pôr). Só loot não identificado (que já estava lá na 1ª abertura) fica oculto.
+-- A marca é POR ITEM (vale em qualquer container), então o item colocado fica
+-- revelado pro jogador onde quer que ele vá.
 -- Intercepta o ISInventoryPane:transferItemsByWeight (cobre Take All / Transfer
 -- All / mover via menu e os caminhos do mod que chamam o pane). Quando o
 -- destino é um container de mundo e a origem é o inventário do jogador, marca
