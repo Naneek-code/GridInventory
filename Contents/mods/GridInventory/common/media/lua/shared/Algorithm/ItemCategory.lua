@@ -63,9 +63,19 @@ ItemCategory.colors = {
 -- Cache por fullType: a categoria é 100% determinada pelo tipo do item.
 local _categoryCache = {}
 
---- Limpa o cache (hot-reload no dev / se overrides de fullType mudarem).
+-- Caches dos degrades: o resultado depende SÓ de (fullType, heightPx) pro
+-- getGradient (a cor da categoria é fixa por tipo) e de heightPx pro
+-- getSubtleGradient. Antes cada chamada alocava ~12 sub-tabelas POR ITEM POR
+-- FRAME no render; agora o mesmo (tipo, altura) reutiliza a MESMA lista de
+-- faixas (read-only — o drawGradientBorder só lê).
+local _gradientCache = {}
+local _subtleGradientCache = {}
+
+--- Limpa os caches (hot-reload no dev / se overrides de fullType mudarem).
 function ItemCategory.clearCache()
     _categoryCache = {}
+    _gradientCache = {}
+    _subtleGradientCache = {}
 end
 
 --- Classifica o item numa categoria semântica.
@@ -194,6 +204,11 @@ end
 ---@param heightPx number altura total do footprint em pixels
 ---@return table lista de faixas
 function ItemCategory.getGradient(item, heightPx)
+    local fullType = item and item.getFullType and item:getFullType() or ""
+    local cacheKey = fullType .. "|" .. tostring(heightPx)
+    local cached = _gradientCache[cacheKey]
+    if cached then return cached end
+
     local catColor = ItemCategory.getColor(item)
     local neutral = ItemCategory.neutralColor
     local steps = ItemCategory.gradientSteps
@@ -207,6 +222,7 @@ function ItemCategory.getGradient(item, heightPx)
             bands[#bands + 1] = { y = yTop, h = yBot - yTop, r = r, g = g, b = b }
         end
     end
+    _gradientCache[cacheKey] = bands
     return bands
 end
 
@@ -220,6 +236,10 @@ ItemCategory.subtleNeutralColor = { r = 0.45, g = 0.45, b = 0.45 }
 ---@param heightPx number altura total do footprint em pixels
 ---@return table lista de faixas
 function ItemCategory.getSubtleGradient(heightPx)
+    local cacheKey = "s|" .. tostring(heightPx)
+    local cached = _subtleGradientCache[cacheKey]
+    if cached then return cached end
+
     local neutral = ItemCategory.neutralColor
     local target = ItemCategory.subtleNeutralColor
     local steps = ItemCategory.gradientSteps
@@ -233,6 +253,7 @@ function ItemCategory.getSubtleGradient(heightPx)
             bands[#bands + 1] = { y = yTop, h = yBot - yTop, r = r, g = g, b = b }
         end
     end
+    _subtleGradientCache[cacheKey] = bands
     return bands
 end
 

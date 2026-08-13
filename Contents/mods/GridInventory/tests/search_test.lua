@@ -6,9 +6,13 @@ local H = require("harness")
 H.setName("search_test")
 
 -- O GridInventory_Search mora em client/System (fora dos paths do harness).
+-- GRID_MOD_BASE (absoluto, exportado pelo run_tests.sh) resolve de QUALQUER cwd;
+-- o caminho relativo é o fallback pra rodar a suite direto da raiz do repo.
+local MOD_BASE = os.getenv("GRID_MOD_BASE")
+    or "Contents/mods/GridInventory"
 package.path = package.path
-    .. ";Contents/mods/GridInventory/42.20/media/lua/client/?.lua"
-    .. ";Contents/mods/GridInventory/42.20/media/lua/client/System/?.lua"
+    .. ";" .. MOD_BASE .. "/42.20/media/lua/client/?.lua"
+    .. ";" .. MOD_BASE .. "/42.20/media/lua/client/System/?.lua"
 
 -- ── Stubs do ambiente PZ ─────────────────────────────────────────────────────
 local _players = {}
@@ -194,14 +198,14 @@ do
     -- nenhum vasculhado → 2 pilhas ocultas (cada um com posição própria)
     itA:getModData().gridX, itA:getModData().gridY = 1, 1
     itB:getModData().gridX, itB:getModData().gridY = 1, 2
-    H.ok(GridInventory_Search.countHiddenStacks(0, key, container:getItems()) == 2,
+    H.ok(GridInventory_Search.countHiddenStacks(0, key, container) == 2,
         "2 pilhas ocultas inicialmente")
 
     -- revela tudo
     GridInventory_Search.revealAll(0, key, container:getItems())
     H.ok(GridInventory_Search.isSearched(0, key, "sA") == true and GridInventory_Search.isSearched(0, key, "sB") == true,
         "revealAll revela todos")
-    H.ok(GridInventory_Search.countHiddenStacks(0, key, container:getItems()) == 0,
+    H.ok(GridInventory_Search.countHiddenStacks(0, key, container) == 0,
         "0 pilhas ocultas após revealAll")
 end
 
@@ -214,8 +218,8 @@ do
     local key = GridInventory_Search.containerKey(container)
     it1:getModData().gridX, it1:getModData().gridY = 2, 2
     it2:getModData().gridX, it2:getModData().gridY = 2, 2 -- mesma posição = pilha
-    H.ok(GridInventory_Search.countHiddenStacks(0, key, container:getItems()) == 1,
-        "pilha (mesma posição) conta como 1 [" .. GridInventory_Search.countHiddenStacks(0, key, container:getItems()) .. "]")
+    H.ok(GridInventory_Search.countHiddenStacks(0, key, container) == 1,
+        "pilha (mesma posição) conta como 1 [" .. GridInventory_Search.countHiddenStacks(0, key, container) .. "]")
 end
 
 -- ─── Regressão: item revelado segue revelado em OUTRO container ─────────────
@@ -240,7 +244,7 @@ do
         "após reset de sessão, continua revelado em B (modData persistente)")
 
     -- countHiddenStacks também respeita (B não re-esconde o item revelado em A)
-    H.ok(GridInventory_Search.countHiddenStacks(0, keyB, containerB:getItems()) == 0,
+    H.ok(GridInventory_Search.countHiddenStacks(0, keyB, containerB) == 0,
         "B não conta o item revelado em A como pilha oculta")
 end
 
@@ -308,11 +312,48 @@ do
     local container = makeWorldContainer(items, 1)
     local key = GridInventory_Search.containerKey(container)
     GridInventory_Search.sessions = {}
-    H.ok(GridInventory_Search.hasHiddenItems(0, key, container:getItems()) == true,
+    H.ok(GridInventory_Search.hasHiddenItems(0, key, container) == true,
         "só o não-equipado conta como oculto (hasHiddenItems true)")
     GridInventory_Search.markSearched(_players[0], key, "neq1")
-    H.ok(GridInventory_Search.hasHiddenItems(0, key, container:getItems()) == false,
+    H.ok(GridInventory_Search.hasHiddenItems(0, key, container) == false,
         "equipado não conta: marcado o não-equipado -> nada oculto")
+end
+
+-- ─── Cache POR FRAME (render): beginFrame + isItemHidden ────────────────────
+do
+    local itA = makeItem("fcA")
+    local container = makeWorldContainer({ itA }, 1)
+    local key = GridInventory_Search.containerKey(container)
+    GridInventory_Search.sessions = {}
+    GridInventory_Search.beginFrame()
+
+    -- frame com item oculto: isItemHidden via cache bate com o scan
+    H.ok(GridInventory_Search.hasHiddenItems(0, key, container) == true,
+        "frame: item oculto detectado na varredura")
+    H.ok(GridInventory_Search.isItemHidden(0, key, "fcA", container) == true,
+        "frame: isItemHidden via cache")
+
+    -- revela no MESMO frame → _searchVersion invalida o cache na hora
+    GridInventory_Search.markSearched(_players[0], key, "fcA")
+    H.ok(GridInventory_Search.hasHiddenItems(0, key, container) == false,
+        "frame: revelação invalida o cache no mesmo frame")
+    H.ok(GridInventory_Search.isItemHidden(0, key, "fcA", container) == false,
+        "frame: item revelado deixa de ser oculto")
+
+    -- frame NOVO (beginFrame) recalcula: só o novo item conta como oculto
+    local container2 = makeWorldContainer({ itA, makeItem("fcB") }, 1)
+    local key2 = GridInventory_Search.containerKey(container2)
+    GridInventory_Search.beginFrame()
+    H.ok(GridInventory_Search.countHiddenStacks(0, key2, container2) == 1,
+        "frame novo: só o item novo é oculto (itens podem ter mudado)")
+
+    -- container DIFERENTE com a MESMA containerKey (mock reusa as props)
+    -- não colide no cache: o cache é escopado pelo objeto do container.
+    local container3 = makeWorldContainer({ makeItem("fcC") }, 1)
+    local key3 = GridInventory_Search.containerKey(container3)
+    H.ok(key3 == key2, "container mock com mesmas props tem a mesma chave")
+    H.ok(GridInventory_Search.countHiddenStacks(0, key3, container3) == 1,
+        "container diferente com a mesma chave não colide no cache")
 end
 
 H.finish()

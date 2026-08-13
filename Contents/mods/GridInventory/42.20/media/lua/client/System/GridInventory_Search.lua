@@ -30,6 +30,16 @@ GridInventory_Search.sessions = {}
 local MD_SEARCHED = "GridInventory_Searched"
 local MD_OPENED = "GridInventory_Opened"
 
+-- Memoização de containerKey: o cálculo (buildContainerRef → instanceof +
+-- scan dos objetos do square + concat de string) roda por frame no render
+-- (1x por grid + 1x por item). O resultado é ESTÁVEL pra vida do container
+-- (coords/objIndex/sprite do mundo são fixos; o id do container-de-item é
+-- fixo; o keyId de veículo é fixo) e o único ramo que varia por jogador
+-- (isInCharacterInventory → nil) é coberto pela chave por playerNum.
+-- Tabela com chaves FRACAS: container morto não vaza. O valor é { result }
+-- (tabela envoltória) pra distinguir "não computado" de "computado nil".
+local containerKeyCache = setmetatable({}, { __mode = "k" })
+
 --- Chave estável de um container (string). Retorna nil p/ containers que nunca
 --- são ocultados (chão, inventário do jogador).
 ---@param container ItemContainer
@@ -37,6 +47,26 @@ local MD_OPENED = "GridInventory_Opened"
 ---   dele (mochilas vestidas/equipadas/nas mãos) — esses NUNCA são vasculhados.
 ---@return string|nil
 function GridInventory_Search.containerKey(container, playerObj)
+    if not container then return nil end
+    local pIdx = (playerObj and playerObj.getPlayerNum and playerObj:getPlayerNum()) or -1
+    local perPlayer = containerKeyCache[container]
+    if not perPlayer then
+        perPlayer = {}
+        containerKeyCache[container] = perPlayer
+    end
+    local v = perPlayer[pIdx]
+    if v then return v[1] end
+
+    local result = GridInventory_Search._containerKeyUncached(container, playerObj)
+    perPlayer[pIdx] = { result }
+    return result
+end
+
+--- Cálculo sem cache (separado pra transparência/teste).
+---@param container ItemContainer
+---@param playerObj IsoPlayer|nil
+---@return string|nil
+function GridInventory_Search._containerKeyUncached(container, playerObj)
     if not container then return nil end
     -- Chão: nunca vasculha (virtual por jogador, sempre visível)
     if container.getType and container:getType() == "floor" then return nil end
@@ -119,6 +149,112 @@ local function getSessionSet(playerNum)
     return byPlayer
 end
 
+-- ============================================================================
+-- Caches de PERFORMANCE do render
+-- ============================================================================
+
+-- Cache POR FRAME das consultas de busca (render), ESCOPADO pelo container
+-- (chave fraca: container morto não vaza). O GridRender chama beginFrame() no
+-- update() de cada grid; dentro de um MESMO frame o estado (itens do container
+-- + revelações) não muda, então needsSearch/hasHiddenItems/countHiddenStacks/
+-- isItemHidden compartilham UMA varredura do container por frame, em vez de
+-- re-iterar os itens e re-checar cada um várias vezes. Escopar pelo OBJETO do
+-- container (mesmo padrão do GridContainer.instances) evita colisão de cache
+-- se dois containers chegarem a compartilhar a MESMA containerKey.
+-- _searchVersion é incrementado a cada revelação (markSearched/SYNC_SEARCH):
+-- invalida o cache na hora, sem esperar o próximo frame.
+local _frame = 0
+local _searchVersion = 0
+local _frameCache = setmetatable({}, { __mode = "k" }) -- [container] = { ["pn|containerKey"] = entry }
+
+--- Marca o início de um frame (chamado pelo update() de cada GridRender).
+--- Faz o cache daquele frame ser recalculado (os itens podem ter mudado).
+function GridInventory_Search.beginFrame()
+    _frame = _frame + 1
+end
+
+--- (Re)calcula o info de busca de (playerNum, containerKey, container) se o
+--- cache não estiver fresco pro frame atual; senão reusa. Retorna { hasAny,
+--- hiddenStacks, hiddenIds } — hiddenIds = itemId -> true dos itens AINDA
+--- ocultos. nil se containerKey é inválido (nunca oculta: chão/jogador).
+---@param playerNum number
+---@param containerKey string
+---@param container ItemContainer
+---@return table|nil
+local function getFrameInfo(playerNum, containerKey, container)
+    if not containerKey or not container then return nil end
+    local perPlayer = _frameCache[container]
+    if not perPlayer then
+        perPlayer = {}
+        _frameCache[container] = perPlayer
+    end
+    local cacheKey = tostring(playerNum or "") .. "|" .. containerKey
+    local entry = perPlayer[cacheKey]
+    if entry and entry.stamp == _frame and entry.version == _searchVersion then
+        return entry
+    end
+
+    local byPlayer = GridInventory_Search.sessions[playerNum]
+    if not byPlayer then
+        byPlayer = {}
+        GridInventory_Search.sessions[playerNum] = byPlayer
+    end
+    -- Persistido lido UMA vez por varredura (fallback do MP pós-join; a sessão
+    -- já foi semeada do mesmo modData no seed).
+    local persisted = nil
+    if getSpecificPlayer and playerNum ~= nil then
+        local playerObj = getSpecificPlayer(playerNum)
+        if playerObj then persisted = getPersistedSet(playerObj) end
+    end
+
+    local hiddenIds = {}
+    local counted = {} -- posKey -> true (dedupe de pilhas na contagem)
+    local hiddenStacks = 0
+    local hasAny = false
+    local items = container.getItems and container:getItems() or nil
+    if items then
+        for i = 0, items:size() - 1 do
+            local it = items:get(i)
+            if it and it.getID then
+                -- Equipado/vestido (ex.: roupa em corpse): já visível, nunca oculta.
+                if not GridInventory_Search.isAlwaysRevealed(it) then
+                    local sid = tostring(it:getID())
+                    local searched = byPlayer[sid]
+                    if not searched and persisted then
+                        searched = persisted[sid]
+                        if searched then byPlayer[sid] = true end
+                    end
+                    if not searched then
+                        hiddenIds[sid] = true
+                        hasAny = true
+                        -- Só conta o LÍDER da pilha: posições iguais = 1 pilha.
+                        local md = it.getModData and it:getModData() or nil
+                        if md and tonumber(md.gridX) then
+                            local posKey = tostring(md.gridX) .. "_" .. tostring(md.gridY) .. "_" .. tostring(md.gridRot or false)
+                            if not counted[posKey] then
+                                counted[posKey] = true
+                                hiddenStacks = hiddenStacks + 1
+                            end
+                        else
+                            hiddenStacks = hiddenStacks + 1
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    entry = {
+        stamp = _frame,
+        version = _searchVersion,
+        hasAny = hasAny,
+        hiddenStacks = hiddenStacks,
+        hiddenIds = hiddenIds,
+    }
+    perPlayer[cacheKey] = entry
+    return entry
+end
+
 --- Verdadeiro se o jogador JÁ ABRIU o container alguma vez (persistente).
 ---@param playerObj IsoPlayer
 ---@param containerKey string
@@ -155,6 +291,9 @@ function GridInventory_Search.markSearched(playerObj, containerKey, itemId)
     if not playerObj or itemId == nil then return end
     local pn = playerObj.getPlayerNum and playerObj:getPlayerNum() or 0
     getSessionSet(pn)[tostring(itemId)] = true
+    -- Invalida o cache de render na hora: a revelação muda o resultado das
+    -- consultas de busca IMEDIATAMENTE (sem esperar o próximo frame).
+    _searchVersion = _searchVersion + 1
 
     if isClient and isClient() then
         -- MP: servidor é a autoridade. Acumula num buffer (lote por frame) e
@@ -201,6 +340,7 @@ end
 function GridInventory_Search.markSearchedSession(playerNum, containerKey, itemId)
     if itemId == nil then return end
     getSessionSet(playerNum)[tostring(itemId)] = true
+    _searchVersion = _searchVersion + 1
 end
 
 --- Item NUNCA precisa ser vasculhado? Itens EQUIPADOS/vestidos (ex.: roupas em
@@ -264,22 +404,34 @@ end
 --- Se o container tem pelo menos um item ainda NÃO vasculhado.
 ---@param playerNum number
 ---@param containerKey string
----@param items table lista de itens nativos (getItems)
+---@param container ItemContainer
 ---@return boolean
-function GridInventory_Search.hasHiddenItems(playerNum, containerKey, items)
-    if not containerKey or not items then return false end
-    for i = 0, items:size() - 1 do
-        local it = items:get(i)
-        if it and it.getID then
-            -- Equipado/vestido (ex.: roupa em corpse): já visível, nunca oculta.
-            if GridInventory_Search.isAlwaysRevealed(it) then
-                -- skip
-            elseif not GridInventory_Search.isSearched(playerNum, containerKey, it:getID()) then
-                return true
-            end
+function GridInventory_Search.hasHiddenItems(playerNum, containerKey, container)
+    local info = getFrameInfo(playerNum, containerKey, container)
+    return info and info.hasAny or false
+end
+
+--- Item está OCULTO neste frame (render)? Usa o cache do frame (O(1)) quando
+--- disponível; senão cai no isSearched (lookup O(1) de sessão + fallback).
+--- Pré-condições do chamador (GridRender:isItemHidden): containerKey válido,
+--- busca ligada, item não equipado. Aqui é só "está no conjunto de ocultos?".
+---@param playerNum number
+---@param containerKey string
+---@param itemId string|number
+---@param container ItemContainer
+---@return boolean
+function GridInventory_Search.isItemHidden(playerNum, containerKey, itemId, container)
+    if itemId == nil then return false end
+    if not containerKey then return false end
+    local perPlayer = container and _frameCache[container]
+    if perPlayer then
+        local cacheKey = tostring(playerNum or "") .. "|" .. containerKey
+        local entry = perPlayer[cacheKey]
+        if entry and entry.stamp == _frame and entry.version == _searchVersion then
+            return not not entry.hiddenIds[tostring(itemId)]
         end
     end
-    return false
+    return not GridInventory_Search.isSearched(playerNum, containerKey, itemId)
 end
 
 --- Revela TODOS os itens do container (usado quando a busca é instantânea ou
@@ -305,38 +457,9 @@ end
 ---@param containerKey string
 ---@param items table lista de itens nativos
 ---@return number
-function GridInventory_Search.countHiddenStacks(playerNum, containerKey, items)
-    if not containerKey or not items then return 0 end
-    local counted = {}
-    local hidden = 0
-    for i = 0, items:size() - 1 do
-        local it = items:get(i)
-        if it and it.getID then
-            -- Equipado/vestido (roupa em corpse): nunca conta como oculto.
-            if GridInventory_Search.isAlwaysRevealed(it) then
-                -- skip
-            else
-                local id = tostring(it:getID())
-                if not GridInventory_Search.isSearched(playerNum, containerKey, id) then
-                    -- Só conta o LÍDER da pilha (o item que "guia" a célula).
-                    -- Pilhas: o líder é quem tem posição própria; membros têm a
-                    -- MESMA posição (x/y iguais). Contamos cada posição única.
-                    local md = it.getModData and it:getModData() or nil
-                    if md and tonumber(md.gridX) then
-                        local posKey = tostring(md.gridX) .. "_" .. tostring(md.gridY) .. "_" .. tostring(md.gridRot or false)
-                        if not counted[posKey] then
-                            counted[posKey] = true
-                            hidden = hidden + 1
-                        end
-                    else
-                        -- Sem posição salva (não posicionado ainda): conta individual.
-                        hidden = hidden + 1
-                    end
-                end
-            end
-        end
-    end
-    return hidden
+function GridInventory_Search.countHiddenStacks(playerNum, containerKey, container)
+    local info = getFrameInfo(playerNum, containerKey, container)
+    return info and info.hiddenStacks or 0
 end
 
 -- ============================================================================

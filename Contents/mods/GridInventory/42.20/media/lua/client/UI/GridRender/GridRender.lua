@@ -587,7 +587,7 @@ function GridRender:isItemHidden(itemObj)
     if not GridSandboxOptions.isSearchWorldContainers() then return false end
     local key = self:searchKey()
     if not key then return false end -- chão/inventário nunca ocultam
-    return not GridInventory_Search.isSearched(self.playerNum, key, itemObj:getID())
+    return GridInventory_Search.isItemHidden(self.playerNum, key, itemObj:getID(), self.inventoryContainer)
 end
 
 --- Container precisa ser vasculhado AGORA (tem pelo menos um item oculto)?
@@ -597,7 +597,7 @@ function GridRender:needsSearch()
     if not GridSandboxOptions.isSearchWorldContainers() then return false end
     local key = self:searchKey()
     if not key then return false end
-    return GridInventory_Search.hasHiddenItems(self.playerNum, key, self.inventoryContainer:getItems())
+    return GridInventory_Search.hasHiddenItems(self.playerNum, key, self.inventoryContainer)
 end
 
 --- Inicia (ou retoma) a busca do container: cria uma GridSearchAction com as
@@ -762,7 +762,7 @@ function GridRender:render()
         -- ── BUSCA (Tarkov): aviso "Vasculhar (X)" no header enquanto houver
         -- pilhas ocultas. Desenhado à esquerda do peso, em âmbar.
         if self:needsSearch() then
-            local hidden = GridInventory_Search.countHiddenStacks(self.playerNum, self:searchKey(), self.inventoryContainer:getItems())
+            local hidden = GridInventory_Search.countHiddenStacks(self.playerNum, self:searchKey(), self.inventoryContainer)
             local searchText = getText("IGUI_GridSearch") or "Search"
             if hidden and hidden > 0 then
                 searchText = searchText .. " (" .. tostring(hidden) .. ")"
@@ -801,8 +801,7 @@ function GridRender:render()
     if GridSandboxOptions.isSearchWorldContainers() and self.inventoryContainer then
         searchKey = GridInventory_Search.containerKey(self.inventoryContainer, playerObj)
         if searchKey then
-            local items = self.inventoryContainer:getItems()
-            searchPending = GridInventory_Search.hasHiddenItems(self.playerNum, searchKey, items)
+            searchPending = GridInventory_Search.hasHiddenItems(self.playerNum, searchKey, self.inventoryContainer)
         end
     end
 
@@ -2432,6 +2431,10 @@ function GridRender:updateTooltip()
 end
 
 function GridRender:update()
+    -- Marca o início do frame pro cache de busca (Tarkov): needsSearch /
+    -- isItemHidden / countHiddenStacks compartilham UMA varredura do container
+    -- por frame em vez de re-iterar os itens a cada consulta do render.
+    GridInventory_Search.beginFrame()
     ISPanel.update(self)
     self:updateTooltip()
 
