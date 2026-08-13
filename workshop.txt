@@ -1,6 +1,12 @@
 version=1
 id=3782313362
 title=[B42] GridInventory - Tarkov-Style Inventory System
+description=[quote]
+description=[h3]GRIDINVENTORY Tarkov-style inventory for Project Zomboid B42[/h3]
+description=
+description=A Tarkov-style inventory system for Project Zomboid B42
+description=Turn your cluttered vanilla inventory into a living, breathing tactical grid. Every item takes up real space with an intelligent footprint, color-coded by category, and containers work the way they should — organically, visually, satisfyingly.
+description=[/quote]
 description=[img]https://raw.githubusercontent.com/Naneek-code/GridInventory/refs/heads/main/1.png[/img]
 description=[img]https://raw.githubusercontent.com/Naneek-code/GridInventory/refs/heads/main/2.png[/img]
 description=[img]https://raw.githubusercontent.com/Naneek-code/GridInventory/refs/heads/main/3.png[/img]
