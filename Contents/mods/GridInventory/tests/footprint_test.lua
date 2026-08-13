@@ -332,6 +332,67 @@ do
 
     w, h = sz("Base.Mirror", 2.0, "Household")
     H.ok(w == 2 and h == 2, "Mirror -> 2x2 [(" .. w .. "x" .. h .. ")]")
+
+    -- Novos overrides nativos vindos do GridOverrides.ini do dev
+    w, h = sz("Base.EngineParts", 2.5, "VehicleMaintenance")
+    H.ok(w == 3 and h == 2, "EngineParts -> 3x2 [(" .. w .. "x" .. h .. ")]")
+
+    w, h = sz("Base.Doorknob", 0.4, "Junk")
+    H.ok(w == 1 and h == 2, "Doorknob -> 1x2 [(" .. w .. "x" .. h .. ")]")
+
+    w, h = sz("Base.HuntingKnife", 0.8, "Junk")
+    H.ok(w == 3 and h == 1, "HuntingKnife -> 3x1 [(" .. w .. "x" .. h .. ")]")
+
+    w, h = sz("Base.Boxers_Hearts", 0.5, "Clothing")
+    H.ok(w == 1 and h == 2, "Boxers_Hearts -> 1x2 [(" .. w .. "x" .. h .. ")]")
+
+    w, h = sz("Base.IDcard_Male", 0.1, "Memento")
+    H.ok(w == 1 and h == 1, "IDcard_Male -> 1x1 [(" .. w .. "x" .. h .. ")]")
+
+    -- Containers calibrados: footprint nativo w/h (o grid interno é testado
+    -- no bloco de GridContainer.getGridSize abaixo)
+    w, h = sz("Base.Toolbox", 2.5, "Tool")
+    H.ok(w == 3 and h == 2, "Toolbox -> 3x2 [(" .. w .. "x" .. h .. ")]")
+
+    w, h = sz("Base.Shoebox", 0.5, "Household")
+    H.ok(w == 2 and h == 1, "Shoebox -> 2x1 [(" .. w .. "x" .. h .. ")]")
+
+    w, h = sz("Base.Bag_FannyPackFront", 0.4, "Clothing")
+    H.ok(w == 2 and h == 1, "FannyPackFront -> 2x1 [(" .. w .. "x" .. h .. ")]")
+end
+
+-- ─── Grid interno nativo de containers (cols/rows do ItemFootprint.Overrides) ─
+do
+    local GridContainer = require("DataModel/GridContainer")
+    local function makeInvContainer(fullType, cap)
+        return {
+            getCapacity = function() return cap end,
+            getType = function() return "crate" end,
+            getParent = function() return nil end,
+            getContainingItem = function()
+                if not fullType then return nil end
+                return { getFullType = function() return fullType end }
+            end,
+        }
+    end
+
+    -- sem override nativo → fórmula por capacidade
+    local w, h = GridContainer.getGridSize(makeInvContainer(nil, 24))
+    H.ok(w == 6 and h == 8, "grid por capacidade (24 cap) -> 6x8 [" .. w .. "x" .. h .. "]")
+
+    -- override NATIVO substitui a fórmula: Toolbox 6x3, Shoebox 6x2
+    w, h = GridContainer.getGridSize(makeInvContainer("Base.Toolbox", 24))
+    H.ok(w == 6 and h == 3, "Toolbox grid nativo -> 6x3 [" .. w .. "x" .. h .. "]")
+
+    w, h = GridContainer.getGridSize(makeInvContainer("Base.Shoebox", 24))
+    H.ok(w == 6 and h == 2, "Shoebox grid nativo -> 6x2 [" .. w .. "x" .. h .. "]" )
+
+    -- GridDevTool ao vivo (GridOverrides.ini) TEM prioridade sobre o nativo
+    local savedDev = _G.GridDevTool
+    _G.GridDevTool = { Overrides = { ["Base.Toolbox"] = { cols = 4, rows = 4 } } }
+    w, h = GridContainer.getGridSize(makeInvContainer("Base.Toolbox", 24))
+    H.ok(w == 4 and h == 4, "GridDevTool prioriza sobre nativo -> 4x4 [" .. w .. "x" .. h .. "]")
+    _G.GridDevTool = savedDev
 end
 
 _G.instanceof = og_instanceof

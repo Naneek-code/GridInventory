@@ -44,11 +44,16 @@ function GridContainer.getGridSize(inventory)
         w, h = 4, 4
     end
 
-    -- Verifica Overrides do GridDevTool (nil no servidor → check é seguro)
+    -- Grid interno do container: o ajuste ao vivo do GridDevTool
+    -- (GridOverrides.ini) tem prioridade; o Overrides NATIVO do mod
+    -- (ItemFootprint.Overrides, quando o item define cols/rows) é o default
+    -- embutido — assim bags/toolboxes calibrados pelo dev funcionam igual pra
+    -- todo mundo sem depender do arquivo local.
     if inventory:getContainingItem() then
         local fullType = inventory:getContainingItem():getFullType()
-        if GridDevTool and GridDevTool.Overrides and GridDevTool.Overrides[fullType] then
-            local override = GridDevTool.Overrides[fullType]
+        local override = GridDevTool and GridDevTool.Overrides and GridDevTool.Overrides[fullType]
+            or ItemFootprint.Overrides[fullType]
+        if override then
             if override.cols then w = override.cols end
             if override.rows then h = override.rows end
         end
