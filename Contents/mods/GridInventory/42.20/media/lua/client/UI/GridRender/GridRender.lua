@@ -162,6 +162,7 @@ function GridRender:initialise()
         equipped = getTexture("media/ui/icon.png"),
         hotbar   = getTexture("media/ui/iconInHotbar.png"),
         favorite = getTexture("media/ui/FavoriteStar.png"),
+        nocraft  = getTexture("media/ui/inventoryPanes/nocraft.png"),
         read     = getTexture("media/ui/Tick_Mark-10.png"),
     }
 end
@@ -196,6 +197,12 @@ function GridRender:drawItemStatusIcons(item, drawX, drawY, playerObj, hotbar)
     -- Favorito
     if item.isFavorite and item:isFavorite() then
         table.insert(active, self.icons.favorite)
+    end
+
+    -- Inutilizável em receitas (b42): ícone do martelinho com X (mesmo da
+    -- opção do menu de contexto). Estado POR JOGADOR (isNoRecipes(playerObj)).
+    if item.isNoRecipes and playerObj and item:isNoRecipes(playerObj) then
+        table.insert(active, self.icons.nocraft)
     end
 
     -- Equipado
@@ -929,7 +936,16 @@ function GridRender:render()
                 -- pra dar contraste. Ícones de status também suprimidos (não
                 -- revelam info de item oculto).
                 local itemHidden = searchPending and self:isItemHidden(data.itemObj)
-                self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, itemHidden and 0 or 1, itemHidden and 0 or 1, itemHidden and 0 or 1, 1)
+                -- Unwanted (b42, por jogador): o vanilla escurece o nome da linha
+                -- do item; no grid o mesmo feedback vira o ÍCONE escurecido.
+                -- Busca oculta ganha (sprite 100% preto, não revela info).
+                local iconR, iconG, iconB, iconA = 1, 1, 1, 1
+                if itemHidden then
+                    iconR, iconG, iconB = 0, 0, 0
+                elseif playerObj and data.itemObj.isUnwanted and data.itemObj:isUnwanted(playerObj) then
+                    iconR, iconG, iconB, iconA = 0.55, 0.55, 0.55, 0.85
+                end
+                self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, iconR, iconG, iconB, iconA)
                 
                 -- ── Ícones de status (sistema flex) ─────────────────────────────────
                 if not itemHidden then
