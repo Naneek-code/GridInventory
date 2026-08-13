@@ -8,6 +8,10 @@ local GridRender = require("UI/GridRender/GridRender")
 local ItemFootprint = require("Algorithm/ItemFootprint")
 local GridModOptions = require("System/GridModOptions")
 
+-- Mesmo padding usado no ISInventoryPage_Hijack (barra de controles dentro do
+-- rodapé reservado do grid ativo). Mantido em 1px nos dois arquivos.
+local CONTROLS_PAD = 1
+
 -- ============================================================================
 -- A interceptação do ISHotbar foi movida para dentro do OnGameBoot
 -- para garantir que o ISHotbar nativo já foi instanciado.
@@ -157,6 +161,11 @@ Events.OnGameBoot.Add(function()
                 -- Passar yOffset aqui fazia a UI Java gravar um tamanho gigantesco no cache
                 local gridUi = GridRender:new(10, 0, gridCoreInstance, self.player, inv, i, cItem, cIcon)
                 gridUi:initialise()
+                -- Altura base (SEM o footer da controlsUI): usada pelo
+                -- gridInv_positionControlsUI pra ancorar a barra logo abaixo do
+                -- conteúdo. Capturada aqui (e não no update) pra nunca ficar nil
+                -- no primeiro frame após o rebuild.
+                gridUi.baseGridHeight = gridUi.height
                 -- Marca o grid do CHÃO (assinatura "floor") pra ele ser SEMPRE o
                 -- último painel no FlexBox (ver prerender).
                 gridUi.isFloor = GridContainer.containerSignature(inv) == "floor"
@@ -186,6 +195,7 @@ Events.OnGameBoot.Add(function()
                     local OverflowGridRender = require("UI/GridRender/OverflowGridRender")
                     local overflowUi = OverflowGridRender:new(10, 0, gridContainer.unpositioned, self.player, true, inv, cItem, cIcon)
                     overflowUi:initialise()
+                    overflowUi.baseGridHeight = overflowUi.height
                     overflowUi.isFloor = GridContainer.containerSignature(inv) == "floor"
                     
                     overflowUi.baseX = 10
@@ -212,6 +222,7 @@ Events.OnGameBoot.Add(function()
             local OverflowGridRender = require("UI/GridRender/OverflowGridRender")
             local overflowUi = OverflowGridRender:new(10, 0, allPlayerUnpositioned, self.player, false, self.inventory, nil, nil)
             overflowUi:initialise()
+            overflowUi.baseGridHeight = overflowUi.height
             overflowUi.isFloor = GridContainer.containerSignature(self.inventory) == "floor"
             
             overflowUi.baseX = self.width - overflowUi.width - 25
@@ -234,10 +245,72 @@ Events.OnGameBoot.Add(function()
         if self.vscroll then
             self.vscroll:bringToTop()
         end
+
+        -- HEIGHT FIX: o vanilla ISInventoryPage (update e refreshBackpacks)
+        -- desconta controlsUI.height da altura do PANE — reserva do rodapé
+        -- nativo onde os botões Take All viveriam. O mod moveu a barra pra
+        -- DENTRO do grid (gridInv_positionControlsUI), então esse desconto é
+        -- fantasma: faz o painel "respirar" (perder/ganhar altura) a cada troca
+        -- de container. Restauramos a altura cheia do pane AQUI, no fim do
+        -- refreshContainer (cobre os 2 caminhos: update via gridRefreshDirty e
+        -- refreshBackpacks/selectContainer), então o vanilla nunca deixa o pane
+        -- encolhido nem por 1 frame.
+        local page = self.inventoryPage
+        if page then
+            local resizeH = 0
+            if page.resizeWidget and page.resizeWidget.height then
+                resizeH = page.resizeWidget.height
+            end
+            local fullH = page.height - self.y - resizeH
+            if self.height ~= fullH then
+                self:setHeight(fullH)
+            end
+        end
     end
 
     -- 3. Limpamos a tela de lixo visual do Zomboid e atualizamos o scroll!
     local og_prerender = ISInventoryPane.prerender
+
+    -- Posiciona a controlsUI (Take All/Transfer All/objeto) no rodapé do grid
+    -- ATIVO usando os valores do FLEXBOX recém-calculados (baseX/baseY deste
+    -- mesmo frame). Chamado no fim do prerender — NÃO no update — pra a barra
+    -- seguir o grid no MESMO frame (sem lag de 1 frame quando o grid cresce
+    -- pro footer ou o flexbox quebra coluna). No update só reservamos a altura
+    -- do grid; o baseY que o flexbox lê já inclui o footer.
+    local function gridInv_positionControlsUI(pane)
+        local page = pane.inventoryPage
+        local controlsUI = page and page.controlsUI
+        if not controlsUI then return end
+        local gridUi = nil
+        if pane.gridContainerUis then
+            local activeInv = pane.inventory
+            for _, g in ipairs(pane.gridContainerUis) do
+                if not g.isOverflow and g.inventoryContainer == activeInv then
+                    gridUi = g
+                    break
+                end
+            end
+        end
+        local hasButtons = (gridUi and controlsUI.controls and #controlsUI.controls > 0)
+        if not hasButtons then
+            controlsUI:setVisible(false)
+            return
+        end
+        -- Usa baseX/baseY (flexbox) + baseGridHeight (altura SEM o footer):
+        -- posição exata dentro do rodapé reservado, no MESMO frame do layout.
+        local bx = gridUi.baseX or gridUi:getX()
+        local by = gridUi.baseY or gridUi:getY()
+        controlsUI:setX(bx + CONTROLS_PAD)
+        controlsUI:setY(by + (gridUi.baseGridHeight or gridUi:getHeight()) + CONTROLS_PAD)
+        controlsUI:setWidth(gridUi:getWidth() - (CONTROLS_PAD * 2))
+        controlsUI:setVisible(true)
+        local kids = pane:getChildrenInOrder()
+        local isTop = kids[#kids] == controlsUI
+        if not isTop then
+            controlsUI:bringToTop()
+        end
+    end
+
     function ISInventoryPane:prerender()
         -- Polling de Segurança de Alta Performance (Smart Hash)
         -- O Zomboid frequentemente falha em disparar OnContainerUpdate (ex: admin commands, 
@@ -418,7 +491,11 @@ Events.OnGameBoot.Add(function()
             gridUi:setY(gridUi.baseY)
             gridUi:setX(gridUi.baseX)
         end
-        
+
+        -- Posiciona a barra de controles (Take All/Transfer All/objeto) com os
+        -- baseY/baseX do flexbox DESTE frame (sem lag de 1 frame vs o grid).
+        gridInv_positionControlsUI(self)
+
         local finalHeight = curY + rowTallest + 30
         self.myFinalHeight = finalHeight
         if finalHeight ~= self:getScrollHeight() then

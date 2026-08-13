@@ -246,12 +246,25 @@ function ISInventoryPage:update()
     -- scroll acompanhar a grid, e re-adicionar como ÚLTIMO filho do pane garante
     -- que renderiza por cima das grids. Sem grid/botões, a barra simplesmente some
     -- e o grid ativo volta à altura normal.
+    --
+    -- FLICKER FIX (timing): o flexbox do ISInventoryPane:prerender reposiciona
+    -- os grids TODO frame (baseY) — e o controlsUI precisa seguir ESSE mesmo
+    -- valor no MESMO frame. Posicionar no update (como antes) usava o getY() do
+    -- frame ANTERIOR: quando o grid crescia pro footer ou o flexbox quebrava
+    -- coluna, a barra ficava 1 frame ancorada no Y velho e "pulava" pro lugar
+    -- certo no frame seguinte = a flickada do loot. Por isso o posicionamento
+    -- foi movido pro prerender do pane (gridInv_positionControlsUI), usando o
+    -- baseY/baseX recém-calculados. Aqui no update só garantimos o re-parent
+    -- e a reserva de altura do grid (que o flexbox lê no mesmo frame).
     if self.controlsUI and self.inventoryPane then
         self.controlsUI:setAnchors(false)
         -- Re-parenta pro pane (uma vez; addChild já desanexa da página)
         if self.controlsUI.parent ~= self.inventoryPane then
             self.inventoryPane:addChild(self.controlsUI)
         end
+        -- Reserva o rodapé no grid ativo; restaura a altura dos demais grids.
+        -- (O posicionamento em si acontece no prerender do pane, depois do
+        -- flexbox calcular os baseY — gridInv_positionControlsUI.)
         local gridUi = nil
         if self.inventoryPane.gridContainerUis then
             local activeInv = self.inventoryPane.inventory
@@ -263,7 +276,6 @@ function ISInventoryPage:update()
             end
         end
         local hasButtons = (gridUi and self.controlsUI.controls and #self.controlsUI.controls > 0)
-        -- Reserva o rodapé no grid ativo; restaura a altura dos demais grids
         local footerH = 0
         if hasButtons then
             footerH = math.max(24, (self.controlsUI:getHeight() or 0) + (CONTROLS_PAD * 2))
@@ -284,17 +296,7 @@ function ISInventoryPage:update()
                 end
             end
         end
-        if hasButtons then
-            -- Posiciona a barra dentro do rodapé reservado da grid ativa, com
-            -- um pequeno padding pra não ficar grudada nas extremidades.
-            self.controlsUI:setX(gridUi:getX() + CONTROLS_PAD)
-            self.controlsUI:setY(gridUi:getY() + gridUi.baseGridHeight + CONTROLS_PAD)
-            self.controlsUI:setWidth(gridUi:getWidth() - (CONTROLS_PAD * 2))
-            self.controlsUI:setVisible(true)
-            -- Último filho do pane → renderiza por cima das grids
-            self.inventoryPane:removeChild(self.controlsUI)
-            self.inventoryPane:addChild(self.controlsUI)
-        else
+        if not hasButtons then
             self.controlsUI:setVisible(false)
         end
         -- Devolve pro pane a altura que a barra ocupava no rodapé
@@ -375,6 +377,22 @@ local function gridInv_compactControls(controlsUI)
             c:setX(prevLeft - c:getWidth() - 1)
             prevLeft = c:getX()
         end
+        -- Margem entre o grupo ESQUERDO e o grupo DIREITO (mesma linha): o
+        -- vanilla usa UI_MARGIN=5 entre todos os botões. Como compactamos cada
+        -- grupo com gap 1px, o vão entre os dois grupos também deve ser 1px —
+        -- senão sobra um "buraco" de 5px exatamente entre os botões
+        -- "Transfer to displayed" e "Transfer to nearby".
+        local lastLeft = nil
+        for i = rightStart - 1, 1, -1 do
+            local c = controls[i]
+            if c:getY() == controls[rightStart]:getY() then
+                lastLeft = c
+                break
+            end
+        end
+        if lastLeft then
+            controls[rightStart]:setX(lastLeft:getRight() + 1)
+        end
     end
 end
 
@@ -385,19 +403,57 @@ end
 -- ATENÇÃO: este override TEM que ficar em nível de módulo (fora do update)!
 -- Se ficar dentro do update, ele re-captura `arrange` e re-embrulha a função a
 -- cada frame → recursão infinita → stack overflow (crash da UI inteira).
+--
+-- FLICKER FIX (mesmo do painel do jogador): o vanilla `arrange()` remove TODOS
+-- os controles e re-adiciona A CADA FRAME. Aqui calculamos a assinatura dos
+-- handlers VISÍVEIS (objeto + floor) e só fazemos o rebuild vanilla quando ela
+-- muda — caso contrário os botões ficam na árvore e só re-compatamos o layout.
 GridInventory_ControlsArrangeInstalled = GridInventory_ControlsArrangeInstalled or false
 if not GridInventory_ControlsArrangeInstalled and ISLootWindowContainerControls then
     GridInventory_ControlsArrangeInstalled = true
     local og_lootControlsArrange = ISLootWindowContainerControls.arrange
+
+    -- Retorna os handlers visíveis (objeto OU floor, igual ao vanilla).
+    local function lootVisibleHandlers(self)
+        local container = self:getDisplayedContainer()
+        local object = self:getDisplayedObject()
+        local out = {}
+        if object then
+            for _, handlerClass in ipairs(ISLootWindowContainerControls_HandlerList) do
+                local handler = self:checkHandler(handlerClass, object, container)
+                if handler:shouldBeVisible() then
+                    table.insert(out, handler)
+                end
+            end
+        elseif container and container:getType() == "floor" then
+            for _, handlerClass in ipairs(ISLootWindowContainerControls_FloorHandlerList) do
+                local handler = self:checkHandler(handlerClass, nil, container)
+                if handler:shouldBeVisible() then
+                    table.insert(out, handler)
+                end
+            end
+        end
+        return out
+    end
+
     function ISLootWindowContainerControls:arrange()
+        local desired = lootVisibleHandlers(self)
+        -- Assinatura SÓ dos handlers visíveis (NÃO inclui o width): o width é
+        -- re-sincronizado todo frame (grid ativa) e não muda o CONJUNTO de
+        -- botões — incluir ele na assinatura fazia o rebuild rodar 2x seguidas
+        -- (sig salvo com width antigo, sig novo com width syncado) e o vanilla
+        -- arrange derrubava/recriava os botões a cada vez → flicker no loot.
+        local sig = ""
+        for i, h in ipairs(desired) do
+            sig = sig .. tostring(h)
+            if i < #desired then sig = sig .. ";" end
+        end
+        -- Sincroniza a largura da controlsUI com a grid ativa ANTES de decidir
+        -- rebuild ou não (os botões displayToRight ancoram na largura atual).
         local lootWin = self.lootWindow
         local pane = lootWin and lootWin.inventoryPane
         local savedWidth = pane and pane.width
         if pane then
-            -- Sincroniza a largura da controlsUI com a grid ativa ANTES do
-            -- vanilla posicionar os botões: evita o flicker onde o Turn On/
-            -- Settings nasce ancorado no canto direito (largura do pane) e é
-            -- puxado pra dentro da grid no frame seguinte.
             if pane.gridContainerUis then
                 local activeInv = pane.inventory
                 for _, g in ipairs(pane.gridContainerUis) do
@@ -412,7 +468,29 @@ if not GridInventory_ControlsArrangeInstalled and ISLootWindowContainerControls 
             end
             pane.width = self.width
         end
+        if self._gridInvArrSig == sig then
+            -- Nada mudou: mantém os controles na árvore e só re-flui o layout
+            -- (com a largura já sincronizada acima).
+            gridInv_compactControls(self)
+            if pane then pane.width = savedWidth end
+            return
+        end
+        self._gridInvArrSig = sig
+        -- REPOSITION FIX (loot): o vanilla arrange() ancora a controlsUI no
+        -- rodapé do PANE — setX(0), setY(resizeWidget.y - height) e
+        -- setWidth(lootWindow:getWidth()) (largura do painel inteiro). No loot
+        -- o mod re-parenta a barra pra dentro da grid e controla X/Y/Width no
+        -- update. Deixar o vanilla setar isso aqui jogava a barra pro canto
+        -- errado por alguns frames a cada troca de container (o "pulo" do loot).
+        -- Salvamos X/Y/Width ANTES e restauramos DEPOIS do vanilla: ele só
+        -- serve pra (re)montar os botões, o posicionamento é 100% nosso.
+        local savedX = self.x
+        local savedY = self.y
+        local savedW = self.width
         og_lootControlsArrange(self)
+        if self.x ~= savedX then self:setX(savedX) end
+        if self.y ~= savedY then self:setY(savedY) end
+        if self.width ~= savedW then self:setWidth(savedW) end
         if pane then
             pane.width = savedWidth
         end
@@ -423,12 +501,68 @@ end
 
 -- Mesma compactação (1px) para a controlsUI do PAINEL DO JOGADOR
 -- (ISInventoryWindowContainerControls: Take All/Transfer All/etc.).
+--
+-- FLICKER FIX: o vanilla `arrange()` remove TODOS os controles (setVisible
+-- false + removeChild) e re-adiciona, e isso roda A CADA FRAME (chamado do
+-- ISInventoryPage:update). Com o re-parent da controlsUI no pane, cada frame
+-- a árvore Java dos botões é derrubada e reconstruída → flicker dos botões.
+-- Aqui calculamos a "assinatura" dos handlers VISÍVEIS: se nada mudou, pulamos
+-- o rebuild inteiro (os controles continuam na árvore, só re-compatamos o
+-- layout). Só quando um botão aparece/some (ex.: container esvaziou, trocou
+-- de bag) fazemos o rebuild vanilla.
 GridInventory_InvControlsArrangeInstalled = GridInventory_InvControlsArrangeInstalled or false
 if not GridInventory_InvControlsArrangeInstalled and ISInventoryWindowContainerControls then
     GridInventory_InvControlsArrangeInstalled = true
     local og_invControlsArrange = ISInventoryWindowContainerControls.arrange
+
+    -- Retorna os handlers que deveriam ficar visíveis (na ordem do HandlerList).
+    local function invVisibleHandlers(self)
+        local container = self:getDisplayedContainer()
+        local lootWindow = getPlayerLoot(self.inventoryWindow.player)
+        if not lootWindow or not lootWindow.inventoryPane.inventory then
+            container = nil
+        end
+        local out = {}
+        if container ~= nil then
+            for _, handlerClass in ipairs(ISInventoryWindowContainerControls_HandlerList) do
+                local handler = self:checkHandler(handlerClass, container)
+                if handler:shouldBeVisible() then
+                    table.insert(out, handler)
+                end
+            end
+        end
+        return out
+    end
+
     function ISInventoryWindowContainerControls:arrange()
+        local desired = invVisibleHandlers(self)
+        -- Assinatura SÓ dos handlers visíveis (NÃO inclui o width): o width da
+        -- controlsUI é controlado pelo update do mod e não muda o conjunto de
+        -- botões — incluir ele na assinatura causava rebuild duplo (sig salvo
+        -- com width antigo, sig novo com width syncado) = flicker.
+        local sig = ""
+        for i, h in ipairs(desired) do
+            sig = sig .. tostring(h)
+            if i < #desired then sig = sig .. ";" end
+        end
+        if self._gridInvArrSig == sig then
+            -- Nada mudou: mantém os controles na árvore e só re-flui o layout.
+            gridInv_compactControls(self)
+            return
+        end
+        self._gridInvArrSig = sig
+        -- REPOSITION FIX (mesmo do loot): o vanilla arrange ancora a controlsUI
+        -- no rodapé do painel (setX(0)/setY(resizeWidget.y - height)/
+        -- setWidth(inventoryWindow:getWidth())). O mod controla X/Y/Width no
+        -- update (barra dentro da grid ativa). Restauramos pra evitar o pulo
+        -- quando o sig muda (ex.: troca de container no inv também).
+        local savedX = self.x
+        local savedY = self.y
+        local savedW = self.width
         og_invControlsArrange(self)
+        if self.x ~= savedX then self:setX(savedX) end
+        if self.y ~= savedY then self:setY(savedY) end
+        if self.width ~= savedW then self:setWidth(savedW) end
         gridInv_compactControls(self)
     end
 end
@@ -440,7 +574,15 @@ end
 -- largura = proporção do ícone) com tooltip mantendo o rótulo. Overrides em
 -- nível de módulo = executados UMA vez no load, sem closure/wrapper (idempotente).
 -- Se a textura não carregar (ex.: caminho errado), cai de volta pro texto.
+-- O botão é configurado UMA vez por handler (cache `handler._gridInvIcon`):
+-- o vanilla arrange() chama getControl() a cada rebuild, e o
+-- getImageButtonControl re-set image/forceImageSize/width/height em cada
+-- chamada — churn desnecessário que contribui pro flicker.
 local function GridInventory_iconButtonControl(handler, imagePath, tooltipText)
+    if handler._gridInvIconDone then
+        return handler.control
+    end
+    handler._gridInvIconDone = true
     if getTexture(imagePath) == nil then
         handler.control = handler:getButtonControl(tooltipText)
     else
@@ -798,3 +940,45 @@ end
 -- flexbox (sem reimplementar o layout aqui, que ficava inconsistente com o
 -- prerender). O selectContainer vanilla (chamado abaixo) já muda o
 -- inventoryPane.inventory, e o prerender detecta a troca no próximo frame.
+
+-- TROCA DE CONTAINER = REFRESH IMEDIATO DAS GRIDS:
+-- O selectContainer vanilla muda inventoryPane.inventory na hora, mas o mod
+-- só reconstrói os gridContainerUis quando gridRefreshDirty é setado (via
+-- onInventoryUpdate/OnContainerUpdate/polling de 300ms). No loot, isso deixava
+-- o controlsUI:arrange() rodando com o container NOVO mas as grids do ANTIGO
+-- por vários frames: o width sync não achava a grid ativa e os botões
+-- (Take All/Move To Floor) pulavam pra posição errada até o refresh nascer.
+-- Interceptamos o selectContainer pra marcar o refresh imediatamente, então as
+-- grids certas existem já no frame seguinte ao clique.
+local og_pageSelectContainer = ISInventoryPage.selectContainer
+function ISInventoryPage:selectContainer(button)
+    og_pageSelectContainer(self, button)
+    if self.inventoryPane and self.inventoryPane.gridRefreshDirty ~= nil then
+        self.inventoryPane.gridRefreshDirty = true
+    end
+end
+
+local og_pageSetNewContainer = ISInventoryPage.setNewContainer
+function ISInventoryPage:setNewContainer(inventory)
+    og_pageSetNewContainer(self, inventory)
+    if self.inventoryPane and self.inventoryPane.gridRefreshDirty ~= nil then
+        self.inventoryPane.gridRefreshDirty = true
+    end
+end
+
+-- HEIGHT FIX (respirar do painel): o vanilla refreshBackpacks termina com
+-- inventoryPane:setHeight(... - controlsUI.height) (linha 1896 do vanilla) —
+-- desconto fantasma da barra de Take All que o mod moveu pra dentro do grid.
+-- Isso encolhia o pane (e a coluna de bolsas acompanha) por 1 frame a cada
+-- troca de container. Restauramos a altura cheia logo após o vanilla.
+local og_pageRefreshBackpacks = ISInventoryPage.refreshBackpacks
+function ISInventoryPage:refreshBackpacks()
+    og_pageRefreshBackpacks(self)
+    if self.inventoryPane and self.resizeWidget then
+        local resizeH = self.resizeWidget.height or 0
+        local fullH = self.height - self.inventoryPane.y - resizeH
+        if self.inventoryPane.height ~= fullH then
+            self.inventoryPane:setHeight(fullH)
+        end
+    end
+end
