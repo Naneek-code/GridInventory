@@ -368,6 +368,145 @@ function GridContainer:_isItemValidForGrid(item)
     return true
 end
 
+--- CONSOLIDA pilhas virtuais dentro de um grid: junta pilhas COMPATÍVEIS
+--- (mesmo compatKey + mesmo retângulo) que estejam abaixo do limite numa única
+--- célula (ex.: 5×20 pregos → 1 pilha de 100, 5×10 munição → 50). O engine
+--- cria/limita cada objeto de pilha (20 pregos, 10 munição) e NÃO funde além
+--- disso; aqui o grid absorve as pilhas sub-cheias umas nas outras até o
+--- maxStack do item (mesma ideia do Twine, que já consolida ao chegar).
+--- Regras de segurança:
+---   - itens em trânsito (GridInventory_InTransit), em drag ativo
+---     (GridInventory_GlobalDrag) ou com ghost pendente NUNCA são movidos;
+---   - itens com posição MANUAL (gridManual=true — jogador soltou/peelou) são
+---     preservados: nunca são MOVIDOS (mas podem ser alvo que absorve);
+---   - pilha só é absorvida INTEIRA (all-or-nothing, nunca divide);
+---   - chão: layout determinístico e sem persistência (modData não é gravado);
+---   - MP: para membros movidos, envia REQUEST_MOVE pro servidor
+---     (server-mandatory) — mantém a occupancy autoritativa do servidor
+---     consistente com a visão consolidada do cliente.
+---@param grid GridCoreInstance
+---@param containerSig string assinatura do container (valida a posição salva)
+---@param isFloor boolean true no chão (não persiste nem sincroniza)
+function GridContainer:_consolidateStacks(grid, containerSig, isFloor)
+    -- Bloqueados: em trânsito, em drag ativo ou com ghost pendente.
+    local blocked = {}
+    if GridInventory_InTransit then
+        for id in pairs(GridInventory_InTransit) do
+            blocked[id] = true
+        end
+    end
+    if GridInventory_GlobalDrag and GridInventory_GlobalDrag.itemsData then
+        for _, d in ipairs(GridInventory_GlobalDrag.itemsData) do
+            if d and d.id then blocked[d.id] = true end
+        end
+    end
+    for gId in pairs(grid.ghostItems) do
+        blocked[gId] = true
+    end
+
+    -- "Manual" = o jogador definiu a célula (gridManual no modData). Itens
+    -- manuais nunca são movidos; podem ser alvo que absorve pilhas automáticas.
+    local function isManual(id)
+        local d = grid.items[id]
+        local obj = d and d.itemObj
+        if not obj then return true end
+        local md = obj.getModData and obj:getModData()
+        return md and md.gridManual or false
+    end
+
+    -- Pilha não pode ser absorvida se o líder OU qualquer membro estiver
+    -- bloqueado (em trânsito / drag / ghost) ou for manual. Protege o item
+    -- recém-soltado que ainda está no ciclo de vida do InTransit.
+    local function pileBlockedOrManual(candId)
+        if blocked[candId] or isManual(candId) then return true end
+        local st = grid.stacks[candId]
+        if st and st.members then
+            for mId in pairs(st.members) do
+                if blocked[mId] or isManual(mId) then return true end
+            end
+        end
+        return false
+    end
+
+    for y = 1, grid.height do
+        for x = 1, grid.width do
+            local leaderId = grid.cells[x][y]
+            if leaderId and not blocked[leaderId] then
+                local ld = grid.items[leaderId]
+                if ld and not ld.stackMemberOf and ld.compatKey then
+                    local limit = ld.stackInfo and ld.stackInfo.limit
+                    if limit and grid:getPileUnits(leaderId) < limit then
+                        -- Merge por CLUSTER: absorve só pilhas compatíveis
+                        -- CONECTADAS (adjacência Chebyshev ≤ 1) ao cluster já
+                        -- absorvido. O engine separa 100 pregos em sub-pilhas
+                        -- de 20 em células consecutivas — o BFS reúne o run.
+                        -- Pilhas do mesmo tipo em células distantes são
+                        -- posicionamentos deliberados e ficam onde estão.
+                        local clusterQueue = { { x = x, y = y } }
+                        local clusterSeen = { [y .. ":" .. x] = true }
+                        local qIdx = 1
+                        while qIdx <= #clusterQueue do
+                            local c = clusterQueue[qIdx]
+                            qIdx = qIdx + 1
+                            for ny = math.max(1, c.y - 1), math.min(grid.height, c.y + 1) do
+                                for nx = math.max(1, c.x - 1), math.min(grid.width, c.x + 1) do
+                                    if nx ~= c.x or ny ~= c.y then
+                                        local candId = grid.cells[nx][ny]
+                                        if candId and candId ~= leaderId
+                                            and not pileBlockedOrManual(candId)
+                                            and not clusterSeen[ny .. ":" .. nx] then
+                                            local cd = grid.items[candId]
+                                            if cd and not cd.stackMemberOf
+                                                and cd.compatKey == ld.compatKey
+                                                and cd.x == nx and cd.y == ny
+                                                and cd.w == ld.w and cd.h == ld.h
+                                                and (cd.rotated or false) == (ld.rotated or false)
+                                                and not isManual(candId) then
+                                                local candUnits = grid:getPileUnits(candId)
+                                                if candUnits > 0
+                                                    and grid:getPileUnits(leaderId) + candUnits <= limit then
+                                                    local movedIds = grid:relocatePile(candId, leaderId)
+                                                    if movedIds then
+                                                        -- Atualiza a posição salva dos membros movidos
+                                                        -- (célula do líder). Fora do chão persiste e,
+                                                        -- no MP, sincroniza com o servidor.
+                                                        for _, id in ipairs(movedIds) do
+                                                            local d = grid.items[id]
+                                                            local obj = d and d.itemObj
+                                                            if obj and obj.getModData then
+                                                                local md = obj:getModData()
+                                                                if md then
+                                                                    md.gridX = ld.x
+                                                                    md.gridY = ld.y
+                                                                    md.gridRot = ld.rotated or false
+                                                                    md.gridContainer = containerSig
+                                                                    if not isFloor and GridClientNetwork
+                                                                        and GridClientNetwork.sendItemMove then
+                                                                        GridClientNetwork.sendItemMove(
+                                                                            self.inventory, id,
+                                                                            md.gridX, md.gridY,
+                                                                            md.gridRot, containerSig)
+                                                                    end
+                                                                end
+                                                            end
+                                                        end
+                                                        clusterSeen[ny .. ":" .. nx] = true
+                                                        table.insert(clusterQueue, { x = nx, y = ny })
+                                                    end
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
 --- Tenta organizar todos os itens do container físico dentro da malha matemática.
 function GridContainer:refresh()
     local hotbar = getPlayerHotbar(self.playerNum)
@@ -610,6 +749,52 @@ function GridContainer:refresh()
                 table.insert(unpositioned, item)
             end
         end
+    end
+
+    -- CONSOLIDAÇÃO de pilhas virtuais: junta pilhas do mesmo item abaixo do
+    -- limite numa única célula (ex.: 5×20 pregos → 100, 5×10 9mm → 50). Roda
+    -- por grid, depois de tudo posicionado (usa o layout final como base).
+    for _, g in ipairs(self.grids) do
+        self:_consolidateStacks(g, containerSig, isFloor)
+    end
+
+    -- Retry de unpositioned: a consolidação liberou células — itens que antes
+    -- não couberam podem caber agora (evita overflow fantasma até o próximo
+    -- refresh). Auto-fit simples (sem scatter: loot novo não é re-sorteado).
+    if #unpositioned > 0 then
+        local stillUnpos = {}
+        for _, item in ipairs(unpositioned) do
+            local w, h = ItemFootprint.getSize(item)
+            local compatKey, stackInfo = GridContainer.getStackInfo(item)
+            local placedHere = false
+            for gridIdx = 1, #self.grids do
+                local grid = self.grids[gridIdx]
+                local fx, fy = grid:findFreeSpace(item:getID(), w, h, compatKey, stackInfo, false)
+                local didRotate = false
+                if not fx then
+                    fx, fy = grid:findFreeSpace(item:getID(), h, w, compatKey, stackInfo, true)
+                    didRotate = true
+                end
+                if fx and fy then
+                    local finalW = didRotate and h or w
+                    local finalH = didRotate and w or h
+                    grid:insertItem(item:getID(), fx, fy, finalW, finalH, didRotate, item, compatKey, stackInfo)
+                    if not isFloor then
+                        local md = item:getModData()
+                        md.gridX = fx
+                        md.gridY = fy
+                        md.gridRot = didRotate
+                        md.gridContainer = containerSig
+                    end
+                    placedHere = true
+                    break
+                end
+            end
+            if not placedHere then
+                table.insert(stillUnpos, item)
+            end
+        end
+        unpositioned = stillUnpos
     end
 
     self.unpositioned = unpositioned

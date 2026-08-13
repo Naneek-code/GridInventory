@@ -114,6 +114,11 @@ local function processMove(player, args)
     if args.gridContainer ~= nil then
         md.gridContainer = args.gridContainer
     end
+    -- Posição MANUAL (jogador escolheu a célula): a consolidação de pilhas do
+    -- cliente nunca move itens manuais — persiste no modData (server-mandatory).
+    if args.manual ~= nil then
+        md.gridManual = args.manual and true or nil
+    end
 
     -- Broadcast pros clientes (incluindo o autor — que ignora o eco).
     sendServerCommand(GridProtocol.MODULE, GridProtocol.COMMANDS.SYNC_ITEM, {
@@ -122,6 +127,7 @@ local function processMove(player, args)
         y = y,
         rotated = rotated,
         gridContainer = md.gridContainer,
+        manual = md.gridManual,
         sender = player:getUsername(),
     })
     return "ok"

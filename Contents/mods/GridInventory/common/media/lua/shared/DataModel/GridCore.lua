@@ -370,6 +370,60 @@ function GridCoreInstance:getPileUnits(leaderId)
     return total
 end
 
+--- Move uma pilha INTEIRA (líder + membros) pra cima de outra pilha compatível
+--- (mesmo compatKey + mesmo retângulo x/y/w/h/rotated), virando membros do
+--- líder alvo. Usado pela consolidação de stacks virtuais (ex.: 5×20 pregos →
+--- 1 pilha de 100). All-or-nothing: nunca divide pilha.
+---@param sourceLeaderId id do líder da pilha que será absorvida
+---@param targetLeaderId id do líder da pilha alvo (não pode ser membro)
+---@return table|nil lista dos ids movidos (líder primeiro, depois membros) ou
+---         nil se não foi possível (incompatível / cheia / não líder).
+function GridCoreInstance:relocatePile(sourceLeaderId, targetLeaderId)
+    local src = self.items[sourceLeaderId]
+    local dst = self.items[targetLeaderId]
+    if not src or not dst then return nil end
+    -- Só líderes participam (alvo nunca é membro; origem precisa ser líder).
+    if src.stackMemberOf or dst.stackMemberOf then return nil end
+    if sourceLeaderId == targetLeaderId then return nil end
+    if not src.compatKey then return nil end
+    -- Compatibilidade: mesmo compatKey e MESMO retângulo (w/h/rotated). As
+    -- posições são diferentes por definição (são pilhas separadas) — só o
+    -- formato do footprint precisa casar pra caber na MESMA célula.
+    if src.compatKey ~= dst.compatKey then return nil end
+    if src.w ~= dst.w or src.h ~= dst.h
+        or (src.rotated or false) ~= (dst.rotated or false) then
+        return nil
+    end
+    -- Limite de unidades do alvo: a pilha inteira precisa caber.
+    local limit = dst.stackInfo and dst.stackInfo.limit
+    if limit and (self:getPileUnits(targetLeaderId) + self:getPileUnits(sourceLeaderId)) > limit then
+        return nil
+    end
+    -- Snapshot dos itens (líder primeiro, depois membros) antes de remover.
+    local ids = { sourceLeaderId }
+    local stack = self.stacks[sourceLeaderId]
+    if stack and stack.members then
+        for mId in pairs(stack.members) do table.insert(ids, mId) end
+    end
+    local snap = {}
+    for _, id in ipairs(ids) do
+        local d = self.items[id]
+        snap[id] = { itemObj = d.itemObj, stackInfo = d.stackInfo }
+    end
+    -- Remove todos da origem (membros primeiro → o líder não promove ninguém).
+    for i = #ids, 1, -1 do
+        self:removeItem(ids[i])
+    end
+    -- Reinsere tudo como membro da pilha alvo (mesmo rect + compatKey → empilha).
+    for _, id in ipairs(ids) do
+        if not self:insertItem(id, dst.x, dst.y, dst.w, dst.h, dst.rotated,
+            snap[id].itemObj, src.compatKey, snap[id].stackInfo) then
+            return nil
+        end
+    end
+    return ids
+end
+
 --- Encontra o primeiro espaço livre para um item, priorizando top-left.
 --- Com compatKey, um item empilhável também "cabe" numa célula ocupada por
 --- pilha compatível (mesmo retângulo) — o scan usa canPlaceItem, que já

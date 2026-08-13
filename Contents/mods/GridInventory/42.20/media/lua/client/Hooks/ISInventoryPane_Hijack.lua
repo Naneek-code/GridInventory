@@ -501,6 +501,20 @@ Events.OnGameBoot.Add(function()
         return og_paneOnMouseWheel(self, del)
     end
 
+    -- Painel COLAPSADO = o pane (filho da página, altura cheia) não pode
+    -- nullifyAiming nem computar seleção/clique — o corpo do painel colapsado
+    -- precisa deixar o jogador mirar/clicar através dele. (Defense-in-depth:
+    -- o Java pode despachar pro pane independente da página.)
+    local og_paneOnMouseDown = ISInventoryPane.onMouseDown
+    function ISInventoryPane:onMouseDown(x, y)
+        local page = self.inventoryPage
+        if page and page.isCollapsed then return end
+        if og_paneOnMouseDown then
+            return og_paneOnMouseDown(self, x, y)
+        end
+        return false
+    end
+
     --- Verdadeiro se o mouse está em cima de qualquer grid renderizado.
     function ISInventoryPane:isMouseOverAnyGrid()
         if not self.gridContainerUis then return false end
@@ -524,6 +538,9 @@ Events.OnGameBoot.Add(function()
     -- para o grid sob o cursor (mesma lógica do GridRender:onMouseDoubleClick).
     local og_paneOnMouseDoubleClick = ISInventoryPane.onMouseDoubleClick
     function ISInventoryPane:onMouseDoubleClick(x, y)
+        -- Painel colapsado: nada a fazer (não encaminha pro grid)
+        local page = self.inventoryPage
+        if page and page.isCollapsed then return end
         -- Scrollbar: deixa o vanilla tratar (duplo clique rola até o fim)
         if self.vscroll and self:isMouseOverScrollBar() then
             return self.vscroll:onMouseDoubleClick(x - self.vscroll.x, y + self:getYScroll() - self.vscroll.y)

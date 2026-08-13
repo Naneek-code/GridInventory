@@ -101,8 +101,17 @@ function ISInventoryPage:update()
     end
 
     -- Destruir a maldição do Zomboid que limita a altura da janela!
-    self:clearMaxDrawHeight()
-    self.maxDrawHeight = -1
+    -- EXCETO quando COLAPSADO: o vanilla usa maxDrawHeight = titleBarHeight()
+    -- pra encolher a área de HIT-TEST do Java (isMouseOver/isPointOver). Se
+    -- limparmos aqui, o painel colapsado fica "invisível" mas a área clicável
+    -- continua do tamanho cheio — o clique atravessa pro grid (que computa a
+    -- interação) e nullifyAiming dispara, fazendo o jogador PARAR DE MIRAR.
+    if not self.isCollapsed then
+        self:clearMaxDrawHeight()
+        self.maxDrawHeight = -1
+    else
+        self:setMaxDrawHeight(self:titleBarHeight())
+    end
 
     -- Define o tamanho do painel base (fullscreen força; resize preserva)
     if isFullscreen then
@@ -707,6 +716,10 @@ end
 local og_pageMouseDown = ISInventoryPage.onMouseDown
 function ISInventoryPage:onMouseDown(x, y)
     if not self:getIsVisible() then return end
+    -- COLAPSADO: só a titlebar é interativa. O clique no corpo do painel não
+    -- pode nullifyAiming nem propagar pro pane/grids — senão clicar "através"
+    -- do painel colapsado faz o jogador parar de mirar.
+    if self.isCollapsed then return end
     -- Z-INDEX: qualquer clique no painel o traz pra frente; re-sobemos a janela
     -- flutuante junto (método do InvTetris — sem flicker de bringToTop por frame).
     if GridInventory_raiseFloating then

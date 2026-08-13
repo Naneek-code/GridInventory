@@ -94,7 +94,9 @@ end
 --- @param y number
 --- @param rotated boolean
 --- @param gridContainer string|nil assinatura do container (valida a posição salva)
-function GridClientNetwork.sendItemMove(container, itemId, x, y, rotated, gridContainer)
+--- @param manual boolean|nil true se foi o jogador que escolheu a célula
+---        (consolidação de pilhas nunca move itens manuais)
+function GridClientNetwork.sendItemMove(container, itemId, x, y, rotated, gridContainer, manual)
     if not isClient() then return end
     local player = getPlayer()
     if not player or not container or itemId == nil then return end
@@ -109,6 +111,7 @@ function GridClientNetwork.sendItemMove(container, itemId, x, y, rotated, gridCo
         y = tonumber(y),
         rotated = rotated and true or false,
         gridContainer = gridContainer,
+        manual = manual and true or nil,
     })
 end
 
@@ -190,7 +193,7 @@ local function applyServerOverrides(overrides)
 end
 
 --- Aplica a posição autoritativa vinda do servidor num item local.
-function GridClientNetwork.applyItemPosition(itemId, x, y, rotated, gridContainer)
+function GridClientNetwork.applyItemPosition(itemId, x, y, rotated, gridContainer, manual)
     local item = GridClientNetwork.findItem(itemId)
     if not item then return end
     local md = item:getModData()
@@ -200,6 +203,7 @@ function GridClientNetwork.applyItemPosition(itemId, x, y, rotated, gridContaine
     if gridContainer ~= nil then
         md.gridContainer = gridContainer
     end
+    md.gridManual = manual and true or nil
     if item.getContainer then
         refreshContainerGrid(item:getContainer(), getPlayer() and getPlayer():getPlayerNum() or 0)
     end
@@ -233,7 +237,7 @@ local function OnServerCommand(module, command, args)
         if args.clear then
             GridClientNetwork.clearItemPosition(args.itemId)
         else
-            GridClientNetwork.applyItemPosition(args.itemId, args.x, args.y, args.rotated, args.gridContainer)
+            GridClientNetwork.applyItemPosition(args.itemId, args.x, args.y, args.rotated, args.gridContainer, args.manual)
         end
 
     elseif command == GridProtocol.COMMANDS.ERROR then
@@ -286,5 +290,11 @@ function GridClientNetwork.sendSearchReveal(containerKey, itemIds)
 end
 
 Events.OnServerCommand.Add(OnServerCommand)
+
+-- Exposição GLOBAL pro shared (padrão do mod, ex.: GridInventory_InTransit):
+-- o GridContainer:refresh roda em common/ e usa GridClientNetwork.sendItemMove
+-- pra sincronizar os REQUEST_MOVE da consolidação de pilhas. No servidor e nos
+-- testes o global não existe → o guard nil do shared simplesmente pula.
+GridClientNetwork = GridClientNetwork
 
 return GridClientNetwork

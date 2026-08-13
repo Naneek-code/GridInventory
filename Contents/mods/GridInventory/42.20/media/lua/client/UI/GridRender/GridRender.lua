@@ -485,11 +485,11 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
     end
 end
 
---- Badge de contagem no canto inferior-direito da célula: mostra o NÚMERO DE
---- ITENS na pilha (getStackSize), não a soma de getCount() — o jogador quer
---- saber quantos itens estão empilhados naquela célula.
+--- Badge de contagem no canto inferior-direito da célula: mostra o TOTAL DE
+--- UNIDADES da pilha (getPileUnits — soma de getCount() de líder + membros).
+--- É a "capa" real do item: 100 pregos, 50 munição 9mm, 12 twines.
 function GridRender:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH)
-    local total = self.gridCore and self.gridCore:getStackSize(itemId) or 1
+    local total = self.gridCore and self.gridCore:getPileUnits(itemId) or 1
     local text = tostring(total)
     local textW = getTextManager():MeasureStringX(UIFont.Small, text)
     local bx = drawX + drawW - textW - 5
@@ -985,7 +985,8 @@ function GridRender:render()
                     end
                 end
 
-                -- Badge de contagem da pilha (soma de getCount() dos membros)
+                -- Badge de contagem da pilha (total de unidades — soma de
+                -- getCount() dos membros: 100 pregos, 50 9mm, 12 twines).
                 if self.gridCore:getStackSize(itemId) > 1 then
                     self:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH)
                 end
@@ -1320,7 +1321,27 @@ function GridRender:drawDropPreview()
     end
 end
 
+--- True se este grid está sob um painel COLAPSADO na cadeia de parents (a
+--- página de inventário/loot é um ISCollapsableWindow). Nesse estado o grid
+--- não pode computar NENHUM evento de mouse: o corpo do painel colapsado
+--- precisa deixar o jogador mirar/clicar através dele.
+function GridRender:isUnderCollapsedPage()
+    local parent = self.parent
+    while parent do
+        if parent.isCollapsed == true then
+            return true
+        end
+        parent = parent.parent
+    end
+    return false
+end
+
 function GridRender:onMouseDown(x, y)
+    -- Painel colapsado: nenhum clique é processado pelo grid
+    if self:isUnderCollapsedPage() then
+        return
+    end
+
     -- Verifica se clicou no Header!
     if self.headerH and self.headerH > 0 then
         if y >= GRID_PADDING and y <= GRID_PADDING + self.headerH then
@@ -1465,6 +1486,11 @@ function GridRender:onMouseDown(x, y)
 end
 
 function GridRender:onMouseMove(dx, dy)
+    -- Painel colapsado: ignora movimento/hover/drag no grid
+    if self:isUnderCollapsedPage() then
+        return
+    end
+
     if self.draggingMarquis then
         local mX = self:getMouseX()
         local mY = self:getMouseY()
@@ -1763,6 +1789,10 @@ function GridRender:doDoubleClick(x, y)
 end
 
 function GridRender:onMouseDoubleClick(x, y)
+    -- Painel colapsado: consome o clique pra nada cair no vanilla
+    if self:isUnderCollapsedPage() then
+        return true
+    end
     -- O Zomboid chama isso se os pixels não mudarem mais de 5 e for dentro de 500ms.
     -- Como nós já interceptamos no onMouseDown de forma mais robusta, apenas chamamos nosso método.
     -- Grid travado: consome o clique pra nada cair no vanilla (que transferiria).
@@ -1790,8 +1820,10 @@ function GridRender:performGridReorder(targets)
             modData.gridY = t.ty
             modData.gridRot = t.item.rotated
             modData.gridContainer = GridContainer.containerSignature(self.inventoryContainer)
+            -- Posição MANUAL: consolidação de pilhas nunca move este item.
+            modData.gridManual = true
             -- MP server-mandatory: o servidor grava e broadcasta a posição.
-            GridClientNetwork.sendItemMove(self.inventoryContainer, t.item.itemObj:getID(), t.tx, t.ty, t.item.rotated, modData.gridContainer)
+            GridClientNetwork.sendItemMove(self.inventoryContainer, t.item.itemObj:getID(), t.tx, t.ty, t.item.rotated, modData.gridContainer, true)
         end
     end
     self.selectedItems = {}
@@ -1799,6 +1831,15 @@ function GridRender:performGridReorder(targets)
 end
 
 function GridRender:onMouseUp(x, y)
+    -- Painel colapsado: cancela QUALQUER drag em curso (evita item preso na
+    -- mão) e não processa o drop.
+    if self:isUnderCollapsedPage() then
+        GridInventory_GlobalDrag = nil
+        ISMouseDrag.dragging = nil
+        ISMouseDrag.draggingFocus = nil
+        return
+    end
+
     -- Ctrl+CLIQUE (sem arrasto) num stack: abre o STACK PICKER. Se foi um
     -- Ctrl+DRAG, o flag já foi consumido no onMouseMove (peel de 1 item).
     if self.ctrlStackPeel and not GridInventory_GlobalDrag
@@ -2058,8 +2099,10 @@ function GridRender:onMouseUp(x, y)
                                 md.gridY = targetY
                                 md.gridRot = rotated
                                 md.gridContainer = targetSig
+                                -- Posição MANUAL: a consolidação não move este item.
+                                md.gridManual = true
                                 GridClientNetwork.sendItemMove(self.inventoryContainer,
-                                    item:getID(), targetX, targetY, rotated, targetSig)
+                                    item:getID(), targetX, targetY, rotated, targetSig, true)
                                 GridInventory_InTransit[item:getID()] = {
                                     startedAt = getTimeInMillis(),
                                     grid = self,
@@ -2203,8 +2246,10 @@ function GridRender:onMouseUp(x, y)
                                 modData.gridY = targetY
                                 modData.gridRot = rotated
                                 modData.gridContainer = GridContainer.containerSignature(self.inventoryContainer)
+                                -- Posição MANUAL: a consolidação não move este item.
+                                modData.gridManual = true
                                 -- MP server-mandatory: servidor grava a posição (drop coords, não autoSlot).
-                                GridClientNetwork.sendItemMove(self.inventoryContainer, itemObj:getID(), targetX, targetY, rotated, modData.gridContainer)
+                                GridClientNetwork.sendItemMove(self.inventoryContainer, itemObj:getID(), targetX, targetY, rotated, modData.gridContainer, true)
                                 
                                 if isFromPaperDoll and srcContainer == self.inventoryContainer then
                                     local playerObj = getSpecificPlayer(self.playerNum)
@@ -2258,6 +2303,13 @@ function GridRender:onMouseUp(x, y)
 end
 
 function GridRender:onMouseUpOutside(x, y)
+    -- Painel colapsado: cancela drag em curso e ignora o release fora do grid
+    if self:isUnderCollapsedPage() then
+        GridInventory_GlobalDrag = nil
+        ISMouseDrag.dragging = nil
+        ISMouseDrag.draggingFocus = nil
+        return
+    end
     -- Ctrl+clique solto FORA do grid: não abre o picker. Só limpa o flag.
     self.ctrlStackPeel = nil
 end
@@ -2282,11 +2334,14 @@ function GridRender:takeStackMember(memberId)
         md.gridX = fx
         md.gridY = fy
         md.gridRot = false
+        -- Peel manual: posição definida pelo jogador → a consolidação NÃO
+        -- re-absorve este membro de volta na pilha.
+        md.gridManual = true
         if self.inventoryContainer and self.inventoryContainer.setDrawDirty then
             self.inventoryContainer:setDrawDirty(true)
         end
         -- MP server-mandatory: servidor grava a nova posição (célula própria).
-        GridClientNetwork.sendItemMove(self.inventoryContainer, member:getID(), fx, fy, false)
+        GridClientNetwork.sendItemMove(self.inventoryContainer, member:getID(), fx, fy, false, md.gridContainer, true)
         -- Re-refresh o GridCore AGORA: hash de IDs não muda numa divisão.
         local gc = GridContainer.getOrCreate(self.inventoryContainer, self.playerNum)
         gc:refresh()
@@ -2311,6 +2366,11 @@ end
 --- (O split agora acontece no STACK PICKER — duplo clique na pilha.)
 
 function GridRender:onRightMouseUp(x, y)
+    -- Painel colapsado: nenhum contexto/comando de grid
+    if self:isUnderCollapsedPage() then
+        return
+    end
+
     if GridInventory_GlobalDrag then
         -- Rotaciona TODOS os itens sendo arrastados no grupo!
         for _, draggedItem in ipairs(GridInventory_GlobalDrag.itemsData) do
