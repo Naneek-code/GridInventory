@@ -4,8 +4,9 @@
 ---
 --- Regras:
 ---   * SP (host, isClient()=false): o dono do save é admin.
----   * MP (cliente): role com capability Admin, nome de role contendo "admin",
----     ou getAccessLevel()=="admin". Fail-closed: sem confirmação → não admin.
+---   * MP (cliente): role com admin power (role:hasAdminPower(), o método NATIVO
+---     do B42 — não existe Capability.Admin no enum), nome de role contendo
+---     "admin", ou getAccessLevel()=="admin". Fail-closed: sem confirmação → não admin.
 
 local GridAdmin = {}
 
@@ -22,10 +23,14 @@ function GridAdmin.isAdmin(player)
         local role = player:getRole()
         if role then
             hasRoleInfo = true
-            if role.hasCapability and Capability and Capability.Admin then
-                if role:hasCapability(Capability.Admin) then
-                    return true
-                end
+            -- B42 nativo: role:hasAdminPower() verifica um conjunto de
+            -- capabilities de admin (AddItem, SandboxOptions, RolesRead, ...).
+            -- É o mesmo método que o vanilla usa no Admin Panel
+            -- (ISAdminPanelUI.lua: getPlayer():getRole():hasAdminPower()).
+            -- NÃO existe Capability.Admin no enum do B42 — check antigo falhava
+            -- silenciosamente e admin do MP nunca era detectado no cliente.
+            if role.hasAdminPower then
+                if role:hasAdminPower() then return true end
             end
             if role.getName then
                 local n = tostring(role:getName() or ""):lower()

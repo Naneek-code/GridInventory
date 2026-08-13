@@ -135,12 +135,20 @@ do
     H.ok(GridServerNetwork.isAdmin(p) == true, "accessLevel admin é admin")
 end
 
--- ─── Teste 5: isAdmin — aceita role com Capability.Admin ────────────────────
+-- ─── Teste 5: isAdmin — aceita role com admin power (B42 nativo) ────────────
 do
-    _G.Capability = { Admin = "admin" }
-    local role = { hasCapability = function(self, cap) return cap == "admin" end }
+    local role = { hasAdminPower = function() return true end }
     local p = { getRole = function() return role end, getAccessLevel = function() return "player" end }
-    H.ok(GridServerNetwork.isAdmin(p) == true, "role com Capability.Admin é admin")
+    H.ok(GridServerNetwork.isAdmin(p) == true, "role com hasAdminPower() é admin")
+end
+
+-- ─── Teste 5b: isAdmin — NÃO existe Capability.Admin no B42; role sem admin
+-- power nem nome admin não é admin mesmo com hasCapability genérica. ─────────
+do
+    _G.Capability = { AddItem = "AddItem" }
+    local role = { hasCapability = function(self, cap) return cap == "AddItem" end }
+    local p = { getRole = function() return role end, getAccessLevel = function() return "player" end }
+    H.ok(GridServerNetwork.isAdmin(p) == false, "role só com AddItem (sem admin power) NÃO é admin")
     _G.Capability = nil
 end
 
