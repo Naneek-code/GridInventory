@@ -6,6 +6,7 @@ require("ISUI/ISInventoryPane")
 local GridContainer = require("DataModel/GridContainer")
 local GridRender = require("UI/GridRender/GridRender")
 local ItemFootprint = require("Algorithm/ItemFootprint")
+local GridModOptions = require("System/GridModOptions")
 
 -- ============================================================================
 -- A interceptação do ISHotbar foi movida para dentro do OnGameBoot
@@ -63,8 +64,17 @@ Events.OnGameBoot.Add(function()
         if not self.inventory then return end
 
         local containersToRender = {}
+        -- Mod Option "multiContainer": ligada (padrão) renderiza TODAS as
+        -- mochilas/containers abertos. Desligada, renderiza apenas o container
+        -- ATIVO do painel (self.inventory) — menos grids, mais performance.
+        local multiEnabled
+        if self.inventoryPage and self.inventoryPage.onCharacter then
+            multiEnabled = GridModOptions.isMultiContainerInv()
+        else
+            multiEnabled = GridModOptions.isMultiContainerLoot()
+        end
         -- Lê a lista oficial de botões gerados pela UI do Zomboid (backpacks)
-        if self.inventoryPage and self.inventoryPage.backpacks then
+        if multiEnabled and self.inventoryPage and self.inventoryPage.backpacks then
             for _, button in ipairs(self.inventoryPage.backpacks) do
                 if button.inventory then
                     table.insert(containersToRender, { 
@@ -239,17 +249,32 @@ Events.OnGameBoot.Add(function()
             self.lastGridHashCheck = now
             
             local currentHash = 0
-            if self.inventoryPage and self.inventoryPage.backpacks then
+            -- Mesmo conjunto de containers do refreshContainer: no modo
+            -- single-container só o container ATIVO é checado (menos trabalho
+            -- por frame quando a performance importa).
+            local multiEnabled
+            if self.inventoryPage and self.inventoryPage.onCharacter then
+                multiEnabled = GridModOptions.isMultiContainerInv()
+            else
+                multiEnabled = GridModOptions.isMultiContainerLoot()
+            end
+            local pollInv = {}
+            if multiEnabled and self.inventoryPage and self.inventoryPage.backpacks then
                 for _, button in ipairs(self.inventoryPage.backpacks) do
                     if button.inventory then
-                        local jItems = button.inventory:getItems()
-                        local size = jItems:size()
-                        currentHash = currentHash + size
-                        -- Varre todos os IDs de forma hiper rápida pra não deixar NENHUMA mudança escapar
-                        for i = 0, size - 1 do
-                            currentHash = (currentHash + jItems:get(i):getID()) % 9999999
-                        end
+                        table.insert(pollInv, button.inventory)
                     end
+                end
+            else
+                table.insert(pollInv, self.inventory)
+            end
+            for _, inv in ipairs(pollInv) do
+                local jItems = inv:getItems()
+                local size = jItems:size()
+                currentHash = currentHash + size
+                -- Varre todos os IDs de forma hiper rápida pra não deixar NENHUMA mudança escapar
+                for i = 0, size - 1 do
+                    currentHash = (currentHash + jItems:get(i):getID()) % 9999999
                 end
             end
             
@@ -337,6 +362,9 @@ Events.OnGameBoot.Add(function()
         local core = getCore()
         local screenW = core:getScreenWidth()
         local panelW = (screenW - 350) / 2
+        if not GridModOptions.isFullscreenPanel() then
+            panelW = self.width
+        end
         local paneWidth = panelW - (self.inventoryPage and self.inventoryPage.buttonSize or 32)
         
         local xMargin = isPlayer and 25 or 10

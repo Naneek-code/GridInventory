@@ -245,6 +245,14 @@ function PaperDollWindow:initialise()
     end
 end
 
+-- O PaperDoll NÃO expande por conta própria: o estado de collapse é controlado
+-- pelo painel de inventário (espelhado no update do ISInventoryPage). Sem esse
+-- no-op, o vanilla tenta expandir ao passar o mouse na titlebar, mas o espelho
+-- puxa de volta na hora — um "fight" que deixa o hover sem efeito. Expande
+-- apenas quando o inv expande (passar o mouse na titlebar do INV).
+function PaperDollWindow:uncollapse()
+end
+
 function PaperDollWindow:prerender()
     ISCollapsableWindow.prerender(self)
 
@@ -264,10 +272,13 @@ function PaperDollWindow:prerender()
         self.scrollPanel:setWidth(self.width)
     end
     
-    -- Fundo do Paper Doll idêntico ao do GridInventory
-    local titleH = self:titleBarHeight()
-    self:drawRect(0, titleH, self.width, self.height - titleH, 0.65, 0.08, 0.08, 0.08)
-    self:drawRectBorder(0, titleH, self.width, self.height - titleH, 0.5, 0.5, 0.5, 0.5)
+    -- Fundo do Paper Doll idêntico ao do GridInventory (não desenha quando
+    -- colapsado junto com o inv — só a titlebar aparece, sem borda fantasma).
+    if not self.isCollapsed then
+        local titleH = self:titleBarHeight()
+        self:drawRect(0, titleH, self.width, self.height - titleH, 0.65, 0.08, 0.08, 0.08)
+        self:drawRectBorder(0, titleH, self.width, self.height - titleH, 0.5, 0.5, 0.5, 0.5)
+    end
 end
 
 function PaperDollWindow:update()

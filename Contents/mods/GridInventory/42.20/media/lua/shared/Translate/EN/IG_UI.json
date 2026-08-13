@@ -50,5 +50,12 @@
     "IGUI_FloatingGrid_Close": "Close",
     "IGUI_FloatingGrid_Pin": "Pin",
     "IGUI_FloatingGrid_Unpin": "Unpin",
-    "IGUI_StackPicker_Take": "Take"
+    "IGUI_StackPicker_Take": "Take",
+    "IGUI_GridInv_OptionsSection": "Grid Inventory",
+    "IGUI_GridInv_OptionsFullscreenPanel": "Fullscreen Panel",
+    "IGUI_GridInv_OptionsFullscreenPanel_Tooltip": "When enabled (default), the inventory panel fills half of the screen and cannot be moved or resized. Disable to restore the native movable and resizable panel. NOTE: if you disable it with a save already loaded, you must restart the game (reload the save) for the windows to become resizable again.",
+    "IGUI_GridInv_OptionsMultiContainerInv": "Show all backpacks (Player)",
+    "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "When enabled (default), all open backpacks are rendered in the player inventory grid. Disable to render only the selected container (better performance).",
+    "IGUI_GridInv_OptionsMultiContainerLoot": "Show all loot containers",
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "When enabled (default), all loot containers on screen are rendered. Disable to render only the active container (better performance)."
 }

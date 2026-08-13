@@ -1,17 +1,33 @@
 require "ISUI/ISInventoryPage"
 local PaperDollWindow = require("UI/PaperDoll/PaperDollWindow")
 local GlobalDragRender = require("UI/GridRender/GlobalDragRender")
+local GridModOptions = require("System/GridModOptions")
 
 -- Precisamos manter uma referência global para o PaperDoll
 GridInventory_PaperDollWindow = GridInventory_PaperDollWindow or {}
 
--- Mata o Resize globalmente
+-- Resize do painel: desligado no modo Fullscreen (Mod Option padrão). Quando o
+-- usuário desliga "Fullscreen Panel", os handles nativos de resize voltam a
+-- funcionar (redimensionamento restaurado). O despacho acontece no momento do
+-- evento (não na criação), então a troca da opção vale no frame seguinte.
 local og_resizeInit = ISResizeWidget.initialise
 function ISResizeWidget:initialise()
     og_resizeInit(self)
-    self.onMouseDown = function() end
-    self.onMouseMove = function() end
-    self.onMouseMoveOutside = function() end
+    local ogDown = self.onMouseDown
+    local ogMove = self.onMouseMove
+    local ogMoveOut = self.onMouseMoveOutside
+    self.onMouseDown = function(self, x, y)
+        if GridModOptions.isFullscreenPanel() then return end
+        return ogDown(self, x, y)
+    end
+    self.onMouseMove = function(self, dx, dy)
+        if GridModOptions.isFullscreenPanel() then return end
+        return ogMove(self, dx, dy)
+    end
+    self.onMouseMoveOutside = function(self, dx, dy)
+        if GridModOptions.isFullscreenPanel() then return end
+        return ogMoveOut(self, dx, dy)
+    end
 end
 
 local og_createChildren = ISInventoryPage.createChildren
@@ -71,46 +87,89 @@ function ISInventoryPage:update()
     local screenW = core:getScreenWidth()
     local screenH = core:getScreenHeight()
     local paperDollW = 350
-    local panelW = (screenW - paperDollW) / 2
+
+    -- Mod Option "Fullscreen Panel": ligada (padrão) = o painel ocupa metade
+    -- da tela e NÃO pode ser redimensionado. Desligada = o painel volta ao
+    -- comportamento nativo (resize habilitado, tamanho do usuário respeitado).
+    local isFullscreen = GridModOptions.isFullscreenPanel()
+
+    local panelW
+    if isFullscreen then
+        panelW = (screenW - paperDollW) / 2
+    else
+        panelW = self.width
+    end
 
     -- Destruir a maldição do Zomboid que limita a altura da janela!
     self:clearMaxDrawHeight()
     self.maxDrawHeight = -1
 
-    -- Define o tamanho do painel base
-    self:setWidth(panelW)
-    self:setHeight(screenH)
-    self:setY(0)
+    -- Define o tamanho do painel base (fullscreen força; resize preserva)
+    if isFullscreen then
+        self:setWidth(panelW)
+        self:setHeight(screenH)
+        self:setY(0)
+    end
     
     if self.onCharacter then
         local pd = GridInventory_PaperDollWindow[self.player]
-        if pd then pd:setHeight(screenH) end
+        if pd then
+            if isFullscreen then
+                pd:setHeight(screenH)
+            end
+            -- PaperDoll colapsa/expande JUNTO com o painel de inventário (modo
+            -- resize): espelha o estado de collapse do inv a cada frame.
+            local wantCollapsed = (not isFullscreen) and self.isCollapsed
+            if pd.isCollapsed ~= wantCollapsed then
+                pd.isCollapsed = wantCollapsed
+                if wantCollapsed then
+                    pd:setMaxDrawHeight(pd:titleBarHeight())
+                else
+                    pd:clearMaxDrawHeight()
+                end
+            end
+        end
     end
 
     -- Layout das mochilas e grids
     if self.onCharacter then
-        self:setX(0)
+        -- No modo resize o painel é uma janela nativa e pode ser MOVIDA pela
+        -- titlebar (o onMouseDown restaura o moving); não forçamos o X.
+        if isFullscreen then
+            self:setX(0)
+        end
         
         -- Inventário do Jogador: Grid na ESQUERDA (borda), Mochilas na DIREITA (centro)
         if self.containerButtonPanel then
             self.containerButtonPanel:setX(panelW - self.buttonSize)
-            self.containerButtonPanel:setHeight(screenH)
+            self.containerButtonPanel:setHeight(self.height)
         end
         if self.inventoryPane then
             self.inventoryPane:setX(0)
             self.inventoryPane:setWidth(panelW - self.buttonSize)
         end
     else
-        self:setX(panelW + paperDollW)
+        -- Loot: posiciona à direita do PaperDoll. No modo resize usa a largura
+        -- REAL do inventário do jogador (o painel já não é mais fullscreen).
+        local invW = panelW
+        if not isFullscreen then
+            local invPage = getPlayerInventory(self.player)
+            if invPage then
+                invW = invPage:getWidth()
+            end
+        end
+        if isFullscreen then
+            self:setX(invW + paperDollW)
+        end
         
         -- Loot: Mochilas na ESQUERDA (centro), Grid na DIREITA (borda)
         if self.containerButtonPanel then
             self.containerButtonPanel:setX(0)
-            self.containerButtonPanel:setHeight(screenH)
+            self.containerButtonPanel:setHeight(self.height)
         end
         if self.inventoryPane then
             self.inventoryPane:setX(self.buttonSize)
-            self.inventoryPane:setWidth(panelW - self.buttonSize)
+            self.inventoryPane:setWidth(self.width - self.buttonSize)
         end
     end
     
@@ -128,11 +187,28 @@ function ISInventoryPage:update()
     if self.infoButton then
         self.infoButton:setVisible(false)
     end
-    if self.pinButton then 
-        self.pinButton:setVisible(false) 
-    end
-    if self.collapseButton then 
-        self.collapseButton:setVisible(false) 
+    -- Pin/Collapse: no fullscreen ficam ocultos (painel fixo e sempre aberto).
+    -- No resize restauramos o comportamento nativo (vanilla): o pinButton
+    -- (visível quando NÃO pinado) trava a janela aberta; o collapseButton
+    -- (visível quando pinado) destrava — e aí a janela auto-colapsa pra
+    -- titlebar quando o mouse sai, expandindo ao passar o mouse na titlebar.
+    if isFullscreen then
+        if self.pinButton then self.pinButton:setVisible(false) end
+        if self.collapseButton then self.collapseButton:setVisible(false) end
+    else
+        if self.pinButton then self.pinButton:setVisible(not self.pin) end
+        if self.collapseButton then self.collapseButton:setVisible(self.pin) end
+        -- Pin/Collapse à ESQUERDA do botão de fechar (no loot o close fica no
+        -- canto e, sem isso, os dois ocupariam o MESMO lugar na titlebar).
+        local closeX = self.closeButton and self.closeButton:getX() or (btnOffset - 24)
+        if self.pinButton then
+            self.pinButton:setX(closeX - self.pinButton:getWidth() - 2)
+            self.pinButton:setY(1)
+        end
+        if self.collapseButton then
+            self.collapseButton:setX(closeX - self.collapseButton:getWidth() - 2)
+            self.collapseButton:setY(1)
+        end
     end
 
     -- O SEGREDO DE TUDO:
@@ -141,13 +217,16 @@ function ISInventoryPage:update()
     -- o Zomboid ficava puxando os botões pro meio da tela (a altura antiga).
     -- Aqui nós ancoramos o fantasma do resizeWidget perto do fundo da tela (1080p).
     -- Subimos uns pixels (screenH - 20) para dar espaço e não bugar a engine.
-    if self.resizeWidget then
-        self.resizeWidget:setY(screenH - 15)
-        self.resizeWidget:setX(self.width)
-    end
-    if self.resizeWidget2 then
-        self.resizeWidget2:setY(screenH - 15)
-        self.resizeWidget2:setX(self.width)
+    -- No modo resize os handles são reais e usam as âncoras nativas do PZ.
+    if isFullscreen then
+        if self.resizeWidget then
+            self.resizeWidget:setY(screenH - 15)
+            self.resizeWidget:setX(self.width)
+        end
+        if self.resizeWidget2 then
+            self.resizeWidget2:setY(screenH - 15)
+            self.resizeWidget2:setX(self.width)
+        end
     end
 
     -- A "controlsUI" (Take All / Transfer All / botões do objeto, ex: ligar e
@@ -228,10 +307,16 @@ function ISInventoryPage:update()
         self.removeAll:setVisible(false)
     end
 
-    -- Destruir completamente a habilidade de redimensionar e os widgets nativos!
-    self.resizable = false
-    self.pin = true
-    self.isCollapsed = false
+    -- No fullscreen destruímos a habilidade de redimensionar; no modo resize
+    -- o usuário pode redimensionar (os handles nativos voltam a funcionar).
+    self.resizable = not isFullscreen
+    -- No fullscreen o painel é fixo e nunca colapsa (pin travado). No resize o
+    -- usuário controla pin/collapse pelos botões da titlebar (vanilla) — o
+    -- estado de pin/isCollapsed dele não é sobrescrito aqui.
+    if isFullscreen then
+        self.pin = true
+        self.isCollapsed = false
+    end
 end
 
 -- Re-flui os botões da controlsUI com gap de 1px (o vanilla usa UI_MARGIN=5,
@@ -377,7 +462,11 @@ if ISInventoryWindowControlHandler_TransferAll then
     end
 end
 
--- Hook para mostrar/esconder o PaperDoll e o Loot juntos
+-- Hook para mostrar/esconder os painéis acoplados (PaperDoll + Loot juntos).
+-- No FULLSCREEN os painéis são um conjunto dockado: abrir/fechar um abre/fecha
+-- todos (inv ↔ loot ↔ paperdoll). No modo RESIZE (fullscreen desligado) cada
+-- painel tem seu próprio controle: o inv abre/fecha só ele + paperdoll (que é
+-- parte da janela de inventário e não tem botão próprio), e o loot só ele mesmo.
 local og_setVisible = ISInventoryPage.setVisible
 function ISInventoryPage:setVisible(visible)
     og_setVisible(self, visible)
@@ -391,26 +480,34 @@ function ISInventoryPage:setVisible(visible)
         GridInventory_closeFloatingBags(self.player)
     end
     
+    local synced = GridModOptions.isFullscreenPanel()
+    
     if self.onCharacter then
         local paperDoll = GridInventory_PaperDollWindow[self.player]
         if paperDoll then
             paperDoll:setVisible(visible)
             if visible then paperDoll:bringToTop() end
         end
-        local lootPage = getPlayerLoot(self.player)
-        if lootPage then
-            if lootPage:getIsVisible() ~= visible then
-                lootPage:setVisible(visible)
+        -- Loot só acompanha o inv no fullscreen (painéis dockados).
+        if synced then
+            local lootPage = getPlayerLoot(self.player)
+            if lootPage then
+                if lootPage:getIsVisible() ~= visible then
+                    lootPage:setVisible(visible)
+                end
+                if visible then lootPage:bringToTop() end
             end
-            if visible then lootPage:bringToTop() end
         end
     else
-        local invPage = getPlayerInventory(self.player)
-        if invPage then
-            if invPage:getIsVisible() ~= visible then
-                invPage:setVisible(visible)
+        -- Inv (e paperdoll) só acompanham o loot no fullscreen.
+        if synced then
+            local invPage = getPlayerInventory(self.player)
+            if invPage then
+                if invPage:getIsVisible() ~= visible then
+                    invPage:setVisible(visible)
+                end
+                if visible then invPage:bringToTop() end
             end
-            if visible then invPage:bringToTop() end
         end
     end
 
@@ -427,28 +524,38 @@ local og_pagePrerender = ISInventoryPage.prerender
 function ISInventoryPage:prerender()
     local oldTitle = self.title
     
-    -- Ocultamos APENAS o título para que a classe pai não desenhe o nome do container
-    self.title = ""
+    -- No modo fullscreen ocultamos APENAS o título para que a classe pai não
+    -- desenhe o nome do container; no modo resize o título nativo é restaurado
+    -- (só o PaperDoll ficaria com o nome "Equipment", o que fica estranho).
+    if GridModOptions.isFullscreenPanel() then
+        self.title = ""
+    end
     
     og_pagePrerender(self)
     
     self.title = oldTitle
     
-    -- Desenha um fundo sólido escuro (estilo Tarkov/Zomboid) em TODO o painel!
-    -- Reduzi a opacidade de 0.85 para 0.65 para que o jogador consiga ver os zumbis!
+    -- Quando colapsado (modo resize, pin destravado) desenhamos só a titlebar:
+    -- o fundo escuro e a coluna de mochilas não são desenhados pra não sobrar
+    -- "fantasma" do corpo do painel.
+    local collapsed = self.isCollapsed
     local w = self:getWidth()
     local h = self:getHeight()
     local titleH = self:titleBarHeight()
     
-    self:drawRect(0, titleH, w, h - titleH, 0.65, 0.08, 0.08, 0.08)
-    self:drawRectBorder(0, titleH, w, h - titleH, 0.5, 0.5, 0.5, 0.5)
+    if not collapsed then
+        -- Desenha um fundo sólido escuro (estilo Tarkov/Zomboid) em TODO o painel!
+        -- Reduzi a opacidade de 0.85 para 0.65 para que o jogador consiga ver os zumbis!
+        self:drawRect(0, titleH, w, h - titleH, 0.65, 0.08, 0.08, 0.08)
+        self:drawRectBorder(0, titleH, w, h - titleH, 0.5, 0.5, 0.5, 0.5)
+    end
     
     -- (Bordas dos botões suspensas a pedido do usuário devido a spam de erros no console)
     
     -- Restaura a borda bonitinha exclusiva da coluna de mochilas
     -- E também mantemos um fundo mais opaco (0.85) só pra essa coluna,
     -- garantindo que os botões não fiquem confusos com o chão!
-    if self.containerButtonPanel then
+    if self.containerButtonPanel and not collapsed then
         local bx = self.containerButtonPanel:getX()
         local by = self.containerButtonPanel:getY()
         local bw = self.containerButtonPanel:getWidth()
@@ -472,8 +579,21 @@ function ISInventoryPage:render()
     og_pageRender(self)
     self.drawRectBorder = ogDRB
     self.drawTextureScaled = ogDTS
-    self:drawRectBorder(0, 0, self:getWidth(), self:getHeight(),
+    -- Quando colapsado (modo resize, pin destravado) só a titlebar aparece:
+    -- a borda externa acompanha a altura visível pra não sobrar um retângulo
+    -- "fantasma" do corpo do painel.
+    local borderH = self:getHeight()
+    if self.isCollapsed then
+        borderH = self:titleBarHeight()
+    end
+    self:drawRectBorder(0, 0, self:getWidth(), borderH,
         self.borderColor.a, self.borderColor.r, self.borderColor.g, self.borderColor.b)
+    -- Modo resize: redesenha o grip de redimensionar (o vanilla o desenha via
+    -- drawTextureScaled, que suprimimos acima no og_pageRender).
+    if not GridModOptions.isFullscreenPanel() and not self.isCollapsed and self.resizeimage then
+        local rh = (BUTTON_HGT or 34) / 2 + 2
+        self:drawTextureScaled(self.resizeimage, self:getWidth() - rh + 1, self:getHeight() - rh + 1, rh - 2, rh - 2, 1, 1, 1, 1)
+    end
 end
 
 -- Sobrescrevemos o sistema de destaque visual (highlight verde no chão) 
@@ -581,13 +701,23 @@ function ISInventoryPane:render()
     end
 end
 
--- Destruir a capacidade de mover a janela nativamente
+-- Movimento da janela: DESTRUÍDO no fullscreen (painel fixo) e RESTAURADO no
+-- modo resize (painel nativo). Salvamos o onMouseDown vanilla (que seta
+-- moving=true + setCapture(true)) e só o chamamos quando não estamos fullscreen.
+local og_pageMouseDown = ISInventoryPage.onMouseDown
 function ISInventoryPage:onMouseDown(x, y)
     if not self:getIsVisible() then return end
     -- Z-INDEX: qualquer clique no painel o traz pra frente; re-sobemos a janela
     -- flutuante junto (método do InvTetris — sem flicker de bringToTop por frame).
     if GridInventory_raiseFloating then
         GridInventory_raiseFloating(self.player)
+    end
+    -- Modo resize: o vanilla seta moving=true + setCapture(true), então o drag
+    -- pela titlebar move a janela (e continua fora dos limites via
+    -- onMouseMoveOutside). No fullscreen o update() fixa as posições, então o
+    -- painel não pode ser arrastado.
+    if not GridModOptions.isFullscreenPanel() and og_pageMouseDown then
+        return og_pageMouseDown(self, x, y)
     end
     getSpecificPlayer(self.player):nullifyAiming()
 end

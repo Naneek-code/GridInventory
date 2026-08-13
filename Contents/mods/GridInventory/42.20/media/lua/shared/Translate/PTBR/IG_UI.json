@@ -50,5 +50,12 @@
     "IGUI_FloatingGrid_Close": "Fechar",
     "IGUI_FloatingGrid_Pin": "Fixar",
     "IGUI_FloatingGrid_Unpin": "Desafixar",
-    "IGUI_StackPicker_Take": "Pegar"
+    "IGUI_StackPicker_Take": "Pegar",
+    "IGUI_GridInv_OptionsSection": "Grid Inventory",
+    "IGUI_GridInv_OptionsFullscreenPanel": "Painel em Tela Cheia",
+    "IGUI_GridInv_OptionsFullscreenPanel_Tooltip": "Quando ligado (padrão), o painel de inventário ocupa metade da tela e não pode ser movido ou redimensionado. Desligue para restaurar o painel nativo movível e redimensionável. IMPORTANTE: se você desligar com um jogo já carregado, é preciso reiniciar o jogo (carregar o save de novo) para as janelas voltarem a redimensionar.",
+    "IGUI_GridInv_OptionsMultiContainerInv": "Mostrar todas as mochilas (Jogador)",
+    "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Quando ligado (padrão), todas as mochilas abertas são renderizadas no grid do inventário do jogador. Desligue para renderizar apenas o container selecionado (mais desempenho).",
+    "IGUI_GridInv_OptionsMultiContainerLoot": "Mostrar todos os containers de loot",
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Quando ligado (padrão), todos os containers de loot na tela são renderizados. Desligue para renderizar apenas o container ativo (mais desempenho)."
 }
