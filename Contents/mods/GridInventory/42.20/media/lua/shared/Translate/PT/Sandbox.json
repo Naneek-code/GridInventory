@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Modo de dispersão",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Como os itens sem uma posição guardada são colocados nos recipientes.\n\nAutomático (loot natural): apenas os recipientes que nunca foram saqueados recebem um layout aleatório natural; o inventário do jogador e os recipientes explorados preenchem organizados.\n\nSempre dispersar (bagunçado): os itens caem espalhados por todo o lado, incluindo no seu próprio inventário. Transferências rápidas ficam bagunçadas; arrastar e largar com precisão com x,y mantém tudo organizado.\n\nNunca dispersar (arrumado): tudo preenche automaticamente a partir do canto superior esquerdo, nunca ao acaso.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Automático (loot natural)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Sempre dispersar (bagunçado)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Nunca dispersar (arrumado)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Animação de reorganização de itens",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Move itens dentro do mesmo recipiente com uma breve animação de transferência.\n\nAnimado: o personagem faz a animação de transferência e o movimento é aplicado ~0,5 s depois. No multijogador, isto dá ao servidor tempo para processar antes do próximo movimento.\n\nInstantâneo: os itens movem-se imediatamente ao soltar, como antes.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animado",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Instantâneo",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Mover-se enquanto organiza",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Permite que o personagem ande enquanto a ação de reorganizar itens está a correr (correr ainda a cancela).\n\nLigado: pode andar enquanto os itens se reorganizam, como muitas outras ações temporizadas.\n\nDesligado: a ação só é executada parado.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Vasculhar recipientes do mundo",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Faz com que os recipientes do mundo (caixas, prateleiras, cadáveres...) precisem de ser vasculhados antes de poder interagir com os itens lá dentro, estilo Tarkov.\n\nQuando ligado, abrir um recipiente esconde itens não identificados atrás de uma máscara escura. Clique na grelha para começar a vasculhar: os itens são revelados uma pilha de cada vez. Pode parar quando quiser e manter o que já encontrou; clique novamente para continuar. Os itens que coloca você mesmo são revelados imediatamente.\n\nDesligado: os recipientes mostram sempre o seu conteúdo.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Tempo de pesquisa por item",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tempo em milissegundos para revelar cada pilha ao vasculhar um recipiente. Escala com o número de pilhas: mais itens, pesquisa mais longa.\n\n0 = instantâneo (revela tudo ao clicar).",
+    "Sandbox_GridInventory_EnableDevTools": "Ativar DevTools",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Adiciona a opção \"[DevTool] Editar tamanho da grelha\" ao menu de contexto dos itens, para poder redimensionar a área ocupada pelos itens e as grelhas dos recipientes sem iniciar o jogo com -debug.\n\nLigado: DevTools disponíveis neste save. No multijogador, jogadores que não são administradores veem a opção, mas o servidor recusa aplicar as alterações.\n\nDesligado: só disponível quando o jogo é iniciado com -debug."
+}

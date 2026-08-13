@@ -128,11 +128,11 @@ do
     H.ok(g2:getPileUnits("a") == 80, "80 unidades após merge [units=" .. g2:getPileUnits("a") .. "]")
 end
 
--- ─── Teste 4: refresh CONSOME 5×20 pregos numa célula (100) ─────────────────
+-- ─── Teste 4: refresh CONSOME 5 objetos de prego numa célula (5 unidades) ──
 do
     local items = {}
     for i = 1, 5 do
-        table.insert(items, makeItem("n" .. i, "Base.Nails", 20, i, 1))
+        table.insert(items, makeItem("n" .. i, "Base.Nails", 1, i, 1))
     end
     local gc = freshContainer(items)
     gc:refresh()
@@ -153,18 +153,18 @@ do
         end
     end
     H.ok(leaders == 1, "uma única pilha líder [leaders=" .. leaders .. "]")
-    H.ok(pileUnits == 100, "pilha consolidada com 100 unidades [units=" .. pileUnits .. "]")
-    H.ok(occupied == 1, "só 1 célula ocupada (5×20 → 100) [occupied=" .. occupied .. "]")
+    H.ok(pileUnits == 5, "pilha consolidada com 5 unidades [units=" .. pileUnits .. "]")
+    H.ok(occupied == 1, "só 1 célula ocupada (5 objetos → 1 pilha) [occupied=" .. occupied .. "]")
     H.ok(grid:getStackSize("n1") == 5 or grid:getStackSize("n2") == 5, "5 objetos na pilha")
 end
 
 -- ─── Teste 5: LIMITE respeitado no refresh (pilha cheia NÃO absorve) ────────
 do
-    -- 60 + 60 = 120 > limite 100 → duas pilhas continuam separadas
-    local items = {
-        makeItem("a1", "Base.Limited", 60, 1, 1),
-        makeItem("a2", "Base.Limited", 60, 2, 1),
-    }
+    -- 120 > limite 100 (objetos) → duas pilhas continuam separadas
+    local items = {}
+    for i = 1, 120 do
+        table.insert(items, makeItem("a" .. i, "Base.Limited", 1, nil, nil))
+    end
     GridDevTool = { Overrides = { ["Base.Limited"] = { maxStack = 100 } } }
     local gc = freshContainer(items)
     gc:refresh()
@@ -223,8 +223,8 @@ do
         if not d.stackMemberOf then leaders = leaders + 1 end
     end
     H.ok(leaders == 2, "em pé e deitado não fundem [leaders=" .. leaders .. "]")
-    H.ok(grid:getPileUnits("t1") == 20, "pilha em pé tem 20 (10+10) [units=" .. grid:getPileUnits("t1") .. "]")
-    H.ok(grid:getPileUnits("u1") == 20, "pilha deitada tem 20 [units=" .. grid:getPileUnits("u1") .. "]")
+    H.ok(grid:getPileUnits("t1") == 2, "pilha em pé tem 2 (1+1) [units=" .. grid:getPileUnits("t1") .. "]")
+    H.ok(grid:getPileUnits("u1") == 2, "pilha deitada tem 2 [units=" .. grid:getPileUnits("u1") .. "]")
 end
 
 -- ─── Teste 8: posição MANUAL (gridManual) nunca é MOVIDA ────────────────────
@@ -251,7 +251,7 @@ do
     end
     H.ok(manPos == 1, "item manual permanece na célula (1,1) [x=" .. tostring(manPos) .. "]")
     H.ok(leaders == 1, "automáticas consolidam NA manual (1 pilha) [leaders=" .. leaders .. "]")
-    H.ok(manUnits == 80, "pilha manual absorveu as automáticas (20+20+20+20=80) [units=" .. manUnits .. "]")
+    H.ok(manUnits == 4, "pilha manual absorveu as automáticas (1+1+1+1=4) [units=" .. manUnits .. "]")
 
     -- Caso inverso: manual em célula DEPOIS da automática — a manual NUNCA é
     -- movida; ela absorve a automática (1 pilha na célula da manual).
@@ -349,7 +349,7 @@ do
         if not d.stackMemberOf then units2 = grid2:getPileUnits(id) end
     end
     H.ok(leaders1 == leaders2 and leaders2 == 1, "2º refresh: mesma estrutura (1 líder) [l1=" .. leaders1 .. " l2=" .. leaders2 .. "]")
-    H.ok(units1 == units2 and units2 == 100, "2º refresh: mesmas unidades [u1=" .. units1 .. " u2=" .. units2 .. "]")
+    H.ok(units1 == units2 and units2 == 5, "2º refresh: mesmas unidades [u1=" .. units1 .. " u2=" .. units2 .. "]")
 end
 
 -- ─── Teste 12: retry de unpositioned após consolidação liberar células ──────
@@ -422,7 +422,77 @@ do
         "pilha com membro bloqueado não é absorvida [leader=" .. tostring(leaderId) .. " " .. tostring(leaderCell) .. "]")
     H.ok(grid.items["a2"] and grid.items["a2"].stackMemberOf == "a1",
         "membro bloqueado permanece membro de a1 (não movido)")
-    H.ok(grid:getPileUnits(leaderId) == 60, "pilha absorveu b (20+20+20=60)")
+    H.ok(grid:getPileUnits(leaderId) == 3, "pilha absorveu b (1+1+1=3)")
+end
+
+-- ─── Teste 15: unidades = OBJETOS (o B42 conta o objeto, não o count do script) ──
+-- O jogo cria uma caixa de pregos como 100 objetos de Base.Nails (cada um conta
+-- como 1 prego — o count=5 do script é vestigial; o pack de 100 consome 100
+-- objetos). O mod deve tratar CADA OBJETO como 1 unidade: uma caixa (100 objetos)
+-- vira UMA pilha de 100 (limite exato), e 500 objetos viram 5 pilhas de 100.
+do
+    local function makeNail(id, gx, gy)
+        return makeItem(id, "Base.Nails", 1, gx, gy)
+    end
+
+    -- Um único objeto = 1 unidade (badge oculto; "1 prego")
+    local gc1 = freshContainer({ makeNail("solo", nil, nil) })
+    gc1:refresh()
+    local soloData = itemAt(gc1, "solo")
+    H.ok(soloData and soloData.stackInfo and soloData.stackInfo.units == 1,
+        "objeto único tem units=1 no stackInfo [units=" .. tostring(soloData and soloData.stackInfo and soloData.stackInfo.units) .. "]")
+    H.ok(gc1.grids[1]:getPileUnits("solo") == 1,
+        "pilha de 1 objeto = 1 unidade [units=" .. gc1.grids[1]:getPileUnits("solo") .. "]")
+
+    -- Dois objetos: 2 unidades, 2 objetos
+    local gc2 = freshContainer({ makeNail("n1", 1, 1), makeNail("n2", 2, 1) })
+    gc2:refresh()
+    local grid2 = gc2.grids[1]
+    local leader2 = nil
+    for id, d in pairs(grid2.items) do
+        if not d.stackMemberOf then leader2 = id end
+    end
+    H.ok(leader2 ~= nil and grid2:getPileUnits(leader2) == 2,
+        "1+1 consolidado = 2 unidades [units=" .. tostring(leader2 and grid2:getPileUnits(leader2)) .. "]")
+    H.ok(leader2 ~= nil and grid2:getStackSize(leader2) == 2,
+        "1+1 = 2 objetos na pilha [size=" .. tostring(leader2 and grid2:getStackSize(leader2)) .. "]")
+
+    -- UMA caixa = 100 objetos → UMA pilha de 100 (o caso do usuário!)
+    local boxItems = {}
+    for i = 1, 100 do
+        table.insert(boxItems, makeNail("b" .. i, nil, nil))
+    end
+    local gcBox = freshContainer(boxItems)
+    gcBox:refresh()
+    local gridBox = gcBox.grids[1]
+    local boxLeaders = 0
+    local boxUnits = 0
+    for id, d in pairs(gridBox.items) do
+        if not d.stackMemberOf then
+            boxLeaders = boxLeaders + 1
+            boxUnits = gridBox:getPileUnits(id)
+        end
+    end
+    H.ok(boxLeaders == 1, "1 caixa (100 objetos) = 1 pilha [leaders=" .. boxLeaders .. "]")
+    H.ok(boxUnits == 100, "pilha da caixa = 100 unidades [units=" .. boxUnits .. "]")
+
+    -- 500 objetos (5 caixas) → 5 pilhas de 100, total preservado (cap mantido)
+    local items = {}
+    for i = 1, 500 do
+        table.insert(items, makeNail("m" .. i, nil, nil))
+    end
+    local gc3 = freshContainer(items)
+    gc3:refresh()
+    local grid3 = gc3.grids[1]
+    local leaders, total = 0, 0
+    for id, d in pairs(grid3.items) do
+        if not d.stackMemberOf then
+            leaders = leaders + 1
+            total = total + grid3:getPileUnits(id)
+        end
+    end
+    H.ok(leaders == 5, "500 objetos → 5 pilhas de 100 [leaders=" .. leaders .. "]")
+    H.ok(total == 500, "total de unidades preservado (500) [total=" .. total .. "]")
 end
 
 H.finish()

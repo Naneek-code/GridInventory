@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Spredningsmodus",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Hvordan gjenstander uten lagret posisjon plasseres i beholdere.\n\nAutomatisk (naturlig loot): bare beholdere som aldri er blitt plyndret får et naturlig, tilfeldig oppsett; spillerens inventar og utforskede beholdere fylles organisert.\n\nAlltid spred (rotete): gjenstander lander strødd overalt, også i ditt eget inventar. Raske overføringer blir rotete; presis dra-og-slipp med x,y holder ting organisert.\n\nAldri spred (ryddig): alt fylles automatisk fra øverst til venstre, aldri tilfeldig.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Automatisk (naturlig loot)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Alltid spred (rotete)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Aldri spred (ryddig)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Omorganiseringsanimasjon for gjenstander",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Flytter gjenstander i samme beholder med en kort overføringsanimasjon.\n\nAnimert: karakteren gjør overføringsanimasjonen og flyttingen brukes ~0,5 s senere. I flerspiller gir dette serveren tid til å behandle før neste flytting.\n\nØyeblikkelig: gjenstander flytter seg umiddelbart ved slipp, som før.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animert",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Øyeblikkelig",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Beveg deg mens du organiserer",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Lar karakteren gå mens omorganiseringshandlingen kjører (løping avbryter den fortsatt).\n\nPå: du kan gå mens gjenstander omorganiseres, som mange andre tidsbestemte handlinger.\n\nAv: handlingen kjører bare mens du står stille.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Søk i verdensbeholdere",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Gjør at verdensbeholdere (kasser, hyller, lik...) må søkes før du kan samhandle med gjenstandene inni, Tarkov-stil.\n\nNår på, skjuler åpning av en beholder uidentifiserte gjenstander bak en mørk maske. Klikk på rutenettet for å starte søket: gjenstander avsløres én stabel om gangen. Du kan stoppe når som helst og beholde det du allerede har funnet; klikk igjen for å fortsette. Gjenstander du selv legger inn avsløres umiddelbart.\n\nAv: beholdere viser alltid innholdet sitt.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Søketid per gjenstand",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tid i millisekunder for å avsløre hver stabel mens du søker i en beholder. Skalerer med antall stabler: flere gjenstander, lengre søk.\n\n0 = øyeblikkelig (avslører alt ved klikk).",
+    "Sandbox_GridInventory_EnableDevTools": "Aktiver DevTools",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Legger til alternativet \"[DevTool] Rediger rutenettstørrelse\" i kontekstmenyen for gjenstander, slik at du kan endre størrelsen på gjenstanders fotavtrykk og beholders rutenett uten å starte spillet med -debug.\n\nPå: DevTools tilgjengelig i denne lagringen. I flerspiller kan ikke-admin-spillere se alternativet, men serveren avviser å bruke endringer.\n\nAv: kun tilgjengelig når spillet startes med -debug."
+}

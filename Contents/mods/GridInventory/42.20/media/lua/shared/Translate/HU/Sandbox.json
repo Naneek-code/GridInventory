@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Szórásmód",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Hogyan kerülnek a tárolókba a mentett pozíció nélküli tárgyak.\n\nAutomatikus (természetes loot): csak azok a tárolók kapnak természetes, véletlenszerű elrendezést, amelyeket soha nem fosztottak ki; a játékos inventárja és a felderített tárolók rendezetten telnek meg.\n\nMindig szór (rendetlen): a tárgyak mindenhol szétszórva landolnak, beleértve a saját inventárodat is. A gyors átmozgatások rendetlenné válnak; a precíz húzd-és-engedd x,y koordinátákkal rendben tartja a dolgokat.\n\nSoha ne szór (rendezett): minden automatikusan, bal felülről töltődik meg, soha nem véletlenszerűen.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Automatikus (természetes loot)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Mindig szór (rendetlen)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Soha ne szór (rendezett)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Tárgy-átrendezési animáció",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Rövid átviteli animációval mozgatja a tárgyakat ugyanazon a tárolón belül.\n\nAnimált: a karakter elvégzi az átviteli animációt, és a mozgás ~0,5 másodperccel később történik. Többjátékos módban ez időt ad a szervernek a feldolgozásra a következő mozgatás előtt.\n\nAzonnali: a tárgyak a lerakáskor azonnal mozognak, mint korábban.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animált",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Azonnali",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Mozgás rendezés közben",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Lehetővé teszi, hogy a karakter sétáljon, amíg a tárgyátrendezési akció fut (a futás továbbra is megszakítja).\n\nBe: sétálhatsz, amíg a tárgyak átrendeződnek, mint sok más időzített akciónál.\n\nKi: az akció csak álló helyzetben fut.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Világ tárolóinak átkutatása",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "A világ tárolóit (ládák, polcok, holttestek...) előbb át kell kutatni, mielőtt kölcsönhatásba léphetsz a benne lévő tárgyakkal, Tarkov-stílusban.\n\nBe kapcsolva: egy tároló kinyitása az azonosítatlan tárgyakat sötét maszk mögé rejti. Kattints a rácsra a kutatás megkezdéséhez: a tárgyak egyesével, kupaconként tárulnak fel. Bármikor megállhatsz, és megtarthatod, amit már találtál; a kattintással folytathatod. A saját magad által beletett tárgyak azonnal felfedésre kerülnek.\n\nKi: a tárolók mindig mutatják a tartalmukat.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Kutatási idő tárgyanként",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "A kupacok felfedéséhez szükséges idő milliszekundumban tároló átkutatásakor. A kupacok számával nő: több tárgy, hosszabb kutatás.\n\n0 = azonnali (kattintásra mindent felfed).",
+    "Sandbox_GridInventory_EnableDevTools": "DevTools engedélyezése",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Hozzáadja a \"[DevTool] Rács méretének szerkesztése\" opciót a tárgyak helyi menüjéhez, így átméretezheted a tárgyak lábnyomát és a tárolók rácsait anélkül, hogy a játékot -debug-kapcsolóval indítanád.\n\nBe: a DevTools elérhető ebben a mentésben. Többjátékos módban a nem-admin játékosok látják az opciót, de a szerver elutasítja a változtatások alkalmazását.\n\nKi: csak akkor érhető el, ha a játék -debug-kapcsolóval indul."
+}

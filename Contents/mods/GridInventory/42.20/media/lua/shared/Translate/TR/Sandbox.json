@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Dağılım Modu",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Kayıtlı konumu olmayan öğelerin konteynerlere nasıl yerleştirildiği.\n\nOtomatik (doğal ganimet): yalnızca hiç yağmalanmamış konteynerler doğal rastgele düzene sahip olur; oyuncu envanteri ve keşfedilen konteynerler düzenli dolar.\n\nHer zaman dağıt (dağınık): öğeler her yere, kendi envanteriniz de dahil, dağınık şekilde düşer. Hızlı transferler dağınık olur; x,y ile hassas sürükle-bırak işleri düzenli tutar.\n\nAsla dağıtma (derli toplu): her şey sol üstten otomatik dolar, asla rastgele değil.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Otomatik (doğal ganimet)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Her zaman dağıt (dağınık)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Asla dağıtma (derli toplu)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Öğe Yeniden Düzenleme Animasyonu",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Aynı konteyner içindeki öğeleri kısa bir transfer animasyonuyla taşır.\n\nAnimasyonlu: karakter transfer animasyonunu yapar ve hareket ~0,5 sn sonra uygulanır. Çok oyunculuda bu, sunucuya bir sonraki hareketten önce işlem yapması için zaman verir.\n\nAnında: öğeler bırakıldığı anda hareket eder, eskisi gibi.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animasyonlu",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Anında",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Düzenlerken hareket et",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Öğe yeniden düzenleme eylemi çalışırken karakterin yürümesini sağlar (koşmak yine de iptal eder).\n\nAçık: birçok süreli eylem gibi, öğeler yeniden düzenlenirken yürüyebilirsiniz.\n\nKapalı: eylem yalnızca hareketsiz dururken çalışır.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Dünya konteynerlerini ara",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Dünya konteynerlerinin (sandıklar, raflar, cesetler...) içlerindeki öğelerle etkileşimden önce aranmasını gerektirir, Tarkov tarzı.\n\nAçıkken, bir konteyneri açmak tanımlanmamış öğeleri koyu bir maskenin arkasına gizler. Aramaya başlamak için ızgaraya tıklayın: öğeler tek tek yığınlar halinde ortaya çıkar. İstediğiniz zaman durup bulduklarınızı saklayabilirsiniz; devam etmek için tekrar tıklayın. Kendinizin koyduğu öğeler anında ortaya çıkar.\n\nKapalı: konteynerler her zaman içeriklerini gösterir.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Öğe başına arama süresi",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Bir konteyneri ararken her yığını ortaya çıkarmak için geçen süre (milisaniye). Yığın sayısıyla ölçeklenir: daha çok öğe, daha uzun arama.\n\n0 = anında (tıklamada her şeyi ortaya çıkarır).",
+    "Sandbox_GridInventory_EnableDevTools": "DevTools'u Etkinleştir",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Öğe bağlam menüsüne \"[DevTool] Izgara Boyutunu Düzenle\" seçeneğini ekler; böylece oyunu -debug ile başlatmadan öğe alanlarını ve konteyner ızgaralarını yeniden boyutlandırabilirsiniz.\n\nAçık: DevTools bu kayıtta kullanılabilir. Çok oyunculuda, admin olmayan oyuncular seçeneği görebilir ancak sunucu değişikliklerin uygulanmasını reddeder.\n\nKapalı: yalnızca oyun -debug ile başlatıldığında kullanılabilir."
+}

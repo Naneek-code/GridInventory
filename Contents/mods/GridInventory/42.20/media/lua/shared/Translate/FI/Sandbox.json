@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Hajontatila",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Kuinka esineet ilman tallennettua paikkaa asetetaan säiliöihin.\n\nAutomaattinen (luonnollinen loot): vain säiliöt, joita ei ole koskaan ryöstetty, saavat luonnollisen satunnaisen asettelun; pelaajan inventaario ja tutkitut säiliöt täyttyvät järjestäytyneesti.\n\nAina hajota (sotkuinen): esineet leviävät kaikkialle, myös omaan inventaarioosi. Nopeat siirrot muuttuvat sotkuisiksi; tarkka vedä ja pudota x,y-koordinaateilla pitää asiat järjestyksessä.\n\nEi koskaan hajota (siisti): kaikki täyttyy automaattisesti ylävasemmalta, ei koskaan satunnaisesti.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Automaattinen (luonnollinen loot)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Aina hajota (sotkuinen)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Ei koskaan hajota (siisti)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Esineiden uudelleenjärjestelyn animaatio",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Siirtää esineitä saman säiliön sisällä lyhyellä siirtoanimaatiolla.\n\nAnimoitu: hahmo tekee siirtoanimaation ja siirto tapahtuu ~0,5 s myöhemmin. Moninpelissä tämä antaa palvelimelle aikaa käsitellä ennen seuraavaa siirtoa.\n\nVälitön: esineet siirtyvät heti pudotuksessa, kuten ennen.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animoitu",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Välitön",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Liiku järjestellessä",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Antaa hahmon kävellä, kun esineiden uudelleenjärjestelytoiminto on käynnissä (juokseminen silti peruuttaa sen).\n\nPäällä: voit kävellä, kun esineet järjestäytyvät, kuten monien muiden ajastettujen toimintojen kohdalla.\n\nPois: toiminto toimii vain paikallaan seistessä.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Etsi maailman säiliöistä",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Saa maailman säiliöt (laatikot, hyllyt, ruumiit...) vaatimaan etsimisen ennen kuin voit olla vuorovaikutuksessa sisällä olevien esineiden kanssa, Tarkov-tyyliin.\n\nKun päällä, säiliön avaaminen piilottaa tunnistamattomat esineet tumman maskin taakse. Klikkaa ruudukkoa aloittaaksesi etsimisen: esineet paljastetaan pino kerrallaan. Voit lopettaa milloin haluat ja pitää jo löytämäsi; klikkaa uudelleen jatkaaksesi. Itse sinne laittamasi esineet paljastuvat heti.\n\nPois: säiliöt näyttävät aina sisältönsä.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Etsintäaika esinettä kohti",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Aika millisekunteina paljastaa jokainen pino säiliötä etsittäessä. Skaalautuu pinomäärän mukaan: enemmän esineitä, pidempi etsintä.\n\n0 = välitön (paljastaa kaiken klikkauksella).",
+    "Sandbox_GridInventory_EnableDevTools": "Ota DevTools käyttöön",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Lisää \"[DevTool] Muokkaa ruudukon kokoa\" -vaihtoehdon esineiden pikavalikkoon, jotta voit muuttaa esineiden jalka-aloja ja säiliöiden ruudukoita käynnistämättä peliä -debug-lipulla.\n\nPäällä: DevTools käytettävissä tässä tallennuksessa. Moninpelissä ei-admin-pelaajat näkevät vaihtoehdon, mutta palvelin hylkää muutosten soveltamisen.\n\nPois: vain saatavilla, kun peli käynnistetään -debug-lipulla."
+}

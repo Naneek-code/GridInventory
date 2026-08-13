@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "散布モード",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "保存された位置のないアイテムがコンテナにどのように配置されるか。\n\n自動（自然なルート）：略奪されたことがないコンテナだけが自然なランダム配置になります。プレイヤーのインベントリと探索済みコンテナは整然と埋まります。\n\n常に散布（散らかる）：アイテムが自分のインベントリを含め、どこにでも散らばります。クイック転送は散らかります。x,y で正確にドラッグ＆ドロップすれば整理できます。\n\n散布しない（整然）：すべて左上から自動で埋まり、決してランダムになりません。",
+    "Sandbox_GridInventory_ScatterMode_option1": "自動（自然なルート）",
+    "Sandbox_GridInventory_ScatterMode_option2": "常に散布（散らかる）",
+    "Sandbox_GridInventory_ScatterMode_option3": "散布しない（整然）",
+    "Sandbox_GridInventory_ReorderTimeAction": "アイテム整理アニメーション",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "同じコンテナ内でアイテムを短い転送アニメーションで移動します。\n\nアニメーション：キャラクターが転送アニメーションを行い、約0.5秒後に移動が適用されます。マルチプレイヤーでは、次の移動前にサーバーが処理する時間を確保できます。\n\n即時：アイテムはドロップ時にすぐ移動します（以前と同様）。",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "アニメーション",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "即時",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "整理中に移動できる",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "アイテム整理アクションの実行中にキャラクターが歩けるようにします（走るとキャンセルされます）。\n\nオン：他の多くの時間指定アクションと同様に、整理中に歩くことができます。\n\nオフ：アクションは立ち止まっている間のみ実行されます。",
+    "Sandbox_GridInventory_SearchWorldContainers": "ワールドのコンテナを探索",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "ワールドのコンテナ（木箱、棚、死体など）を、中のアイテムとやり取りする前に探索する必要があるようにします（タルコフ風）。\n\nオンの場合、コンテナを開くと未識別のアイテムが暗いマスクの後ろに隠れます。グリッドをクリックして探索を開始すると、アイテムが1スタックずつ明らかになります。いつでも止めて、見つけたものを保持できます。再度クリックで再開します。自分で入れたアイテムはすぐに表示されます。\n\nオフ：コンテナは常に中身を表示します。",
+    "Sandbox_GridInventory_SearchTimePerItem": "アイテムあたりの探索時間",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "コンテナを探索中に各スタックを明らかにするのにかかる時間（ミリ秒）。スタック数に応じて変動します。アイテムが多いほど探索が長くなります。\n\n0 = 即時（クリックで全部明らかになる）。",
+    "Sandbox_GridInventory_EnableDevTools": "DevTools を有効化",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "アイテムのコンテキストメニューに「[DevTool] グリッドサイズを編集」オプションを追加し、-debug で起動しなくてもアイテムの占有サイズとコンテナのグリッドを変更できるようにします。\n\nオン：このセーブで DevTools が利用可能。マルチプレイヤーでは、非管理者プレイヤーはオプションを表示できますが、サーバーは変更の適用を拒否します。\n\nオフ：ゲームを -debug で起動した場合のみ利用可能。"
+}

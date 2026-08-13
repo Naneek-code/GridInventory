@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Verspreidingsmodus",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Hoe items zonder opgeslagen positie in containers worden geplaatst.\n\nAutomatisch (natuurlijke loot): alleen containers die nooit zijn geplunderd krijgen een natuurlijke, willekeurige indeling; het inventaris van de speler en verkende containers vullen zich georganiseerd.\n\nAltijd verspreiden (rommelig): items belanden overal verspreid, ook in je eigen inventaris. Snelle overdrachten worden rommelig; precies slepen en neerzetten met x,y houdt dingen georganiseerd.\n\nNooit verspreiden (netjes): alles vult zich automatisch van linksboven, nooit willekeurig.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Automatisch (natuurlijke loot)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Altijd verspreiden (rommelig)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Nooit verspreiden (netjes)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Animatie voor item herordening",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Verplaatst items binnen dezelfde container met een korte overdrachtsanimatie.\n\nGeanimeerd: het personage doet de overdrachtsanimatie en de verplaatsing wordt ~0,5 s later toegepast. In multiplayer geeft dit de server tijd om te verwerken vóór de volgende verplaatsing.\n\nOnmiddellijk: items verplaatsen zich direct bij het neerzetten, zoals voorheen.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Geanimeerd",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Onmiddellijk",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Bewegen tijdens het organiseren",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Laat het personage lopen terwijl de herordeningsactie loopt (rennen annuleert het nog steeds).\n\nAan: je kunt lopen terwijl items zich herordenen, net als bij veel andere getimede acties.\n\nUit: de actie loopt alleen terwijl je stilstaat.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Wereldcontainers doorzoeken",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Zorgt dat wereldcontainers (kisten, planken, lijken...) doorzocht moeten worden voordat je met de items erin kunt interacteren, in Tarkov-stijl.\n\nWanneer aan, verbergt het openen van een container ongeïdentificeerde items achter een donker masker. Klik op het raster om te beginnen met zoeken: items worden één stapel tegelijk onthuld. Je kunt op elk moment stoppen en houden wat je al hebt gevonden; klik opnieuw om verder te gaan. Items die je zelf plaatst worden onmiddellijk onthuld.\n\nUit: containers tonen altijd hun inhoud.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Zoektijd per item",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tijd in milliseconden om elke stapel te onthullen tijdens het doorzoeken van een container. Schaalbaar met het aantal stapels: meer items, langer zoeken.\n\n0 = onmiddellijk (onthult alles bij een klik).",
+    "Sandbox_GridInventory_EnableDevTools": "DevTools inschakelen",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Voegt de optie \"[DevTool] Rastergrootte bewerken\" toe aan het contextmenu van items, zodat je de footprint van items en raster van containers kunt aanpassen zonder het spel met -debug te starten.\n\nAan: DevTools beschikbaar in deze save. In multiplayer zien niet-admin-spelers de optie, maar de server weigert wijzigingen toe te passen.\n\nUit: alleen beschikbaar wanneer het spel met -debug wordt gestart."
+}

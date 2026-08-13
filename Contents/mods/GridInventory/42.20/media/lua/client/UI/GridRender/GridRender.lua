@@ -985,9 +985,11 @@ function GridRender:render()
                     end
                 end
 
-                -- Badge de contagem da pilha (total de unidades — soma de
-                -- getCount() dos membros: 100 pregos, 50 9mm, 12 twines).
-                if self.gridCore:getStackSize(itemId) > 1 then
+                -- Badge de contagem da pilha (total de unidades = nº de OBJETOS
+                -- empilhados: 100 pregos, 50 9mm, 12 twines). Cada objeto = 1
+                -- unidade (o B42 conta o objeto — o count do script é vestigial).
+                -- Mostra a partir de 2 unidades pra não poluir item solto.
+                if self.gridCore:getPileUnits(itemId) > 1 then
                     self:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH)
                 end
 

@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Režim rozptylu",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Jak jsou předměty bez uložené pozice umístěny do kontejnerů.\n\nAutomatický (přirozený loot): pouze kontejnery, které nikdy nebyly vyloupeny, dostanou přirozené náhodné rozmístění; inventář hráče a prohledané kontejnery se plní uspořádaně.\n\nVždy rozptýlit (nepořádek): předměty se rozptýlí všude, včetně vašeho inventáře. Rychlé přesuny jsou nepořádné; přesné přetažení s x,y udržuje pořádek.\n\nNikdy nerozptylovat (úhledně): vše se automaticky plní zleva shora, nikdy náhodně.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Automatický (přirozený loot)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Vždy rozptýlit (nepořádek)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Nikdy nerozptylovat (úhledně)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Animace přesunu předmětů",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Přesouvá předměty v rámci stejného kontejneru s krátkou přenosovou animací.\n\nAnimovaný: postava provede přenosovou animaci a pohyb se aplikuje asi o 0,5 s později. V multiplayeru to dá serveru čas zpracovat akci před dalším pohybem.\n\nOkamžitý: předměty se pohnou okamžitě po upuštění, jako dříve.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animovaný",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Okamžitý",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Pohyb při organizování",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Umožňuje postavě chodit, zatímco běží akce přeuspořádání předmětů (běh ji stále zruší).\n\nZapnuto: můžete chodit, zatímco se předměty přeuspořádávají, jako u mnoha jiných časovaných akcí.\n\nVypnuto: akce probíhá pouze ve stoje.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Prohledávat kontejnery ve světě",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Způsobuje, že kontejnery ve světě (bedny, police, mrtvoly...) musí být prohledány, než budete moci interagovat s předměty uvnitř, ve stylu Tarkov.\n\nKdyž je zapnuto, otevření kontejneru skryje neidentifikované předměty za tmavou maskou. Klikněte na mřížku a začněte prohledávat: předměty se odhalují po jedné hromadě. Můžete kdykoli přestat a ponechat si, co už jste našli; kliknutím znovu pokračujete. Předměty, které jste vložili sami, se odhalí okamžitě.\n\nVypnuto: kontejnery vždy zobrazují svůj obsah.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Doba hledání na předmět",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Čas v milisekundách k odhalení každé hromady při prohledávání kontejneru. Škáluje s počtem hromad: více předmětů, delší hledání.\n\n0 = okamžitě (odhalí vše po kliknutí).",
+    "Sandbox_GridInventory_EnableDevTools": "Povolit DevTools",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Přidá možnost \"[DevTool] Upravit velikost mřížky\" do kontextové nabídky předmětů, abyste mohli změnit velikost otisků předmětů a mřížek kontejnerů bez spuštění hry s -debug.\n\nZapnuto: DevTools dostupné v tomto uložení. V multiplayeru hráči bez oprávnění správce možnost vidí, ale server odmítne použití změn.\n\nVypnuto: dostupné pouze při spuštění hry s -debug."
+}

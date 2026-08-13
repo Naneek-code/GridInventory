@@ -387,6 +387,10 @@ function PaperDollWindow:render()
     ISCollapsableWindow.render(self)
     local playerObj = getSpecificPlayer(self.playerNum)
     if not playerObj then return end
+    -- Colapsado: só a titlebar aparece (o maxDrawHeight clipa os children,
+    -- mas este desenho é feito no render() do próprio painel, depois do
+    -- clearStencilRect — sem o guard ele vazaria a barra de progresso).
+    if self.isCollapsed then return end
     if ISTimedActionQueue then
         local queue = ISTimedActionQueue.getTimedActionQueue(playerObj)
         if queue and queue.queue and queue.queue[1] then

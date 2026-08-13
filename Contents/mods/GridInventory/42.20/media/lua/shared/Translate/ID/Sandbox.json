@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Mode Sebaran",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Bagaimana item tanpa posisi tersimpan ditempatkan di wadah.\n\nOtomatis (loot alami): hanya wadah yang tidak pernah dijarah yang mendapat tata letak acak alami; inventaris pemain dan wadah yang telah dijelajahi terisi rapi.\n\nSelalu sebarkan (berantakan): item mendarat tersebar di mana-mana, termasuk inventaris Anda sendiri. Transfer cepat jadi berantakan; tarik dan lepas presisi dengan x,y menjaga keteraturan.\n\nJangan pernah menyebar (rapi): semuanya terisi otomatis dari kiri atas, tidak pernah acak.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Otomatis (loot alami)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Selalu sebarkan (berantakan)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Jangan pernah menyebar (rapi)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Animasi Penyusunan Ulang Item",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Memindahkan item di dalam wadah yang sama dengan animasi transfer singkat.\n\nAnimasi: karakter melakukan animasi transfer dan perpindahan diterapkan ~0,5 detik kemudian. Dalam multipemain, ini memberi waktu bagi server untuk memproses sebelum perpindahan berikutnya.\n\nInstan: item langsung berpindah saat dilepas, seperti sebelumnya.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animasi",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Instan",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Bergerak sambil menata",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Memungkinkan karakter berjalan sementara aksi penyusunan ulang item berjalan (berlari tetap membatalkannya).\n\nAktif: Anda dapat berjalan sementara item disusun ulang, seperti banyak aksi berwaktu lainnya.\n\nNonaktif: aksi hanya berjalan saat diam.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Cari wadah dunia",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Membuat wadah dunia (peti, rak, mayat...) perlu dicari sebelum Anda dapat berinteraksi dengan item di dalamnya, gaya Tarkov.\n\nSaat aktif, membuka wadah menyembunyikan item yang belum teridentifikasi di balik masker gelap. Klik grid untuk mulai mencari: item terungkap satu tumpukan pada satu waktu. Anda dapat berhenti kapan saja dan menyimpan yang sudah ditemukan; klik lagi untuk melanjutkan. Item yang Anda masukkan sendiri langsung terungkap.\n\nNonaktif: wadah selalu menampilkan isinya.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Waktu cari per item",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Waktu dalam milidetik untuk mengungkap setiap tumpukan saat mencari di wadah. Menyesuaikan dengan jumlah tumpukan: lebih banyak item, pencarian lebih lama.\n\n0 = instan (mengungkap semuanya saat diklik).",
+    "Sandbox_GridInventory_EnableDevTools": "Aktifkan DevTools",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Menambahkan opsi \"[DevTool] Edit Ukuran Grid\" ke menu konteks item, sehingga Anda dapat mengubah ukuran jejak item dan grid wadah tanpa meluncurkan game dengan -debug.\n\nAktif: DevTools tersedia di save ini. Dalam multipemain, pemain non-admin dapat melihat opsi tetapi server menolak menerapkan perubahan.\n\nNonaktif: hanya tersedia saat game diluncurkan dengan -debug."
+}

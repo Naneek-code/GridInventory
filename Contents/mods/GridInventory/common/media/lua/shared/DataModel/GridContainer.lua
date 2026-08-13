@@ -243,8 +243,12 @@ function GridContainer.getStackInfo(item)
     local compatKey = GridContainer.getStackableCompatKey(item)
     if not compatKey then return nil, nil end
     local limit = GridContainer.getMaxStackUnits(item)
-    local units = (item.getCount and tonumber(item:getCount())) or 1
-    return compatKey, { limit = limit, units = math.max(1, units) }
+    -- O B42 conta o OBJETO como unidade (100 objetos de Nails = "100 pregos"):
+    -- a receita OpenBox100 cria 100 objetos e o pack consome 100 objetos. O
+    -- `count` do script (count=5) NÃO é usado como quantidade pelo jogo — usá-lo
+    -- aqui fazia o mod mostrar 500 pregos pra uma caixa de 100. Cada objeto = 1.
+    local units = 1
+    return compatKey, { limit = limit, units = units }
 end
 
 ---@param inventory ItemContainer

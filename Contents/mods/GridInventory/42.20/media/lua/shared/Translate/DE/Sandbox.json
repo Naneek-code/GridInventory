@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Streumodus",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Wie Gegenstände ohne gespeicherte Position in Behältern platziert werden.\n\nAutomatisch (natürliche Beute): Nur Behälter, die nie geplündert wurden, erhalten ein natürliches, zufälliges Layout; das Inventar des Spielers und erkundete Behälter füllen sich geordnet.\n\nImmer verstreuen (chaotisch): Gegenstände landen überall verstreut, auch in deinem eigenen Inventar. Schnelle Transfers werden chaotisch; präzises Ziehen und Ablegen mit x,y hält Dinge geordnet.\n\nNie verstreuen (ordentlich): Alles füllt sich automatisch von oben links, nie zufällig.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Automatisch (natürliche Beute)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Immer verstreuen (chaotisch)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Nie verstreuen (ordentlich)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Gegenstands-Umordnungs-Animation",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Bewegt Gegenstände innerhalb desselben Behälters mit einer kurzen Transfer-Animation.\n\nAnimiert: Die Figur führt die Transfer-Animation aus und die Bewegung wird ~0,5 s später angewendet. In Multiplayer gibt das dem Server Zeit, vor der nächsten Bewegung zu verarbeiten.\n\nSofort: Gegenstände bewegen sich sofort beim Ablegen, wie zuvor.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animiert",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Sofort",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Während des Organisierens laufen",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Erlaubt der Figur, während der Umordnungs-Aktion zu laufen (Rennen bricht sie weiterhin ab).\n\nAn: Du kannst laufen, während Gegenstände umgeordnet werden, wie bei vielen anderen zeitgesteuerten Aktionen.\n\nAus: Die Aktion läuft nur, wenn du stillstehst.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Welt-Behälter durchsuchen",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Sorgt dafür, dass Welt-Behälter (Kisten, Regale, Leichen...) durchsucht werden müssen, bevor du mit den Gegenständen darin interagieren kannst, Tarkov-Stil.\n\nWenn an, versteckt das Öffnen eines Behälters nicht identifizierte Gegenstände hinter einer dunklen Maske. Klicke auf das Raster, um die Suche zu starten: Gegenstände werden Stapel für Stapel aufgedeckt. Du kannst jederzeit anhalten und behalten, was du bereits gefunden hast; klicke erneut, um fortzufahren. Gegenstände, die du selbst hineinlegst, werden sofort aufgedeckt.\n\nAus: Behälter zeigen immer ihren Inhalt.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Suchzeit pro Gegenstand",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Zeit in Millisekunden, um jeden Stapel beim Durchsuchen eines Behälters aufzudecken. Skaliert mit der Anzahl der Stapel: mehr Gegenstände, längere Suche.\n\n0 = sofort (deckt alles beim Klicken auf).",
+    "Sandbox_GridInventory_EnableDevTools": "DevTools aktivieren",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Fügt die Option \"[DevTool] Rastergröße bearbeiten\" zum Kontextmenü der Gegenstände hinzu, sodass du Gegenstands-Footprints und Behälter-Raster verändern kannst, ohne das Spiel mit -debug zu starten.\n\nAn: DevTools in diesem Spielstand verfügbar. In Multiplayer sehen Nicht-Admin-Spieler die Option, aber der Server lehnt das Anwenden von Änderungen ab.\n\nAus: Nur verfügbar, wenn das Spiel mit -debug gestartet wird."
+}

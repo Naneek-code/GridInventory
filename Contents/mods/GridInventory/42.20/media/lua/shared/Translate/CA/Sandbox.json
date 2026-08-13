@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Mode de dispersió",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Com es col·loquen als contenidors els objectes sense una posició guardada.\n\nAutomàtic (botí natural): només els contenidors que mai no han estat saquejats reben un disseny aleatori natural; l'inventari del jugador i els contenidors explorats s'omplen de manera ordenada.\n\nSempre dispersar (desordenat): els objectes cauen escampats pertot arreu, inclòs el teu inventari. Les transferències ràpides es desordenen; arrossegar i deixar anar amb precisió amb x,y manté l'ordre.\n\nMai dispersar (ordenat): tot s'auto-omple des de la cantonada superior esquerra, mai a l'atzar.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Automàtic (botí natural)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Sempre dispersar (desordenat)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Mai dispersar (ordenat)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Animació de reorganització",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Mou els objectes dins del mateix contenidor amb una breu animació de transferència.\n\nAnimat: el personatge fa l'animació de transferència i el moviment s'aplica ~0,5 s després. En multijugador això dóna temps al servidor per processar abans del següent moviment.\n\nInstantani: els objectes es mouen immediatament en deixar-los anar, com abans.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animat",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Instantani",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Moure's mentre organitza",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Permet que el personatge camini mentre s'executa l'acció de reorganitzar objectes (córrer encara la cancela).\n\nActivat: pots caminar mentre els objectes es reorganitzen, com moltes altres accions amb durada.\n\nDesactivat: l'acció només s'executa estant quiet.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Cercar contenidors del món",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Fa que els contenidors del món (caixes, prestatgeries, cadàvers...) s'hagin de cercar abans de poder interactuar amb els objectes de dins, estil Tarkov.\n\nQuan està activat, obrir un contenidor amaga els objectes no identificats darrere d'una màscara fosca. Fes clic a la quadrícula per començar a cercar: els objectes es revelen d'una pila en una. Pots aturar-te quan vulguis i conservar el que ja has trobat; fes clic de nou per continuar. Els objectes que hi poses tu es revelen immediatament.\n\nDesactivat: els contenidors sempre mostren el contingut.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Temps de cerca per objecte",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Temps en mil·lisegons per revelar cada pila en cercar un contenidor. Escala amb el nombre de piles: més objectes, cerca més llarga.\n\n0 = instantani (ho revela tot en fer clic).",
+    "Sandbox_GridInventory_EnableDevTools": "Activa DevTools",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Afegeix l'opció \"[DevTool] Edita la mida de la quadrícula\" al menú contextual dels objectes, perquè puguis redimensionar les petjades dels objectes i les quadrícules dels contenidors sense iniciar el joc amb -debug.\n\nActivat: DevTools disponible en aquesta partida. En multijugador, els jugadors que no són administradors veuen l'opció, però el servidor rebutja aplicar els canvis.\n\nDesactivat: només disponible quan el joc s'inicia amb -debug."
+}

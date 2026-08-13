@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "散落模式",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "沒有保存位置的物品會如何放入容器中。\n\n自動（自然戰利品）：只有從未被搜刮過的容器才會獲得自然的隨機佈局；玩家背包和已探索的容器會整齊填滿。\n\n總是散落（凌亂）：物品到處散落，包括你自己的背包。快速轉移會變亂；用 x,y 精確拖放可保持整齊。\n\n從不散落（整齊）：所有東西都從左上角自動填滿，絕不隨機。",
+    "Sandbox_GridInventory_ScatterMode_option1": "自動（自然戰利品）",
+    "Sandbox_GridInventory_ScatterMode_option2": "總是散落（凌亂）",
+    "Sandbox_GridInventory_ScatterMode_option3": "從不散落（整齊）",
+    "Sandbox_GridInventory_ReorderTimeAction": "物品重排動畫",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "以短暫的轉移動畫在同一個容器內移動物品。\n\n動畫：角色播放轉移動畫，約 0.5 秒後套用移動。在多人遊戲中，這讓伺服器有時間在下一次移動前進行處理。\n\n即時：物品放下時立即移動，和以前一樣。",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "動畫",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "即時",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "整理時可以走動",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "允許角色在物品重排動作進行時走動（奔跑仍然會取消）。\n\n開啟：物品重組時你可以走動，就像許多其他計時動作一樣。\n\n關閉：動作只在站立不動時執行。",
+    "Sandbox_GridInventory_SearchWorldContainers": "搜索世界容器",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "讓世界容器（箱子、架子、屍體……）在你能與裡面的物品互動之前需要先被搜索，類似塔科夫。\n\n開啟時，打開容器會將未識別的物品藏在黑暗遮罩後面。點擊網格開始搜索：物品會一次一個疊層地揭露。你可以隨時停下來，保留已找到的物品；再次點擊繼續。你自己放入的物品會立即揭露。\n\n關閉：容器總是顯示內容。",
+    "Sandbox_GridInventory_SearchTimePerItem": "每件物品的搜索時間",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "搜索容器時，揭露每個疊層所需的時間（毫秒）。隨疊層數量擴展：物品越多，搜索越久。\n\n0 = 即時（點擊時揭露全部）。",
+    "Sandbox_GridInventory_EnableDevTools": "啟用 DevTools",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "在物品的右鍵選單中加入「[DevTool] 編輯網格大小」選項，讓你可以無需以 -debug 啟動遊戲就能調整物品佔用空間和容器網格的大小。\n\n開啟：DevTools 在此存檔中可用。在多人遊戲中，非管理員玩家可以看到該選項，但伺服器會拒絕套用變更。\n\n關閉：僅在遊戲以 -debug 啟動時可用。"
+}

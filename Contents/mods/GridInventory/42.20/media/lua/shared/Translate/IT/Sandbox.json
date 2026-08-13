@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Modalità di dispersione",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Come vengono posizionati nei contenitori gli oggetti senza una posizione salvata.\n\nAutomatica (bottino naturale): solo i contenitori che non sono mai stati saccheggiati ricevono una disposizione casuale naturale; l'inventario del giocatore e i contenitori esplorati si riempiono in modo ordinato.\n\nDisperdi sempre (caotico): gli oggetti finiscono sparsi ovunque, incluso il tuo inventario. I trasferimenti rapidi diventano caotici; il trascinamento preciso con x,y mantiene tutto ordinato.\n\nMai disperdere (ordinato): tutto si riempie automaticamente dall'angolo in alto a sinistra, mai in modo casuale.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Automatica (bottino naturale)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Disperdi sempre (caotico)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Mai disperdere (ordinato)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Animazione di riordino oggetti",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Sposta gli oggetti nello stesso contenitore con una breve animazione di trasferimento.\n\nAnimata: il personaggio esegue l'animazione di trasferimento e lo spostamento viene applicato ~0,5 s dopo. In multiplayer questo dà al server il tempo di elaborare prima della mossa successiva.\n\nIstantanea: gli oggetti si muovono immediatamente al rilascio, come prima.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animata",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Istantanea",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Muoversi mentre organizzi",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Consente al personaggio di camminare mentre è in corso l'azione di riordino oggetti (correre la annulla comunque).\n\nAttivo: puoi camminare mentre gli oggetti si riorganizzano, come molte altre azioni a tempo.\n\nDisattivo: l'azione si esegue solo da fermi.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Cerca contenitori nel mondo",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Fa sì che i contenitori nel mondo (casse, scaffali, cadaveri...) debbano essere perquisiti prima di poter interagire con gli oggetti all'interno, stile Tarkov.\n\nQuando attivo, aprire un contenitore nasconde gli oggetti non identificati dietro una maschera scura. Fai clic sulla griglia per iniziare a perquisire: gli oggetti vengono rivelati una pila alla volta. Puoi fermarti quando vuoi e conservare ciò che hai già trovato; fai di nuovo clic per riprendere. Gli oggetti che inserisci tu vengono rivelati immediatamente.\n\nDisattivo: i contenitori mostrano sempre il loro contenuto.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Tempo di ricerca per oggetto",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tempo in millisecondi per rivelare ogni pila durante la perquisizione di un contenitore. Scala con il numero di pile: più oggetti, ricerca più lunga.\n\n0 = istantaneo (rivela tutto al clic).",
+    "Sandbox_GridInventory_EnableDevTools": "Abilita DevTools",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Aggiunge l'opzione \"[DevTool] Modifica dimensione griglia\" al menu contestuale degli oggetti, così puoi ridimensionare l'ingombro degli oggetti e le griglie dei contenitori senza avviare il gioco con -debug.\n\nAttivo: DevTools disponibili in questo salvataggio. In multiplayer, i giocatori non-admin vedono l'opzione ma il server rifiuta di applicare le modifiche.\n\nDisattivo: disponibile solo quando il gioco viene avviato con -debug."
+}

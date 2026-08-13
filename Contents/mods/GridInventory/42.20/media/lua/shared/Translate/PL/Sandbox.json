@@ -1,0 +1,20 @@
+{
+    "Sandbox_GridInventory": "GridInventory",
+    "Sandbox_GridInventory_ScatterMode": "Tryb rozpraszania",
+    "Sandbox_GridInventory_ScatterMode_tooltip": "Jak przedmioty bez zapisanej pozycji są umieszczane w pojemnikach.\n\nAutomatyczny (naturalny łup): tylko pojemniki, które nigdy nie zostały splądrowane, otrzymują naturalny, losowy układ; ekwipunek gracza i zbadane pojemniki zapełniają się uporządkowanie.\n\nZawsze rozpraszaj (bałagan): przedmioty lądują rozrzucone wszędzie, także w twoim własnym ekwipunku. Szybkie transfery stają się chaotyczne; precyzyjne przeciąganie z x,y utrzymuje porządek.\n\nNigdy nie rozpraszaj (porządek): wszystko wypełnia się automatycznie od lewego górnego rogu, nigdy losowo.",
+    "Sandbox_GridInventory_ScatterMode_option1": "Automatyczny (naturalny łup)",
+    "Sandbox_GridInventory_ScatterMode_option2": "Zawsze rozpraszaj (bałagan)",
+    "Sandbox_GridInventory_ScatterMode_option3": "Nigdy nie rozpraszaj (porządek)",
+    "Sandbox_GridInventory_ReorderTimeAction": "Animacja porządkowania przedmiotów",
+    "Sandbox_GridInventory_ReorderTimeAction_tooltip": "Przenosi przedmioty w tym samym pojemniku z krótką animacją transferu.\n\nAnimowany: postać wykonuje animację transferu, a ruch jest stosowany ~0,5 s później. W trybie wieloosobowym daje to serwerowi czas na przetworzenie przed następnym ruchem.\n\nNatychmiastowy: przedmioty poruszają się od razu po upuszczeniu, jak wcześniej.",
+    "Sandbox_GridInventory_ReorderTimeAction_option1": "Animowany",
+    "Sandbox_GridInventory_ReorderTimeAction_option2": "Natychmiastowy",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking": "Poruszaj się podczas porządkowania",
+    "Sandbox_GridInventory_ReorderMoveWhileWalking_tooltip": "Pozwala postaci chodzić, podczas gdy trwa akcja porządkowania przedmiotów (bieg nadal ją przerywa).\n\nWł.: możesz chodzić, podczas gdy przedmioty się porządkują, jak przy wielu innych akcjach czasowych.\n\nWył.: akcja działa tylko, gdy stoisz nieruchomo.",
+    "Sandbox_GridInventory_SearchWorldContainers": "Przeszukuj pojemniki świata",
+    "Sandbox_GridInventory_SearchWorldContainers_tooltip": "Sprawia, że pojemniki świata (skrzynie, półki, zwłoki...) muszą zostać przeszukane, zanim będziesz mógł wchodzić w interakcje z przedmiotami w środku, w stylu Tarkova.\n\nGdy włączone, otwarcie pojemnika ukrywa niezidentyfikowane przedmioty za ciemną maską. Kliknij siatkę, aby rozpocząć przeszukiwanie: przedmioty są ujawniane jedna sterta na raz. Możesz się zatrzymać w dowolnym momencie i zachować to, co już znalazłeś; kliknij ponownie, aby kontynuować. Przedmioty, które sam umieszczasz, są ujawniane natychmiast.\n\nWył.: pojemniki zawsze pokazują swoją zawartość.",
+    "Sandbox_GridInventory_SearchTimePerItem": "Czas szukania na przedmiot",
+    "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Czas w milisekundach potrzebny do ujawnienia każdej sterty podczas przeszukiwania pojemnika. Skaluje się z liczbą stert: więcej przedmiotów, dłuższe szukanie.\n\n0 = natychmiast (ujawnia wszystko po kliknięciu).",
+    "Sandbox_GridInventory_EnableDevTools": "Włącz DevTools",
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Dodaje opcję \"[DevTool] Edytuj rozmiar siatki\" do menu kontekstowego przedmiotów, dzięki czemu możesz zmieniać rozmiar zajmowanych przez przedmioty pól oraz siatki pojemników bez uruchamiania gry z -debug.\n\nWł.: DevTools dostępne w tym zapisie. W trybie wieloosobowym gracze bez uprawnień administratora widzą opcję, ale serwer odrzuca zastosowanie zmian.\n\nWył.: dostępne tylko, gdy gra jest uruchamiana z -debug."
+}
