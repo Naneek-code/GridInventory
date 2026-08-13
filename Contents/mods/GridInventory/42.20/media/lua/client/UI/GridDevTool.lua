@@ -22,7 +22,16 @@ local GridAdmin = require("System/GridAdmin")
 --- SP (host): -debug ou sandbox option ligada. MP: SÓ admin.
 local function canUseDevTools(player)
     if isClient() then
-        return GridAdmin.isAdmin(player or getPlayer())
+        -- O hook OnFillInventoryObjectContextMenu passa o NÚMERO do jogador
+        -- (não o IsoPlayer!). Resolve o IsoPlayer local antes de checar admin.
+        local playerObj = player
+        if type(player) == "number" then
+            playerObj = getSpecificPlayer(player)
+        end
+        if not playerObj then
+            playerObj = getPlayer()
+        end
+        return GridAdmin.isAdmin(playerObj)
     end
     local GridSandboxOptions = require("GridSandboxOptions")
     return isDebugEnabled() or GridSandboxOptions.isDevToolsEnabled()
