@@ -716,8 +716,7 @@ function GridRender:render()
         -- ── PESO: calcula o TEXTO e a COR antes de desenhar qualquer coisa,
         -- só pra saber a largura que ele vai ocupar (ainda não desenha na tela).
         -- O DISPLAY mantém o getMaxWeight() (a capacidade "confortável" do
-        -- personagem, ex.: 12) — é o que o jogador enxerga no vanilla. O teto
-        -- real (getEffectiveCapacity, ex.: 50) só é usado no FEEDBACK.
+        -- personagem, ex.: 12) — é o que o jogador enxerga no vanilla.
         local weightStr = nil
         local weightR, weightG, weightB = 0.9, 0.9, 0.9
         local hasWeightDisplay = self.inventoryContainer and self.inventoryContainer.getCapacityWeight and self.inventoryContainer.getMaxWeight
@@ -961,6 +960,24 @@ function GridRender:render()
                         local qx = drawX + (drawW - qSize) / 2
                         local qy = drawY + (drawH - qSize) / 2
                         self:drawTextureScaled(qTex, qx, qy, qSize, qSize, 1, 1, 1, 0.9)
+                    end
+                else
+                    -- DESCOBERTA (Tarkov): item acabou de ser revelado pela busca.
+                    -- Wipe BRANCO subindo de baixo pra cima no footprint, ~350ms.
+                    -- O lookup é O(1) e só roda pra itens já visíveis (o hot path
+                    -- dos ocultos continua intocado). A limpeza é lazy (expira
+                    -- sozinha na consulta), sem custo por frame.
+                    local revealP = GridInventory_Search.getRevealProgress(data.itemObj:getID())
+                    if revealP then
+                        -- revealP 0→1: a borda do wipe sobe; abaixo dela, um
+                        -- preenchimento branco translúcido "revela" o item.
+                        local wipeH = drawH * (1 - revealP)
+                        local wipeY = drawY + drawH - wipeH
+                        -- Base do wipe (abaixo da borda): cobertura branca
+                        -- esmaecida que desce conforme o wipe sobe.
+                        self:drawRect(drawX, wipeY, drawW, wipeH, 0.35 * (1 - revealP), 1, 1, 1)
+                        -- Borda frontal do wipe: linha branca brilhante.
+                        self:drawRect(drawX, wipeY, drawW, 2, 0.9, 1, 1, 1)
                     end
                 end
                 
@@ -2371,6 +2388,62 @@ function GridRender:onRightMouseUp(x, y)
     -- Painel colapsado: nenhum contexto/comando de grid
     if self:isUnderCollapsedPage() then
         return
+    end
+
+    -- Clique direito no HEADER do grid: abre o MESMO menu de contexto que o
+    -- clique direito na coluna de containers do painel (ISInventoryPage:
+    -- onBackpackRightMouseDown). Isso expõe Rename Bag, DevTools (Edit Grid
+    -- Size), etc. direto no grid. Para o inventário do jogador (sem item
+    -- contendo) o vanilla não abre menu de bag; mas o DevTools aparece no
+    -- menu de ITEM (a bolsa principal é um item), então usamos o container
+    -- contendo (se existir) ou o próprio inventário como item falso.
+    if self.headerH and self.headerH > 0 then
+        if y >= GRID_PADDING and y <= GRID_PADDING + self.headerH then
+            local container = self.inventoryContainer
+            if container then
+                -- Acha o BOTÃO REAL da coluna de containers que representa este
+                -- container e reusa o clique direito nativo dele (onBackpack
+                -- RightMouseDown) — o MESMO menu da coluna: Rename Bag, Refill
+                -- Container, etc. (o DevTools é adicionado DEPOIS, no contexto
+                -- recém-criado — ISContextMenu.get LIMPA o menu a cada chamada,
+                -- então adicionar antes seria apagado).
+                local pLoot = getPlayerLoot and getPlayerLoot(self.playerNum)
+                local pInv = getPlayerInventory and getPlayerInventory(self.playerNum)
+                local targetBtn = nil
+                local page = nil
+                for _, pg in ipairs({pInv, pLoot}) do
+                    if pg and pg.backpacks then
+                        for _, btn in ipairs(pg.backpacks) do
+                            if btn and btn.inventory == container then
+                                targetBtn = btn
+                                page = pg
+                                break
+                            end
+                        end
+                    end
+                    if targetBtn then break end
+                end
+                -- Menu da coluna vanilla (Rename Bag, Refill, etc.) pra bags.
+                if targetBtn then
+                    if targetBtn.onRightMouseDown then
+                        targetBtn.onRightMouseDown(targetBtn, x, y)
+                    elseif targetBtn.onBackpackRightMouseDown then
+                        targetBtn.onBackpackRightMouseDown(targetBtn, x, y)
+                    end
+                end
+                -- DevTools com o CONTAINER como alvo (edita o grid do mundo/
+                -- jogador, não só bags com item). Adiciona DEPOIS do menu da
+                -- coluna (o ISContextMenu.get limpa a cada chamada).
+                local GridDevToolUI = require("UI/GridDevTool")
+                if GridDevToolUI and GridDevToolUI.addContextOption then
+                    local context = ISContextMenu.get(self.playerNum, getMouseX(), getMouseY())
+                    if context then
+                        GridDevToolUI.addContextOption(context, self.playerNum, container)
+                    end
+                end
+            end
+            return
+        end
     end
 
     if GridInventory_GlobalDrag then

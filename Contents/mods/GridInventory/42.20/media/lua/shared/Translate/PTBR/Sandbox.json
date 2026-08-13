@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Tempo de busca por item",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tempo em milissegundos para revelar cada pilha ao vasculhar um container. Escala com a quantidade de pilhas: mais itens, busca mais longa.\n\n0 = instantâneo (revela tudo no clique).",
     "Sandbox_GridInventory_EnableDevTools": "Ativar DevTools",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Adiciona a opção \"[DevTool] Editar Tamanho do Grid\" no menu de contexto dos itens, permitindo redimensionar footprints de itens e grids de containers sem iniciar o jogo com -debug.\n\nLigado: DevTools disponível neste save. No multiplayer, quem não é admin vê a opção mas o servidor rejeita aplicar as mudanças.\n\nDesligado: só disponível quando o jogo é iniciado com -debug."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Adiciona a opção \"[DevTool] Editar Tamanho do Grid\" no menu de contexto dos itens, permitindo redimensionar footprints de itens e grids de containers sem iniciar o jogo com -debug.\n\nLigado: DevTools disponível neste save. No multiplayer, quem não é admin vê a opção mas o servidor rejeita aplicar as mudanças.\n\nDesligado: só disponível quando o jogo é iniciado com -debug.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Tamanho máximo do grid do container",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Número máximo de linhas para os grids dos containers do mundo. Os grids são dimensionados pela capacidade até esse limite. O override de grid do DevTool pode ultrapassar esse limite para containers específicos.\n\n15 (padrão) mantém o comportamento clássico.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "Largura do inventário do jogador",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "Largura (colunas) do grid principal do inventário do jogador. Valor fixo (padrão 3). O override de grid do DevTool para o inventário do jogador pode sobrescrever este valor.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "Altura do inventário do jogador",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "Altura (linhas) do grid principal do inventário do jogador. Valor fixo (padrão 4). O override de grid do DevTool para o inventário do jogador pode sobrescrever este valor.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "Largura mínima dos containers do mundo",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "Largura base (colunas) para os grids dos containers do mundo. Todos os grids dos containers do mundo usam essa largura; a altura é dimensionada pela capacidade até o limite geral. O override de grid do DevTool pode substituí-la para containers específicos.\n\n6 (padrão) mantém o comportamento clássico."
 }

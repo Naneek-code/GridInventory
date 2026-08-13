@@ -28,6 +28,22 @@ package.path = M.base .. "/common/media/lua/shared/?.lua;"
 local passed, failed = 0, 0
 local suiteName = "?"
 
+-- Stubs das funções GLOBAIS do jogo usadas pelo mod nos testes.
+-- Não são stubs vazios de propósito: o getTimeInMillis avança com o nº de
+-- chamadas pra permitir testar animações baseadas em tempo sem real-time.
+local _fakeTime = 0
+if _G.getTimeInMillis == nil then
+    function _G.getTimeInMillis()
+        _fakeTime = _fakeTime + 1
+        return _fakeTime
+    end
+end
+if _G.getTimestampMs == nil then
+    function _G.getTimestampMs()
+        return _G.getTimeInMillis()
+    end
+end
+
 function M.setName(name)
     suiteName = name
 end

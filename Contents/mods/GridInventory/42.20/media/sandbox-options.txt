@@ -43,3 +43,31 @@ option GridInventory.EnableDevTools
     page = GridInventory,
     translation = GridInventory_EnableDevTools,
 }
+
+option GridInventory.MaxContainerGridSize
+{
+    type = integer, min = 3, max = 30, default = 15,
+    page = GridInventory,
+    translation = GridInventory_MaxContainerGridSize,
+}
+
+option GridInventory.InventoryPlayerWidth
+{
+    type = integer, min = 1, max = 10, default = 3,
+    page = GridInventory,
+    translation = GridInventory_InventoryPlayerWidth,
+}
+
+option GridInventory.InventoryPlayerHeight
+{
+    type = integer, min = 1, max = 20, default = 4,
+    page = GridInventory,
+    translation = GridInventory_InventoryPlayerHeight,
+}
+
+option GridInventory.MinWorldWidthGridSize
+{
+    type = integer, min = 3, max = 30, default = 6,
+    page = GridInventory,
+    translation = GridInventory_MinWorldWidthGridSize,
+}

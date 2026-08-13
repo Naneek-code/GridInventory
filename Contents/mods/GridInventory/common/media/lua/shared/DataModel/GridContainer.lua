@@ -5,6 +5,7 @@
 local GridCore = require("DataModel/GridCore")
 local ItemFootprint = require("Algorithm/ItemFootprint")
 local ScatterLayout = require("Algorithm/ScatterLayout")
+local GridSandboxOptions = require("GridSandboxOptions")
 
 local GridContainer = {}
 GridContainer.__index = GridContainer
@@ -33,13 +34,40 @@ function GridContainer.getGridSize(inventory)
     if parent and instanceof(parent, "IsoDeadBody") then
         w, h = 6, 8 -- Cadáveres ganham grid 6x8 (48 slots) para respeitar o padrão de largura 6
     elseif invType == "inventorymale" or invType == "inventoryfemale" or invType == "inventory" or invType == "none" then
-        w, h = 3, 4 -- Bolsos do jogador (12 slots)
+        -- Bolsos do jogador: largura/altura FIXAS das sandbox options próprias
+        -- (default 3x4). Não segue o teto geral de containers de mundo — o
+        -- jogador não tem "escala"; valores fixos fazem mais sentido. O
+        -- override ["player"] firme pode sobrescrever pra gostos específicos.
+        w = 3
+        h = 4
+        if GridSandboxOptions then
+            if GridSandboxOptions.getPlayerInventoryWidth then
+                local v = GridSandboxOptions.getPlayerInventoryWidth()
+                if v and v > 0 then w = v end
+            end
+            if GridSandboxOptions.getPlayerInventoryHeight then
+                local v = GridSandboxOptions.getPlayerInventoryHeight()
+                if v and v > 0 then h = v end
+            end
+        end
     elseif invType == "floor" then
         w, h = GridContainer.FLOOR_W, GridContainer.FLOOR_H -- Chão (infinito visualmente limitado)
     elseif cap and cap > 0 then
+        -- Largura base de containers de mundo: sandbox option (ajuste geral em
+        -- poucos cliques). O override específico do DevTool por tipo substitui.
         w = 6
+        if GridSandboxOptions and GridSandboxOptions.getMinWorldGridWidth then
+            local v = GridSandboxOptions.getMinWorldGridWidth()
+            if v and v > 0 then w = v end
+        end
         h = math.max(2, math.ceil(cap / 3))
-        if h > 15 then h = 15 end
+        -- Teto GERAL de containers de mundo: sandbox option (ajuste em poucos
+        -- cliques). O antigo teto hardcoded de 15 vira o default da opção.
+        local maxH = 15
+        if GridSandboxOptions and GridSandboxOptions.getMaxContainerGridSize then
+            maxH = GridSandboxOptions.getMaxContainerGridSize() or 15
+        end
+        if h > maxH then h = maxH end
     else
         w, h = 4, 4
     end
@@ -49,17 +77,89 @@ function GridContainer.getGridSize(inventory)
     -- (ItemFootprint.Overrides, quando o item define cols/rows) é o default
     -- embutido — assim bags/toolboxes calibrados pelo dev funcionam igual pra
     -- todo mundo sem depender do arquivo local.
-    if inventory:getContainingItem() then
-        local fullType = inventory:getContainingItem():getFullType()
-        local override = GridDevTool and GridDevTool.Overrides and GridDevTool.Overrides[fullType]
-            or ItemFootprint.Overrides[fullType]
+    -- A chave do override cobre TODOS os containers (bag, mundo, inventário
+    -- do jogador, chão) via GridContainer.getOverrideKey — não só os que têm
+    -- getContainingItem() (antes o grid de containers de mundo sem item e o
+    -- inventário do jogador não eram editáveis).
+    --
+    -- SEMÂNTICA (como os footprints):
+    --   * OVERRIDE ESPECÍFICO (GridOverrides.ini por tipo) é FIRME: substitui
+    --     o grid calculado, podendo EXPANDIR além do teto geral do sandbox.
+    --     Usado pra calibrar casos específicos (porta-malas vs armário).
+    --   * SEM override, o grid vem da capacidade, limitado ao teto geral da
+    --     sandbox option (ajuste global em poucos cliques).
+    local overrideKey = GridContainer.getOverrideKey(inventory)
+    if overrideKey then
+        local override = GridDevTool and GridDevTool.Overrides and GridDevTool.Overrides[overrideKey]
+        if not override then
+            -- Compatibilidade: overrides antigos de bags gravados com o fullType
+            -- PURO (sem prefixo "item:").
+            local containingItem = inventory:getContainingItem()
+            if containingItem and containingItem.getFullType then
+                override = GridDevTool and GridDevTool.Overrides
+                    and GridDevTool.Overrides[containingItem:getFullType()]
+            end
+        end
         if override then
+            -- Override específico = FIRME (substitui, pode expandir).
             if override.cols then w = override.cols end
             if override.rows then h = override.rows end
+        else
+            -- Fallback: override nativo embutido por fullType (bags calibrados
+            -- no ItemFootprint.Overrides).
+            local containingItem = inventory:getContainingItem()
+            if containingItem then
+                local ft = containingItem.getFullType and containingItem:getFullType() or nil
+                local nativeOv = ft and ItemFootprint.Overrides[ft] or nil
+                if nativeOv then
+                    if nativeOv.cols then w = nativeOv.cols end
+                    if nativeOv.rows then h = nativeOv.rows end
+                end
+            end
         end
     end
 
     return w, h
+end
+
+--- Chave ESTÁVEL de override do grid de um container (por TIPO, não por
+--- instância). Usada pelo GridDevTool (GridOverrides.ini) e pela validação
+--- autoritativa do servidor. Retorna nil pra containers que nunca têm grid
+--- editável (chão — grid virtual por jogador).
+---   * bag → "item:FullType" (a bolsa/item que contém o container)
+---   * container de mundo sem item → "worldobj:Type" (ex.: caixa de madeira)
+---   * inventário do jogador → "player"
+---   * floor → nil (não edita)
+---@param container ItemContainer
+---@return string|nil
+function GridContainer.getOverrideKey(container)
+    if not container then return nil end
+    local containingItem = container.getContainingItem and container:getContainingItem()
+    if containingItem then
+        local ft = containingItem.getFullType and containingItem:getFullType() or nil
+        if ft then return "item:" .. tostring(ft) end
+    end
+    local parent = container.getParent and container:getParent()
+    if parent and instanceof and instanceof(parent, "IsoPlayer") then
+        return "player"
+    end
+    if container.getType and container:getType() == "floor" then
+        -- Chão: grid virtual do jogador — editável (aplica o teto como limite).
+        return "floor"
+    end
+    local ctype = container.getType and container:getType() or "?"
+    if parent and parent.getSquare then
+        -- Container de mundo: chave por TIPO do CONTAINER (ItemContainer type —
+        -- ex.: "microwave", "crate", "metal_shelves"), NÃO pelo type do IsoObject
+        -- (que é genérico "MAX"). O getType do ItemContainer diferencia objetos
+        -- (porta-malas de carro ≠ armário de cozinha) e é estável entre sessões
+        -- e no MP.
+        local objType = ctype
+        if objType and objType ~= "" and objType ~= "MAX" then
+            return "worldobj:" .. tostring(objType)
+        end
+    end
+    return "ctype:" .. tostring(ctype)
 end
 
 --- Identidade estável de um container (onde o item "vive"). Usada pra validar a

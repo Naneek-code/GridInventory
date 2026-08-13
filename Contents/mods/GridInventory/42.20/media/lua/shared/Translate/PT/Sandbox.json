@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Tempo de pesquisa por item",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tempo em milissegundos para revelar cada pilha ao vasculhar um recipiente. Escala com o número de pilhas: mais itens, pesquisa mais longa.\n\n0 = instantâneo (revela tudo ao clicar).",
     "Sandbox_GridInventory_EnableDevTools": "Ativar DevTools",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Adiciona a opção \"[DevTool] Editar tamanho da grelha\" ao menu de contexto dos itens, para poder redimensionar a área ocupada pelos itens e as grelhas dos recipientes sem iniciar o jogo com -debug.\n\nLigado: DevTools disponíveis neste save. No multijogador, jogadores que não são administradores veem a opção, mas o servidor recusa aplicar as alterações.\n\nDesligado: só disponível quando o jogo é iniciado com -debug."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Adiciona a opção \"[DevTool] Editar tamanho da grelha\" ao menu de contexto dos itens, para poder redimensionar a área ocupada pelos itens e as grelhas dos recipientes sem iniciar o jogo com -debug.\n\nLigado: DevTools disponíveis neste save. No multijogador, jogadores que não são administradores veem a opção, mas o servidor recusa aplicar as alterações.\n\nDesligado: só disponível quando o jogo é iniciado com -debug.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Tamanho máximo da grelha dos recipientes",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Número máximo de linhas para as grelhas dos recipientes do mundo. As grelhas são dimensionadas pela capacidade até este limite. A sobreposição de grelha do DevTool pode ultrapassar este limite para recipientes específicos.\n\nO valor 15 (padrão) mantém o comportamento clássico.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "Largura do inventário do jogador",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "Largura (colunas) da grelha principal do inventário do jogador. Valor fixo (padrão 3). A sobreposição de grelha do DevTool para o inventário do jogador pode sobrepor este valor.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "Altura do inventário do jogador",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "Altura (linhas) da grelha principal do inventário do jogador. Valor fixo (padrão 4). A sobreposição de grelha do DevTool para o inventário do jogador pode sobrepor este valor.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "Largura mínima dos recipientes do mundo",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "Largura base (colunas) para as grelhas dos recipientes do mundo. Todas as grelhas dos recipientes do mundo usam esta largura; a altura é dimensionada pela capacidade até ao limite geral. A sobreposição de grelha do DevTool pode substituí-la para recipientes específicos.\n\nO valor 6 (padrão) mantém o comportamento clássico."
 }

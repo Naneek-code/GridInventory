@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Suchzeit pro Gegenstand",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Zeit in Millisekunden, um jeden Stapel beim Durchsuchen eines Behälters aufzudecken. Skaliert mit der Anzahl der Stapel: mehr Gegenstände, längere Suche.\n\n0 = sofort (deckt alles beim Klicken auf).",
     "Sandbox_GridInventory_EnableDevTools": "DevTools aktivieren",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Fügt die Option \"[DevTool] Rastergröße bearbeiten\" zum Kontextmenü der Gegenstände hinzu, sodass du Gegenstands-Footprints und Behälter-Raster verändern kannst, ohne das Spiel mit -debug zu starten.\n\nAn: DevTools in diesem Spielstand verfügbar. In Multiplayer sehen Nicht-Admin-Spieler die Option, aber der Server lehnt das Anwenden von Änderungen ab.\n\nAus: Nur verfügbar, wenn das Spiel mit -debug gestartet wird."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Fügt die Option \"[DevTool] Rastergröße bearbeiten\" zum Kontextmenü der Gegenstände hinzu, sodass du Gegenstands-Footprints und Behälter-Raster verändern kannst, ohne das Spiel mit -debug zu starten.\n\nAn: DevTools in diesem Spielstand verfügbar. In Multiplayer sehen Nicht-Admin-Spieler die Option, aber der Server lehnt das Anwenden von Änderungen ab.\n\nAus: Nur verfügbar, wenn das Spiel mit -debug gestartet wird.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Maximale Behälter-Rastergröße",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Maximale Anzahl von Zeilen für Welt-Behälter-Raster. Raster werden je nach Kapazität bis zu dieser Grenze skaliert. Die DevTool-Rasterüberschreibung kann diese Grenze für bestimmte Behälter überschreiten.\n\nStandard 15 behält das klassische Verhalten bei.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "Spieler-Inventarbreite",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "Breite (Spalten) des Hauptinventar-Rasters des Spielers. Fester Wert (Standard 3). Die DevTool-Rasterüberschreibung für das Spielerinventar kann dies überschreiben.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "Spieler-Inventarhöhe",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "Höhe (Zeilen) des Hauptinventar-Rasters des Spielers. Fester Wert (Standard 4). Die DevTool-Rasterüberschreibung für das Spielerinventar kann dies überschreiben.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "Mindestbreite der Welt-Behälter",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "Grundbreite (Spalten) für Welt-Behälter-Raster. Alle Welt-Behälter-Raster verwenden diese Breite; die Höhe wird je nach Kapazität bis zur allgemeinen Grenze skaliert. Die DevTool-Rasterüberschreibung kann sie für bestimmte Behälter ersetzen.\n\nStandard 6 behält das klassische Verhalten bei."
 }

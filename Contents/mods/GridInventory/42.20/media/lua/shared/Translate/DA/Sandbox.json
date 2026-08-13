@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Søgetid pr. genstand",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tid i millisekunder til at afsløre hver stak, mens du søger i en beholder. Skalerer med antallet af stakke: flere genstande, længere søgning.\n\n0 = øjeblikkelig (afslører alt ved klik).",
     "Sandbox_GridInventory_EnableDevTools": "Aktivér DevTools",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Tilføjer muligheden \"[DevTool] Rediger gitterstørrelse\" til genstandens kontekstmenu, så du kan ændre genstandes fodaftryk og beholderes gitre uden at starte spillet med -debug.\n\nTil: DevTools tilgængelige i dette gem. I multiplayer kan ikke-admin-spillere se muligheden, men serveren afviser at anvende ændringer.\n\nFra: kun tilgængelig, når spillet startes med -debug."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Tilføjer muligheden \"[DevTool] Rediger gitterstørrelse\" til genstandens kontekstmenu, så du kan ændre genstandes fodaftryk og beholderes gitre uden at starte spillet med -debug.\n\nTil: DevTools tilgængelige i dette gem. I multiplayer kan ikke-admin-spillere se muligheden, men serveren afviser at anvende ændringer.\n\nFra: kun tilgængelig, når spillet startes med -debug.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Maks. størrelse for beholderens gitter",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Maksimalt antal rækker for verdens beholder-gitre. Gitre tilpasses størrelse efter kapacitet op til denne grænse. DevTool-gitteroverstyringen kan overstige denne grænse for bestemte beholdere.\n\nStandard 15 bevarer den klassiske adfærd.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "Spillerens inventarbredde",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "Bredde (kolonner) for spillerens hovedinventargitter. Fast værdi (standard 3). DevTool-gitteroverstyringen for spillerinventaret kan overskrive dette.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "Spillerens inventarhøjde",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "Højde (rækker) for spillerens hovedinventargitter. Fast værdi (standard 4). DevTool-gitteroverstyringen for spillerinventaret kan overskrive dette.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "Minimumsbredde for verdens beholdere",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "Grundbredde (kolonner) for verdens beholder-gitre. Alle verdens beholder-gitre bruger denne bredde; højden tilpasses efter kapacitet op til den generelle grænse. DevTool-gitteroverstyringen kan erstatte den for bestemte beholdere.\n\nStandard 6 bevarer den klassiske adfærd."
 }

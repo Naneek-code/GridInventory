@@ -982,3 +982,77 @@ function ISInventoryPage:refreshBackpacks()
         end
     end
 end
+
+-- COLLAPSE FIX (modo resize): o vanilla auto-colapsa o painel quando o mouse
+-- SAI dele (onMouseMoveOutside incrementa collapseCounter) E instantaneamente
+-- quando um clique (direito ou esquerdo) acontece FORA do painel
+-- (onRightMouseDownOutside / onMouseDownOutside → collapseNow). No modo resize
+-- o PaperDoll colapsa/expande JUNTO com o inv — então clicar/mexer no
+-- PaperDoll (que fica ao lado) colapsava o inv junto imediatamente.
+-- Aqui evitamos os DOIS caminhos enquanto:
+--   * houver um context-menu aberto (interação ativa, ex.: clique direito num
+--     slot do PaperDoll — o menu fica por cima e rouba o hit-test), OU
+--   * o mouse estiver DENTRO DO RETÂNGULO do PaperDoll (posição absoluta, não
+--     isMouseOver — o menu aberto rouba o hit-test do isMouseOver).
+
+--- O mouse está "no inv" (PaperDoll ou context menu) e não deve colapsar?
+---@return boolean
+local function gridInv_mouseIsOnPaperDollOrMenu(self)
+    if not (self.onCharacter and not GridModOptions.isFullscreenPanel()) then return false end
+    -- Context-menu aberto (clique direito em slot/item): interação ativa.
+    local ctx = getPlayerContextMenu and getPlayerContextMenu(self.player)
+    if ctx and ctx:getIsVisible() then
+        return true
+    end
+    -- Mouse dentro do retângulo do PaperDoll (extensão do inv no modo resize).
+    local pd = GridInventory_PaperDollWindow and GridInventory_PaperDollWindow[self.player]
+    if pd and pd:getIsVisible() then
+        local mx = getMouseX()
+        local my = getMouseY()
+        local ax = pd:getAbsoluteX()
+        local ay = pd:getAbsoluteY()
+        local aw = pd:getWidth()
+        local ah = pd:getHeight()
+        if mx >= ax and mx <= ax + aw and my >= ay and my <= ay + ah then
+            return true
+        end
+    end
+    return false
+end
+
+local og_pageMouseMoveOutside = ISInventoryPage.onMouseMoveOutside
+function ISInventoryPage:onMouseMoveOutside(dx, dy)
+    if self.moving then
+        self:setX(self.x + dx)
+        self:setY(self.y + dy)
+    end
+
+    if gridInv_mouseIsOnPaperDollOrMenu(self) then
+        self.collapseCounter = 0
+        return
+    end
+
+    og_pageMouseMoveOutside(self, dx, dy)
+end
+
+-- Clique direito FORA do inv (ex.: no PaperDoll ou num slot dele): o vanilla
+-- chama collapseNow() na hora — isso colapsava o inv (e o PaperDoll junto)
+-- ao abrir o context menu de um slot. Bloqueamos quando o clique é no
+-- PaperDoll / context menu.
+local og_pageRightMouseDownOutside = ISInventoryPage.onRightMouseDownOutside
+function ISInventoryPage:onRightMouseDownOutside(x, y)
+    if gridInv_mouseIsOnPaperDollOrMenu(self) then
+        return
+    end
+    og_pageRightMouseDownOutside(self, x, y)
+end
+
+-- Clique esquerdo FORA do inv: mesmo tratamento (evita colapsar ao clicar no
+-- PaperDoll em modo resize).
+local og_pageMouseDownOutside = ISInventoryPage.onMouseDownOutside
+function ISInventoryPage:onMouseDownOutside(x, y)
+    if gridInv_mouseIsOnPaperDollOrMenu(self) then
+        return
+    end
+    og_pageMouseDownOutside(self, x, y)
+end

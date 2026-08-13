@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Etsintäaika esinettä kohti",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Aika millisekunteina paljastaa jokainen pino säiliötä etsittäessä. Skaalautuu pinomäärän mukaan: enemmän esineitä, pidempi etsintä.\n\n0 = välitön (paljastaa kaiken klikkauksella).",
     "Sandbox_GridInventory_EnableDevTools": "Ota DevTools käyttöön",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Lisää \"[DevTool] Muokkaa ruudukon kokoa\" -vaihtoehdon esineiden pikavalikkoon, jotta voit muuttaa esineiden jalka-aloja ja säiliöiden ruudukoita käynnistämättä peliä -debug-lipulla.\n\nPäällä: DevTools käytettävissä tässä tallennuksessa. Moninpelissä ei-admin-pelaajat näkevät vaihtoehdon, mutta palvelin hylkää muutosten soveltamisen.\n\nPois: vain saatavilla, kun peli käynnistetään -debug-lipulla."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Lisää \"[DevTool] Muokkaa ruudukon kokoa\" -vaihtoehdon esineiden pikavalikkoon, jotta voit muuttaa esineiden jalka-aloja ja säiliöiden ruudukoita käynnistämättä peliä -debug-lipulla.\n\nPäällä: DevTools käytettävissä tässä tallennuksessa. Moninpelissä ei-admin-pelaajat näkevät vaihtoehdon, mutta palvelin hylkää muutosten soveltamisen.\n\nPois: vain saatavilla, kun peli käynnistetään -debug-lipulla.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Säiliön ruudukon enimmäiskoko",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Maailman säiliöruudukoiden enimmäisrivimäärä. Ruudukot skaalataan kapasiteetin mukaan tähän rajaan asti. DevTool-ruudukon ohitus voi ylittää tämän rajan tietyille säiliöille.\n\nOletus 15 säilyttää klassisen toiminnan.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "Pelaajan inventaarion leveys",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "Pelaajan pääinventaarion ruudukon leveys (sarakkeet). Kiinteä arvo (oletus 3). DevTool-ruudukon ohitus pelaajan inventaariossa voi ohittaa tämän.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "Pelaajan inventaarion korkeus",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "Pelaajan pääinventaarion ruudukon korkeus (rivit). Kiinteä arvo (oletus 4). DevTool-ruudukon ohitus pelaajan inventaariossa voi ohittaa tämän.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "Maailman säiliöiden vähimmäisleveys",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "Maailman säiliöruudukoiden perusleveys (sarakkeet). Kaikki maailman säiliöruudukot käyttävät tätä leveyttä; korkeus skaalataan kapasiteetin mukaan yleiseen rajaan asti. DevTool-ruudukon ohitus voi korvata sen tietyille säiliöille.\n\nOletus 6 säilyttää klassisen toiminnan."
 }

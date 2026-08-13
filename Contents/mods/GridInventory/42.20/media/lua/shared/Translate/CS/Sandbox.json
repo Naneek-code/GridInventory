@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Doba hledání na předmět",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Čas v milisekundách k odhalení každé hromady při prohledávání kontejneru. Škáluje s počtem hromad: více předmětů, delší hledání.\n\n0 = okamžitě (odhalí vše po kliknutí).",
     "Sandbox_GridInventory_EnableDevTools": "Povolit DevTools",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Přidá možnost \"[DevTool] Upravit velikost mřížky\" do kontextové nabídky předmětů, abyste mohli změnit velikost otisků předmětů a mřížek kontejnerů bez spuštění hry s -debug.\n\nZapnuto: DevTools dostupné v tomto uložení. V multiplayeru hráči bez oprávnění správce možnost vidí, ale server odmítne použití změn.\n\nVypnuto: dostupné pouze při spuštění hry s -debug."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Přidá možnost \"[DevTool] Upravit velikost mřížky\" do kontextové nabídky předmětů, abyste mohli změnit velikost otisků předmětů a mřížek kontejnerů bez spuštění hry s -debug.\n\nZapnuto: DevTools dostupné v tomto uložení. V multiplayeru hráči bez oprávnění správce možnost vidí, ale server odmítne použití změn.\n\nVypnuto: dostupné pouze při spuštění hry s -debug.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Maximální velikost mřížky kontejneru",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Maximální počet řádků pro mřížky světových kontejnerů. Mřížky se velikostí přizpůsobují kapacitě až do tohoto limitu. Přepsání mřížky přes DevTool může tento limit překročit pro konkrétní kontejnery.\n\nVýchozí hodnota 15 zachovává klasické chování.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "Šířka inventáře hráče",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "Šířka (sloupce) hlavní mřížky inventáře hráče. Pevná hodnota (výchozí 3). Přepsání mřížky přes DevTool pro hráčský inventář ji může přepsat.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "Výška inventáře hráče",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "Výška (řádky) hlavní mřížky inventáře hráče. Pevná hodnota (výchozí 4). Přepsání mřížky přes DevTool pro hráčský inventář ji může přepsat.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "Minimální šířka světových kontejnerů",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "Základní šířka (sloupce) pro mřížky světových kontejnerů. Všechny mřížky světových kontejnerů používají tuto šířku; výška se přizpůsobuje kapacitě až do obecného limitu. Přepsání mřížky přes DevTool ji může nahradit pro konkrétní kontejnery.\n\nVýchozí hodnota 6 zachovává klasické chování."
 }

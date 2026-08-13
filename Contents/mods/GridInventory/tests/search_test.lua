@@ -356,4 +356,34 @@ do
         "container diferente com a mesma chave não colide no cache")
 end
 
+-- ─── Animação de DESCOBERTA (Tarkov) ────────────────────────────────────────
+do
+    GridInventory_Search.revealAnim = {}
+
+    -- Sem revelação: sem animação.
+    H.ok(GridInventory_Search.getRevealProgress("nao_revelado") == nil,
+        "anim: item não revelado não tem progresso")
+
+    -- markSearched registra a animação do item.
+    GridInventory_Search.markSearched(_players[0], "keyAnim", "anim1")
+    local p = GridInventory_Search.getRevealProgress("anim1")
+    H.ok(p ~= nil and p >= 0 and p <= 1, "anim: markSearched registra o wipe (progresso " .. tostring(p) .. ")")
+
+    -- markSearchedSession também registra (eco do MP).
+    GridInventory_Search.markSearchedSession(0, "keyAnim", "anim2")
+    H.ok(GridInventory_Search.getRevealProgress("anim2") ~= nil,
+        "anim: markSearchedSession registra o wipe")
+
+    -- Limpeza lazy: força o tempo a passar (o stub avança a cada getTimeInMillis)
+    -- até a animação expirar.
+    local guard = 0
+    while GridInventory_Search.getRevealProgress("anim1") ~= nil and guard < 500 do
+        guard = guard + 1
+    end
+    H.ok(GridInventory_Search.getRevealProgress("anim1") == nil,
+        "anim: wipe expira sozinho após o tempo")
+    H.ok(GridInventory_Search.revealAnim["anim1"] == nil,
+        "anim: chave expirada é removida do mapa (lazy)")
+end
+
 H.finish()

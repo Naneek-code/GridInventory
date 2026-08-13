@@ -259,6 +259,8 @@ local function OnServerCommand(module, command, args)
 end
 
 --- Aplica uma revelação confirmada pelo servidor no cache de sessão local.
+--- O WIPE branco de descoberta NÃO é repetido aqui: o cliente autor já disparou
+--- no markSearched local (antes do envio). O eco só confirma a sessão/persistência.
 ---@param containerKey string
 ---@param itemIds table lista de ids revelados
 function GridClientNetwork.applyServerSearch(containerKey, itemIds)
@@ -266,7 +268,7 @@ function GridClientNetwork.applyServerSearch(containerKey, itemIds)
     local GridInventory_Search = require("System/GridInventory_Search")
     local playerNum = getPlayer() and getPlayer():getPlayerNum() or 0
     for _, id in ipairs(itemIds) do
-        GridInventory_Search.markSearchedSession(playerNum, containerKey, id)
+        GridInventory_Search.markSearchedSession(playerNum, containerKey, id, true)
     end
     -- re-renderiza os grids afetados
     local pInv = getPlayerInventory(playerNum)

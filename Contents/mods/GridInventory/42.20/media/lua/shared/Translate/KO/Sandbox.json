@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "아이템당 수색 시간",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "컨테이너를 수색할 때 각 묶음을 드러내는 데 걸리는 시간(밀리초). 묶음 수에 따라 달라집니다. 아이템이 많을수록 수색이 길어집니다.\n\n0 = 즉시(클릭하면 모두 드러남).",
     "Sandbox_GridInventory_EnableDevTools": "DevTools 활성화",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "아이템 컨텍스트 메뉴에 \"[DevTool] 그리드 크기 편집\" 옵션을 추가하여 -debug로 게임을 실행하지 않고도 아이템 점유 크기와 컨테이너 그리드를 변경할 수 있게 합니다.\n\n켜짐: 이 세이브에서 DevTools 사용 가능. 멀티플레이에서 관리자가 아닌 플레이어는 옵션을 볼 수 있지만 서버가 변경 적용을 거부합니다.\n\n꺼짐: 게임을 -debug로 시작할 때만 사용할 수 있습니다."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "아이템 컨텍스트 메뉴에 \"[DevTool] 그리드 크기 편집\" 옵션을 추가하여 -debug로 게임을 실행하지 않고도 아이템 점유 크기와 컨테이너 그리드를 변경할 수 있게 합니다.\n\n켜짐: 이 세이브에서 DevTools 사용 가능. 멀티플레이에서 관리자가 아닌 플레이어는 옵션을 볼 수 있지만 서버가 변경 적용을 거부합니다.\n\n꺼짐: 게임을 -debug로 시작할 때만 사용할 수 있습니다.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "최대 컨테이너 그리드 크기",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "월드 컨테이너 그리드의 최대 행 수. 그리드는 이 상한까지 용량에 따라 크기가 결정됩니다. DevTool 그리드 재정의는 특정 컨테이너에서 이 상한을 초과할 수 있습니다.\n\n기본값 15가 기존 동작을 유지합니다.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "플레이어 인벤토리 너비",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "플레이어 메인 인벤토리 그리드의 너비(열). 고정 값(기본 3). 플레이어 인벤토리에 대한 DevTool 그리드 재정의로 덮어쓸 수 있습니다.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "플레이어 인벤토리 높이",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "플레이어 메인 인벤토리 그리드의 높이(행). 고정 값(기본 4). 플레이어 인벤토리에 대한 DevTool 그리드 재정의로 덮어쓸 수 있습니다.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "최소 월드 컨테이너 너비",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "월드 컨테이너 그리드의 기본 너비(열). 모든 월드 컨테이너 그리드가 이 너비를 사용하며, 높이는 일반 상한까지 용량에 따라 결정됩니다. DevTool 그리드 재정의로 특정 컨테이너를 교체할 수 있습니다.\n\n기본값 6이 기존 동작을 유지합니다."
 }

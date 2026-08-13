@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "每件物品的搜索時間",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "搜索容器時，揭露每個疊層所需的時間（毫秒）。隨疊層數量擴展：物品越多，搜索越久。\n\n0 = 即時（點擊時揭露全部）。",
     "Sandbox_GridInventory_EnableDevTools": "啟用 DevTools",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "在物品的右鍵選單中加入「[DevTool] 編輯網格大小」選項，讓你可以無需以 -debug 啟動遊戲就能調整物品佔用空間和容器網格的大小。\n\n開啟：DevTools 在此存檔中可用。在多人遊戲中，非管理員玩家可以看到該選項，但伺服器會拒絕套用變更。\n\n關閉：僅在遊戲以 -debug 啟動時可用。"
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "在物品的右鍵選單中加入「[DevTool] 編輯網格大小」選項，讓你可以無需以 -debug 啟動遊戲就能調整物品佔用空間和容器網格的大小。\n\n開啟：DevTools 在此存檔中可用。在多人遊戲中，非管理員玩家可以看到該選項，但伺服器會拒絕套用變更。\n\n關閉：僅在遊戲以 -debug 啟動時可用。",
+    "Sandbox_GridInventory_MaxContainerGridSize": "容器網格大小上限",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "世界容器網格的最大列數。網格會依容量調整大小，直到這個上限。DevTool 的網格覆寫可以針對特定容器超過此上限。\n\n預設 15 維持原本行為。",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "玩家背包寬度",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "玩家主要背包網格的寬度（欄數）。固定值（預設 3）。DevTool 對玩家背包的網格覆寫可以覆蓋此值。",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "玩家背包高度",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "玩家主要背包網格的高度（列數）。固定值（預設 4）。DevTool 對玩家背包的網格覆寫可以覆蓋此值。",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "世界容器最小寬度",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "世界容器網格的基礎寬度（欄數）。所有世界容器網格都使用此寬度；高度會依容量調整大小，直到總上限。DevTool 的網格覆寫可以針對特定容器取代它。\n\n預設 6 維持原本行為。"
 }

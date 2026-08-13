@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Søketid per gjenstand",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tid i millisekunder for å avsløre hver stabel mens du søker i en beholder. Skalerer med antall stabler: flere gjenstander, lengre søk.\n\n0 = øyeblikkelig (avslører alt ved klikk).",
     "Sandbox_GridInventory_EnableDevTools": "Aktiver DevTools",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Legger til alternativet \"[DevTool] Rediger rutenettstørrelse\" i kontekstmenyen for gjenstander, slik at du kan endre størrelsen på gjenstanders fotavtrykk og beholders rutenett uten å starte spillet med -debug.\n\nPå: DevTools tilgjengelig i denne lagringen. I flerspiller kan ikke-admin-spillere se alternativet, men serveren avviser å bruke endringer.\n\nAv: kun tilgjengelig når spillet startes med -debug."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Legger til alternativet \"[DevTool] Rediger rutenettstørrelse\" i kontekstmenyen for gjenstander, slik at du kan endre størrelsen på gjenstanders fotavtrykk og beholders rutenett uten å starte spillet med -debug.\n\nPå: DevTools tilgjengelig i denne lagringen. I flerspiller kan ikke-admin-spillere se alternativet, men serveren avviser å bruke endringer.\n\nAv: kun tilgjengelig når spillet startes med -debug.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Maks. rutenettstørrelse for beholdere",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Maksimalt antall rader for verdensbeholder-rutenett. Rutenett størrelsesbestemmes etter kapasitet opp til denne grensen. DevTool-rutenettoverstyringen kan overskride denne grensen for spesifikke beholdere.\n\nStandard 15 beholder den klassiske oppførselen.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "Bredde på spillerens inventar",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "Bredde (kolonner) på spillerens hovedinventar-rutenett. Fast verdi (standard 3). DevTool-rutenettoverstyringen for spillerens inventar kan overstyre dette.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "Høyde på spillerens inventar",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "Høyde (rader) på spillerens hovedinventar-rutenett. Fast verdi (standard 4). DevTool-rutenettoverstyringen for spillerens inventar kan overstyre dette.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "Minimumsbredde på verdensbeholdere",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "Grunnbredde (kolonner) for verdensbeholder-rutenett. Alle verdensbeholder-rutenett bruker denne bredden; høyden størrelsesbestemmes etter kapasitet opp til den generelle grensen. DevTool-rutenettoverstyringen kan erstatte den for spesifikke beholdere.\n\nStandard 6 beholder den klassiske oppførselen."
 }

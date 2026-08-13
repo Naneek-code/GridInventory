@@ -117,4 +117,79 @@ function GridSandboxOptions.isDevToolsEnabled()
     return false
 end
 
+-- Teto geral do grid de containers de mundo (ajuste em poucos cliques).
+-- Substitui o antigo teto hardcoded de 15 linhas. O override específico do
+-- DevTool pode EXPANDIR além desse teto (override firme, como footprints).
+local OPTION_NAME_MAX_GRID = "GridInventory.MaxContainerGridSize"
+
+--- Teto geral (linhas) do grid de containers de mundo.
+--- @return number
+function GridSandboxOptions.getMaxContainerGridSize()
+    if getSandboxOptions then
+        local ok, opt = pcall(function()
+            return getSandboxOptions():getOptionByName(OPTION_NAME_MAX_GRID)
+        end)
+        if ok and opt and opt.getValue then
+            local v = tonumber(opt:getValue())
+            if v and v > 0 then return v end
+        end
+    end
+    return 15
+end
+
+-- Largura base dos containers de mundo (ajuste geral em poucos cliques). O
+-- override específico do DevTool por tipo continua substituindo.
+local OPTION_NAME_MIN_GRID_W = "GridInventory.MinWorldWidthGridSize"
+
+--- Largura base (colunas) do grid de containers de mundo (default 6).
+--- @return number
+function GridSandboxOptions.getMinWorldGridWidth()
+    if getSandboxOptions then
+        local ok, opt = pcall(function()
+            return getSandboxOptions():getOptionByName(OPTION_NAME_MIN_GRID_W)
+        end)
+        if ok and opt and opt.getValue then
+            local v = tonumber(opt:getValue())
+            if v and v > 0 then return v end
+        end
+    end
+    return 6
+end
+
+-- Tamanho do grid do INVENTÁRIO do jogador (largura/altura fixas — o jogador
+-- não tem nada que "escalone" o tamanho; o override ["player"] firme pode
+-- sobrescrever pra gostos específicos).
+local OPTION_NAME_INV_W = "GridInventory.InventoryPlayerWidth"
+local OPTION_NAME_INV_H = "GridInventory.InventoryPlayerHeight"
+
+--- Largura do grid do inventário do jogador (default 3).
+--- @return number
+function GridSandboxOptions.getPlayerInventoryWidth()
+    if getSandboxOptions then
+        local ok, opt = pcall(function()
+            return getSandboxOptions():getOptionByName(OPTION_NAME_INV_W)
+        end)
+        if ok and opt and opt.getValue then
+            local v = tonumber(opt:getValue())
+            if v and v > 0 then return v end
+        end
+    end
+    return 3
+end
+
+--- Altura do grid do inventário do jogador (default 4).
+--- @return number
+function GridSandboxOptions.getPlayerInventoryHeight()
+    if getSandboxOptions then
+        local ok, opt = pcall(function()
+            return getSandboxOptions():getOptionByName(OPTION_NAME_INV_H)
+        end)
+        if ok and opt and opt.getValue then
+            local v = tonumber(opt:getValue())
+            if v and v > 0 then return v end
+        end
+    end
+    return 4
+end
+
 return GridSandboxOptions

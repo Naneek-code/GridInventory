@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Search time per item",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Time in milliseconds to reveal each stack while searching a container. Scales with the number of stacks: more items, longer search.\n\n0 = instant (reveals everything on click).",
     "Sandbox_GridInventory_EnableDevTools": "Enable DevTools",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Adds the \"[DevTool] Edit Grid Size\" option to the item context menu, so you can resize item footprints and container grids without launching the game with -debug.\n\nOn: DevTools available in this save. In multiplayer, non-admin players can see the option but the server rejects applying changes.\n\nOff: only available when the game is started with -debug."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Adds the \"[DevTool] Edit Grid Size\" option to the item context menu, so you can resize item footprints and container grids without launching the game with -debug.\n\nOn: DevTools available in this save. In multiplayer, non-admin players can see the option but the server rejects applying changes.\n\nOff: only available when the game is started with -debug.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Max container grid size",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Maximum number of rows for world container grids. Grids are sized by capacity up to this cap. The DevTool grid override can exceed this cap for specific containers.\n\nDefault 15 keeps the classic behavior.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "Player inventory width",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "Width (columns) of the player's main inventory grid. Fixed value (default 3). The DevTool grid override for the player inventory can override this.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "Player inventory height",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "Height (rows) of the player's main inventory grid. Fixed value (default 4). The DevTool grid override for the player inventory can override this.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "Minimum world container width",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "Base width (columns) for world container grids. All world container grids use this width; the height is sized by capacity up to the general cap. The DevTool grid override can replace it for specific containers.\n\nDefault 6 keeps the classic behavior."
 }

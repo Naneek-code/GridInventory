@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Zoektijd per item",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tijd in milliseconden om elke stapel te onthullen tijdens het doorzoeken van een container. Schaalbaar met het aantal stapels: meer items, langer zoeken.\n\n0 = onmiddellijk (onthult alles bij een klik).",
     "Sandbox_GridInventory_EnableDevTools": "DevTools inschakelen",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Voegt de optie \"[DevTool] Rastergrootte bewerken\" toe aan het contextmenu van items, zodat je de footprint van items en raster van containers kunt aanpassen zonder het spel met -debug te starten.\n\nAan: DevTools beschikbaar in deze save. In multiplayer zien niet-admin-spelers de optie, maar de server weigert wijzigingen toe te passen.\n\nUit: alleen beschikbaar wanneer het spel met -debug wordt gestart."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Voegt de optie \"[DevTool] Rastergrootte bewerken\" toe aan het contextmenu van items, zodat je de footprint van items en raster van containers kunt aanpassen zonder het spel met -debug te starten.\n\nAan: DevTools beschikbaar in deze save. In multiplayer zien niet-admin-spelers de optie, maar de server weigert wijzigingen toe te passen.\n\nUit: alleen beschikbaar wanneer het spel met -debug wordt gestart.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Maximale rastergrootte van container",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Maximaal aantal rijen voor wereldcontainerrasters. Rasters worden tot deze limiet op grootte ingesteld op basis van capaciteit. De DevTool-rasteroverride kan deze limiet voor specifieke containers overschrijden.\n\nStandaard 15 behoudt het klassieke gedrag.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "Breedte van spelersinventaris",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "Breedte (kolommen) van het hoofdinventarisraster van de speler. Vaste waarde (standaard 3). De DevTool-rasteroverride voor het spelersinventaris kan dit overschrijven.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "Hoogte van spelersinventaris",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "Hoogte (rijen) van het hoofdinventarisraster van de speler. Vaste waarde (standaard 4). De DevTool-rasteroverride voor het spelersinventaris kan dit overschrijven.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "Minimale breedte van wereldcontainers",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "Basisbreedte (kolommen) voor wereldcontainerrasters. Alle wereldcontainerrasters gebruiken deze breedte; de hoogte wordt tot de algemene limiet op grootte ingesteld op basis van capaciteit. De DevTool-rasteroverride kan dit voor specifieke containers vervangen.\n\nStandaard 6 behoudt het klassieke gedrag."
 }

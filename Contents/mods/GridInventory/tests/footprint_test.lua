@@ -395,6 +395,134 @@ do
     _G.GridDevTool = savedDev
 end
 
+-- ─── Chave de override de GRID (getOverrideKey) ─────────────────────────────
+-- Cobre todos os tipos de container: bag (item), mundo (worldobj), inventário
+-- do jogador (player) e chão (nil). Antes só bags com item eram editáveis.
+do
+    local GridContainer = require("DataModel/GridContainer")
+
+    local function makeContainer(over)
+        return {
+            getContainingItem = function()
+                return over.containingItem or nil
+            end,
+            getParent = function() return over.parent or nil end,
+            getType = function() return over.type or "crate" end,
+        }
+    end
+
+    -- Bag com item → "item:FullType"
+    local bag = makeContainer({ containingItem = { getFullType = function() return "Base.NailsBox" end } })
+    H.ok(GridContainer.getOverrideKey(bag) == "item:Base.NailsBox",
+        "overrideKey bag -> item:Base.NailsBox [" .. tostring(GridContainer.getOverrideKey(bag)) .. "]")
+
+    -- Container de mundo (parent IsoObject) → "worldobj:Type" (por TIPO do
+    -- CONTAINER — o getType do ItemContainer diferencia objetos, não "MAX")
+    local crate = makeContainer({ type = "crate", parent = { getSquare = function() return { getX = function() return 1 end, getY = function() return 2 end, getZ = function() return 0 end } end } })
+    H.ok(GridContainer.getOverrideKey(crate) == "worldobj:crate",
+        "overrideKey mundo -> worldobj:crate (por container type) [" .. tostring(GridContainer.getOverrideKey(crate)) .. "]")
+
+    -- Inventário do jogador (parent IsoPlayer) → "player"
+    local savedInstanceof = _G.instanceof
+    _G.instanceof = function(obj, cls)
+        if obj and obj._isPlayer and cls == "IsoPlayer" then return true end
+        return false
+    end
+    local playerInv = makeContainer({ type = "inventory", parent = { _isPlayer = true, getSquare = function() return nil end } })
+    H.ok(GridContainer.getOverrideKey(playerInv) == "player",
+        "overrideKey inv do jogador -> player [" .. tostring(GridContainer.getOverrideKey(playerInv)) .. "]")
+    _G.instanceof = savedInstanceof
+
+    -- Chão → "floor" (editável)
+    local floor = makeContainer({ type = "floor" })
+    H.ok(GridContainer.getOverrideKey(floor) == "floor",
+        "overrideKey chão -> floor [" .. tostring(GridContainer.getOverrideKey(floor)) .. "]")
+
+    -- Fallback por tipo de container (sem parent/mundo) → "ctype:Type"
+    local generic = makeContainer({ type = "metal_shelves", parent = nil })
+    H.ok(GridContainer.getOverrideKey(generic) == "ctype:metal_shelves",
+        "overrideKey genérico -> ctype:metal_shelves [" .. tostring(GridContainer.getOverrideKey(generic)) .. "]")
+
+    -- getGridSize mundo: OVERRIDE específico é FIRME (substitui, pode expandir
+    -- além da fórmula de capacidade — como footprints).
+    local savedDev = _G.GridDevTool
+    _G.GridDevTool = { Overrides = { ["worldobj:crate"] = { cols = 10, rows = 10 } } }
+    local crateContainer = makeContainer({ type = "crate", parent = { getSquare = function() return { getX = function() return 1 end, getY = function() return 2 end, getZ = function() return 0 end } end } })
+    crateContainer.getCapacity = function() return 20 end
+    local w, h = GridContainer.getGridSize(crateContainer)
+    -- override firme substitui a fórmula (cap 20 → 6x7, mas override 10x10)
+    H.ok(w == 10 and h == 10, "grid mundo: override firme substitui cap -> 10x10 [" .. w .. "x" .. h .. "]")
+    -- SEM override: teto geral do sandbox limita a fórmula. Mock do sandbox
+    -- por NOME de opção (largura mínima default 6, teto 8).
+    _G.GridDevTool = { Overrides = {} }
+    local savedGetSandbox = _G.getSandboxOptions
+    _G.getSandboxOptions = function()
+        return { getOptionByName = function(self, name)
+            local opts = {
+                ["GridInventory.MinWorldWidthGridSize"] = { getValue = function() return 6 end },
+                ["GridInventory.MaxContainerGridSize"] = { getValue = function() return 8 end },
+            }
+            return opts[name]
+        end }
+    end
+    crateContainer.getCapacity = function() return 60 end
+    w, h = GridContainer.getGridSize(crateContainer)
+    -- cap 60 → 6 x ceil(60/3)=20, teto geral 8 → 6x8
+    H.ok(w == 6 and h == 8, "grid mundo: teto sandbox 8 limita cap 60 (6x8) [" .. w .. "x" .. h .. "]")
+    -- Largura mínima 8 (sandbox) → todos os containers de mundo ficam mais largos
+    _G.getSandboxOptions = function()
+        return { getOptionByName = function(self, name)
+            local opts = {
+                ["GridInventory.MinWorldWidthGridSize"] = { getValue = function() return 8 end },
+                ["GridInventory.MaxContainerGridSize"] = { getValue = function() return 8 end },
+            }
+            return opts[name]
+        end }
+    end
+    crateContainer.getCapacity = function() return 60 end
+    w, h = GridContainer.getGridSize(crateContainer)
+    H.ok(w == 8 and h == 8, "grid mundo: largura mínima 8 -> 8x8 [" .. w .. "x" .. h .. "]")
+    _G.getSandboxOptions = savedGetSandbox
+    -- Chão: override FIRME (não corta) — chão 8x8
+    _G.GridDevTool = { Overrides = { ["floor"] = { cols = 8, rows = 8 } } }
+    local floorContainer = makeContainer({ type = "floor" })
+    floorContainer.getCapacity = function() return 30 end
+    w, h = GridContainer.getGridSize(floorContainer)
+    H.ok(w == 8 and h == 8, "grid chão: override firme -> 8x8 [" .. w .. "x" .. h .. "]")
+
+    -- Inventário do jogador: usa as opções PRÓPRIAS (InventoryPlayerWidth/
+    -- Height), NÃO o teto geral de containers. Mock do sandbox por nome.
+    -- ATENÇÃO: o GridSandboxOptions chama getOptionByName com `:` — o mock
+    -- precisa receber (self, name).
+    local savedGetSandbox2 = _G.getSandboxOptions
+    _G.getSandboxOptions = function()
+        return { getOptionByName = function(self, name)
+            local opts = {
+                ["GridInventory.InventoryPlayerWidth"] = { getValue = function() return 5 end },
+                ["GridInventory.InventoryPlayerHeight"] = { getValue = function() return 6 end },
+            }
+            return opts[name]
+        end }
+    end
+    local savedInstanceof2 = _G.instanceof
+    _G.instanceof = function(obj, cls)
+        if obj and obj._isPlayer and cls == "IsoPlayer" then return true end
+        return false
+    end
+    local playerContainer = makeContainer({ type = "inventory", parent = { _isPlayer = true, getSquare = function() return nil end } })
+    playerContainer.getCapacity = function() return 30 end
+    w, h = GridContainer.getGridSize(playerContainer)
+    H.ok(w == 5 and h == 6, "grid inv jogador: usa opções próprias -> 5x6 [" .. w .. "x" .. h .. "]")
+    -- Sem opções (default): 3x4
+    _G.getSandboxOptions = nil
+    w, h = GridContainer.getGridSize(playerContainer)
+    H.ok(w == 3 and h == 4, "grid inv jogador: default 3x4 [" .. w .. "x" .. h .. "]")
+    _G.getSandboxOptions = savedGetSandbox2
+    _G.instanceof = savedInstanceof2
+    _G.GridDevTool = savedDev
+    _G.GridSandboxOptions = savedSandbox
+end
+
 _G.instanceof = og_instanceof
 
 H.finish()

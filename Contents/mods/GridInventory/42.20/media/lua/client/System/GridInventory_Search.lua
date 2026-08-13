@@ -30,6 +30,45 @@ GridInventory_Search.sessions = {}
 local MD_SEARCHED = "GridInventory_Searched"
 local MD_OPENED = "GridInventory_Opened"
 
+-- ============================================================================
+-- ANIMAÇÃO DE DESCOBERTA (Tarkov)
+-- ============================================================================
+-- Quando um item oculto é revelado durante a busca, o render desenha um wipe
+-- BRANCO subindo de baixo pra cima no footprint (feedback "achou algo").
+-- Pra não degradar a performance do render, o registro é O(1) por revelação
+-- (só seta uma chave), o lookup é O(1) (tabela por itemId), e a limpeza é
+-- LAZY (só remove ao consultar depois de expirar — nunca itera o mapa inteiro
+-- por frame).
+
+GridInventory_Search.revealAnim = GridInventory_Search.revealAnim or {}
+local REVEAL_ANIM_MS = 350 -- duração do wipe branco
+
+--- Marca um item como recém-revelado (chamado pelo markSearched). Sobrescreve
+--- o timestamp: revelações subsequentes reiniciam o wipe.
+---@param itemId string|number
+function GridInventory_Search.markRevealed(itemId)
+    if itemId == nil then return end
+    GridInventory_Search.revealAnim[tostring(itemId)] = getTimeInMillis()
+end
+
+--- Progresso do wipe de descoberta do item (0..1), ou nil se o item não tem
+--- animação ativa. 1 = acabou de revelar (wipe no topo), 0 = animação expirou.
+--- A limpeza é lazy: remove a chave na hora em que expira.
+---@param itemId string|number
+---@return number|nil
+function GridInventory_Search.getRevealProgress(itemId)
+    if itemId == nil then return nil end
+    local t = GridInventory_Search.revealAnim[tostring(itemId)]
+    if not t then return nil end
+    local elapsed = getTimeInMillis() - t
+    if elapsed >= REVEAL_ANIM_MS then
+        GridInventory_Search.revealAnim[tostring(itemId)] = nil
+        return nil
+    end
+    -- 0 (recém revelado) → 1 (fim do wipe): o wipe sobe.
+    return elapsed / REVEAL_ANIM_MS
+end
+
 -- Memoização de containerKey: o cálculo (buildContainerRef → instanceof +
 -- scan dos objetos do square + concat de string) roda por frame no render
 -- (1x por grid + 1x por item). O resultado é ESTÁVEL pra vida do container
@@ -169,8 +208,25 @@ local _frameCache = setmetatable({}, { __mode = "k" }) -- [container] = { ["pn|c
 
 --- Marca o início de um frame (chamado pelo update() de cada GridRender).
 --- Faz o cache daquele frame ser recalculado (os itens podem ter mudado).
+--- Também faz a limpeza LAZY do mapa de animações de descoberta: a cada N
+--- frames varre e remove as revelações expiradas (itens revelados em containers
+--- fora da tela nunca seriam consultados e acumulariam). O mapa é pequeno e a
+--- varredura é rara — custo desprezível.
+local _revealCleanupCounter = 0
 function GridInventory_Search.beginFrame()
     _frame = _frame + 1
+    _revealCleanupCounter = _revealCleanupCounter + 1
+    if _revealCleanupCounter >= 10 then
+        _revealCleanupCounter = 0
+        local now = getTimeInMillis()
+        local anim = GridInventory_Search.revealAnim
+        local max = REVEAL_ANIM_MS
+        for id, t in pairs(anim) do
+            if now - t >= max then
+                anim[id] = nil
+            end
+        end
+    end
 end
 
 --- (Re)calcula o info de busca de (playerNum, containerKey, container) se o
@@ -287,10 +343,18 @@ end
 ---@param playerObj IsoPlayer
 ---@param containerKey string|nil
 ---@param itemId string|number
-function GridInventory_Search.markSearched(playerObj, containerKey, itemId)
+---@param noWipe boolean|nil true = revela SEM o wipe branco (revelação em massa
+---   no fim da busca — usa o flash amarelo de item novo no lugar)
+function GridInventory_Search.markSearched(playerObj, containerKey, itemId, noWipe)
     if not playerObj or itemId == nil then return end
     local pn = playerObj.getPlayerNum and playerObj:getPlayerNum() or 0
     getSessionSet(pn)[tostring(itemId)] = true
+    -- Animação de descoberta (Tarkov): registra o wipe branco do item. Só em
+    -- revelação INCREMENTAL (1 item por tick) — em massa o wipe de todos ao
+    -- mesmo tempo fica poluído (usamos o flash amarelo no lugar).
+    if not noWipe then
+        GridInventory_Search.markRevealed(itemId)
+    end
     -- Invalida o cache de render na hora: a revelação muda o resultado das
     -- consultas de busca IMEDIATAMENTE (sem esperar o próximo frame).
     _searchVersion = _searchVersion + 1
@@ -337,9 +401,16 @@ end
 ---@param playerNum number
 ---@param containerKey string|nil
 ---@param itemId string|number
-function GridInventory_Search.markSearchedSession(playerNum, containerKey, itemId)
+---@param playerNum number
+---@param containerKey string|nil
+---@param itemId string|number
+---@param noWipe boolean|nil true = eco de revelação em massa (sem wipe)
+function GridInventory_Search.markSearchedSession(playerNum, containerKey, itemId, noWipe)
     if itemId == nil then return end
     getSessionSet(playerNum)[tostring(itemId)] = true
+    if not noWipe then
+        GridInventory_Search.markRevealed(itemId)
+    end
     _searchVersion = _searchVersion + 1
 end
 
@@ -435,7 +506,11 @@ function GridInventory_Search.isItemHidden(playerNum, containerKey, itemId, cont
 end
 
 --- Revela TODOS os itens do container (usado quando a busca é instantânea ou
---- no perform da ação).
+--- no perform da ação). Revelação em MASSA: NÃO dispara o wipe branco de cada
+--- item (todos ao mesmo tempo ficaria poluído) e NÃO usa o flash de autoSlot
+--- (que é pra item que ENTROU no grid, não pra item que já estava lá oculto).
+--- A massa final revela silenciosa; o feedback de descoberta fica só no wipe
+--- incremental (1 item por tick durante a busca).
 ---@param playerNum number
 ---@param containerKey string
 ---@param items table lista de itens nativos
@@ -446,7 +521,8 @@ function GridInventory_Search.revealAll(playerNum, containerKey, items)
     for i = 0, items:size() - 1 do
         local it = items:get(i)
         if it and it.getID then
-            GridInventory_Search.markSearched(playerObj, containerKey, it:getID())
+            -- noWipe=true: revelação em massa não repete o wipe de cada item.
+            GridInventory_Search.markSearched(playerObj, containerKey, it:getID(), true)
         end
     end
 end

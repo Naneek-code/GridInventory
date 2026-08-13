@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Kutatási idő tárgyanként",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "A kupacok felfedéséhez szükséges idő milliszekundumban tároló átkutatásakor. A kupacok számával nő: több tárgy, hosszabb kutatás.\n\n0 = azonnali (kattintásra mindent felfed).",
     "Sandbox_GridInventory_EnableDevTools": "DevTools engedélyezése",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Hozzáadja a \"[DevTool] Rács méretének szerkesztése\" opciót a tárgyak helyi menüjéhez, így átméretezheted a tárgyak lábnyomát és a tárolók rácsait anélkül, hogy a játékot -debug-kapcsolóval indítanád.\n\nBe: a DevTools elérhető ebben a mentésben. Többjátékos módban a nem-admin játékosok látják az opciót, de a szerver elutasítja a változtatások alkalmazását.\n\nKi: csak akkor érhető el, ha a játék -debug-kapcsolóval indul."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Hozzáadja a \"[DevTool] Rács méretének szerkesztése\" opciót a tárgyak helyi menüjéhez, így átméretezheted a tárgyak lábnyomát és a tárolók rácsait anélkül, hogy a játékot -debug-kapcsolóval indítanád.\n\nBe: a DevTools elérhető ebben a mentésben. Többjátékos módban a nem-admin játékosok látják az opciót, de a szerver elutasítja a változtatások alkalmazását.\n\nKi: csak akkor érhető el, ha a játék -debug-kapcsolóval indul.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Tárolórács maximális mérete",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "A világ tárolórácsainak maximális sorszáma. A rácsok kapacitás szerint méreteződnek egészen e határig. A DevTool rács-felülbírálat túllépheti ezt a határt adott tárolók esetén.\n\nAz alapértelmezett 15 megőrzi a klasszikus viselkedést.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "A játékos inventárának szélessége",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "A játékos főinventár-rácsának szélessége (oszlopok). Rögzített érték (alapértelmezett 3). A játékos inventárára vonatkozó DevTool rács-felülbírálat felülírhatja ezt.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "A játékos inventárának magassága",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "A játékos főinventár-rácsának magassága (sorok). Rögzített érték (alapértelmezett 4). A játékos inventárára vonatkozó DevTool rács-felülbírálat felülírhatja ezt.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "A világ tárolóinak minimális szélessége",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "A világ tárolórácsainak alapszélessége (oszlopok). Minden világ tárolórács ezt a szélességet használja; a magasság kapacitás szerint méreteződik az általános határig. A DevTool rács-felülbírálat adott tárolókra lecserélheti.\n\nAz alapértelmezett 6 megőrzi a klasszikus viselkedést."
 }

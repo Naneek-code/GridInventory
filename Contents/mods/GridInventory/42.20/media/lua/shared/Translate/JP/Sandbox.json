@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "アイテムあたりの探索時間",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "コンテナを探索中に各スタックを明らかにするのにかかる時間（ミリ秒）。スタック数に応じて変動します。アイテムが多いほど探索が長くなります。\n\n0 = 即時（クリックで全部明らかになる）。",
     "Sandbox_GridInventory_EnableDevTools": "DevTools を有効化",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "アイテムのコンテキストメニューに「[DevTool] グリッドサイズを編集」オプションを追加し、-debug で起動しなくてもアイテムの占有サイズとコンテナのグリッドを変更できるようにします。\n\nオン：このセーブで DevTools が利用可能。マルチプレイヤーでは、非管理者プレイヤーはオプションを表示できますが、サーバーは変更の適用を拒否します。\n\nオフ：ゲームを -debug で起動した場合のみ利用可能。"
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "アイテムのコンテキストメニューに「[DevTool] グリッドサイズを編集」オプションを追加し、-debug で起動しなくてもアイテムの占有サイズとコンテナのグリッドを変更できるようにします。\n\nオン：このセーブで DevTools が利用可能。マルチプレイヤーでは、非管理者プレイヤーはオプションを表示できますが、サーバーは変更の適用を拒否します。\n\nオフ：ゲームを -debug で起動した場合のみ利用可能。",
+    "Sandbox_GridInventory_MaxContainerGridSize": "コンテナグリッドの最大サイズ",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "ワールドコンテナのグリッドの最大行数。グリッドはこの上限まで容量に応じてサイズが決まります。DevTool のグリッド上書きは特定のコンテナでこの上限を超えられます。\n\nデフォルトの 15 が従来の動作です。",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "プレイヤーインベントリの幅",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "プレイヤーのメインインベントリグリッドの幅（列数）。固定値（デフォルト 3）。プレイヤーインベントリの DevTool グリッド上書きで変更できます。",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "プレイヤーインベントリの高さ",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "プレイヤーのメインインベントリグリッドの高さ（行数）。固定値（デフォルト 4）。プレイヤーインベントリの DevTool グリッド上書きで変更できます。",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "ワールドコンテナの最小幅",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "ワールドコンテナグリッドの基準幅（列数）。すべてのワールドコンテナグリッドがこの幅を使用します。高さは一般的な上限まで容量に応じて決まります。DevTool のグリッド上書きで特定のコンテナを置き換えられます。\n\nデフォルトの 6 が従来の動作です。"
 }

@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Waktu cari per item",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Waktu dalam milidetik untuk mengungkap setiap tumpukan saat mencari di wadah. Menyesuaikan dengan jumlah tumpukan: lebih banyak item, pencarian lebih lama.\n\n0 = instan (mengungkap semuanya saat diklik).",
     "Sandbox_GridInventory_EnableDevTools": "Aktifkan DevTools",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Menambahkan opsi \"[DevTool] Edit Ukuran Grid\" ke menu konteks item, sehingga Anda dapat mengubah ukuran jejak item dan grid wadah tanpa meluncurkan game dengan -debug.\n\nAktif: DevTools tersedia di save ini. Dalam multipemain, pemain non-admin dapat melihat opsi tetapi server menolak menerapkan perubahan.\n\nNonaktif: hanya tersedia saat game diluncurkan dengan -debug."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Menambahkan opsi \"[DevTool] Edit Ukuran Grid\" ke menu konteks item, sehingga Anda dapat mengubah ukuran jejak item dan grid wadah tanpa meluncurkan game dengan -debug.\n\nAktif: DevTools tersedia di save ini. Dalam multipemain, pemain non-admin dapat melihat opsi tetapi server menolak menerapkan perubahan.\n\nNonaktif: hanya tersedia saat game diluncurkan dengan -debug.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Ukuran grid wadah maksimum",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Jumlah baris maksimum untuk grid wadah dunia. Grid berukuran berdasarkan kapasitas hingga batas ini. Override grid DevTool dapat melebihi batas ini untuk wadah tertentu.\n\nDefault 15 mempertahankan perilaku klasik.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "Lebar inventaris pemain",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "Lebar (kolom) grid inventaris utama pemain. Nilai tetap (default 3). Override grid DevTool untuk inventaris pemain dapat menimpanya.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "Tinggi inventaris pemain",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "Tinggi (baris) grid inventaris utama pemain. Nilai tetap (default 4). Override grid DevTool untuk inventaris pemain dapat menimpanya.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "Lebar minimum wadah dunia",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "Lebar dasar (kolom) untuk grid wadah dunia. Semua grid wadah dunia menggunakan lebar ini; tinggi diukur berdasarkan kapasitas hingga batas umum. Override grid DevTool dapat menggantinya untuk wadah tertentu.\n\nDefault 6 mempertahankan perilaku klasik."
 }

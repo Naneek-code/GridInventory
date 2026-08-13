@@ -43,43 +43,69 @@ end
 
 GridDevToolUI = ISPanel:derive("GridDevToolUI")
 
-function GridDevToolUI:new(x, y, item)
+function GridDevToolUI:new(x, y, target)
     local o = ISPanel:new(x, y, 300, 200)
     setmetatable(o, self)
     self.__index = self
-    o.item = item
-    o.fullType = item:getFullType()
-    
+    o.target = target
+
+    -- O alvo pode ser um ITEM (InventoryItem) ou um CONTAINER (ItemContainer —
+    -- inventário do jogador, caixa de mundo, etc). Resolve o item de referência
+    -- (pro footprint) e a chave de override do grid.
+    local GridContainer = require("DataModel/GridContainer")
+    local isContainerTarget = not (instanceof and instanceof(target, "InventoryItem"))
+    if isContainerTarget then
+        o.inventoryContainer = target
+        o.item = (target.getContainingItem and target:getContainingItem()) or nil
+    else
+        o.item = target
+        o.inventoryContainer = o.item:IsInventoryContainer() and o.item:getInventory() or nil
+    end
+
+    o.isContainer = (o.inventoryContainer ~= nil)
+    -- "item real" (tem InventoryItem de referência): mostra W/H/Stackable/MaxStack.
+    -- Worldobj/player/floor (container sem item) só mostram o grid.
+    o.isItem = (o.item ~= nil)
+    o.fullType = GridContainer.getOverrideKey(o.inventoryContainer or (o.item and o.item:getContainer())) or "unknown"
+    -- Guarda também o fullType puro (item) pra compatibilidade/fallback.
+    o.itemFullType = o.item and o.item.getFullType and o.item:getFullType() or nil
+
     o.backgroundColor = {r=0, g=0, b=0, a=0.9}
     o.borderColor = {r=0.4, g=0.4, b=0.4, a=1}
     
     o.tempData = {}
     
-    -- Busca valores atuais
+    -- Busca valores atuais (chave do grid primeiro, fallback pro fullType puro)
     local override = GridDevTool.Overrides[o.fullType]
+    if not override and o.itemFullType then
+        override = GridDevTool.Overrides[o.itemFullType]
+    end
     
     local ItemFootprint = require("Algorithm/ItemFootprint")
-    local w, h = ItemFootprint.getSize(item)
+    local w, h = 1, 1
+    if o.item then
+        w, h = ItemFootprint.getSize(o.item)
+    else
+        w, h = 1, 1
+    end
     o.tempData.w = (override and override.w) or w
     o.tempData.h = (override and override.h) or h    
     o.tempData.stackable = (override and override.stackable) -- nil=Auto, true/false
     o.tempData.maxStackAuto = not (override and override.maxStack)
-    local GridContainer = require("DataModel/GridContainer")
-    local autoMax = GridContainer.getMaxStackUnits(item)
+    local autoMax = o.item and GridContainer.getMaxStackUnits(o.item) or nil
     o.tempData.maxStack = (override and override.maxStack) or autoMax or 100
-    o.isContainer = item:IsInventoryContainer()
     if o.isContainer then
-        local cap = item:getInventory():getCapacity()
-        local cw, ch = 6, math.max(2, math.ceil(cap / 3))
+        local cw, ch = GridContainer.getGridSize(o.inventoryContainer)
         o.tempData.cols = (override and override.cols) or cw
         o.tempData.rows = (override and override.rows) or ch
-        o.height = 380
-    else
-        o.height = 280
     end
 
-    -- ALTURA final (o ISPanel:new criou com 200; corrige agora que sabemos)
-    o.height = o.isContainer and 380 or 280
+    -- ALTURA estimada pro clamp (o initialise recalcula com o layout real).
+    -- Base: title(20) + 40 por linha de campo + save.
+    local estRows = 0
+    if o.isItem then estRows = estRows + 4 end      -- W, H, Stackable, MaxStack
+    if o.isContainer then estRows = estRows + 2 end -- Cols, Rows
+    o.height = 40 + (estRows * 40) + 50
 
     -- Clamp: a janela nunca nasce (nem fica) fora da tela.
     local sw = getCore() and getCore():getScreenWidth() or 1280
@@ -102,95 +128,113 @@ function GridDevToolUI:initialise()
     local labelX = 20
     local cy = 40
     
-    -- Item Width
-    self:addChild(ISLabel:new(labelX, cy, 20, "Item Width (W):", 1, 1, 1, 1, UIFont.Small, true))
-    self.btnWMinus = ISButton:new(160, cy, btnW, btnH, "-", self, function(self) self.tempData.w = math.max(1, self.tempData.w - 1) end)
-    self.btnWMinus:initialise()
-    self:addChild(self.btnWMinus)
-    self.btnWPlus = ISButton:new(220, cy, btnW, btnH, "+", self, function(self) self.tempData.w = self.tempData.w + 1 end)
-    self.btnWPlus:initialise()
-    self:addChild(self.btnWPlus)
+    -- Layout INTELIGENTE: worldobj/player/floor (container SEM item) não usam
+    -- footprint/stack — só o grid. Bag (item+container) e item mostram tudo.
+    -- Armazena a posição Y de cada campo pro prerender desenhar os valores.
+    self.labels = {}
     
-    cy = cy + 40
-    
-    -- Item Height
-    self:addChild(ISLabel:new(labelX, cy, 20, "Item Height (H):", 1, 1, 1, 1, UIFont.Small, true))
-    self.btnHMinus = ISButton:new(160, cy, btnW, btnH, "-", self, function(self) self.tempData.h = math.max(1, self.tempData.h - 1) end)
-    self.btnHMinus:initialise()
-    self:addChild(self.btnHMinus)
-    self.btnHPlus = ISButton:new(220, cy, btnW, btnH, "+", self, function(self) self.tempData.h = self.tempData.h + 1 end)
-    self.btnHPlus:initialise()
-    self:addChild(self.btnHPlus)
-    
-    cy = cy + 40
-    
-    -- Stackable toggle (Auto → ON → OFF)
-    self:addChild(ISLabel:new(labelX, cy, 20, "Stackable:", 1, 1, 1, 1, UIFont.Small, true))
-    self.btnStack = ISButton:new(160, cy, 90, btnH, "Auto", self, function(self)
-        if self.tempData.stackable == nil then
-            self.tempData.stackable = true
-        elseif self.tempData.stackable == true then
-            self.tempData.stackable = false
-        else
-            self.tempData.stackable = nil
-        end
+    if self.isItem then
+        -- Item Width
+        self:addChild(ISLabel:new(labelX, cy, 20, "Item Width (W):", 1, 1, 1, 1, UIFont.Small, true))
+        self.btnWMinus = ISButton:new(160, cy, btnW, btnH, "-", self, function(self) self.tempData.w = math.max(1, self.tempData.w - 1) end)
+        self.btnWMinus:initialise()
+        self:addChild(self.btnWMinus)
+        self.btnWPlus = ISButton:new(220, cy, btnW, btnH, "+", self, function(self) self.tempData.w = self.tempData.w + 1 end)
+        self.btnWPlus:initialise()
+        self:addChild(self.btnWPlus)
+        self.labels.w = cy + 2
+        cy = cy + 40
+        
+        -- Item Height
+        self:addChild(ISLabel:new(labelX, cy, 20, "Item Height (H):", 1, 1, 1, 1, UIFont.Small, true))
+        self.btnHMinus = ISButton:new(160, cy, btnW, btnH, "-", self, function(self) self.tempData.h = math.max(1, self.tempData.h - 1) end)
+        self.btnHMinus:initialise()
+        self:addChild(self.btnHMinus)
+        self.btnHPlus = ISButton:new(220, cy, btnW, btnH, "+", self, function(self) self.tempData.h = self.tempData.h + 1 end)
+        self.btnHPlus:initialise()
+        self:addChild(self.btnHPlus)
+        self.labels.h = cy + 2
+        cy = cy + 40
+        
+        -- Stackable toggle (Auto → ON → OFF)
+        self:addChild(ISLabel:new(labelX, cy, 20, "Stackable:", 1, 1, 1, 1, UIFont.Small, true))
+        self.btnStack = ISButton:new(160, cy, 90, btnH, "Auto", self, function(self)
+            if self.tempData.stackable == nil then
+                self.tempData.stackable = true
+            elseif self.tempData.stackable == true then
+                self.tempData.stackable = false
+            else
+                self.tempData.stackable = nil
+            end
+            self:updateStackButton()
+        end)
+        self.btnStack:initialise()
+        self:addChild(self.btnStack)
         self:updateStackButton()
-    end)
-    self.btnStack:initialise()
-    self:addChild(self.btnStack)
-    self:updateStackButton()
-
-    cy = cy + 40
-
-    -- MaxStack (Auto / número)
-    self:addChild(ISLabel:new(labelX, cy, 20, "MaxStack:", 1, 1, 1, 1, UIFont.Small, true))
-    self.btnMaxMinus = ISButton:new(130, cy, btnW, btnH, "-", self, function(self)
-        if not self.tempData.maxStackAuto then
-            self.tempData.maxStack = math.max(1, self.tempData.maxStack - 1)
+        self.labels.stack = cy + 2
+        cy = cy + 40
+        
+        -- MaxStack (Auto / número)
+        self:addChild(ISLabel:new(labelX, cy, 20, "MaxStack:", 1, 1, 1, 1, UIFont.Small, true))
+        self.btnMaxMinus = ISButton:new(130, cy, btnW, btnH, "-", self, function(self)
+            if not self.tempData.maxStackAuto then
+                self.tempData.maxStack = math.max(1, self.tempData.maxStack - 1)
+                self:updateMaxButton()
+            end
+        end)
+        self.btnMaxMinus:initialise()
+        self:addChild(self.btnMaxMinus)
+        self.btnMaxMode = ISButton:new(165, cy, 60, btnH, "Auto", self, function(self)
+            self.tempData.maxStackAuto = not self.tempData.maxStackAuto
             self:updateMaxButton()
-        end
-    end)
-    self.btnMaxMinus:initialise()
-    self:addChild(self.btnMaxMinus)
-    self.btnMaxMode = ISButton:new(165, cy, 60, btnH, "Auto", self, function(self)
-        self.tempData.maxStackAuto = not self.tempData.maxStackAuto
+        end)
+        self.btnMaxMode:initialise()
+        self:addChild(self.btnMaxMode)
+        self.btnMaxPlus = ISButton:new(230, cy, btnW, btnH, "+", self, function(self)
+            if not self.tempData.maxStackAuto then
+                self.tempData.maxStack = self.tempData.maxStack + 1
+                self:updateMaxButton()
+            end
+        end)
+        self.btnMaxPlus:initialise()
+        self:addChild(self.btnMaxPlus)
         self:updateMaxButton()
-    end)
-    self.btnMaxMode:initialise()
-    self:addChild(self.btnMaxMode)
-    self.btnMaxPlus = ISButton:new(230, cy, btnW, btnH, "+", self, function(self)
-        if not self.tempData.maxStackAuto then
-            self.tempData.maxStack = self.tempData.maxStack + 1
-            self:updateMaxButton()
-        end
-    end)
-    self.btnMaxPlus:initialise()
-    self:addChild(self.btnMaxPlus)
-    self:updateMaxButton()
-
-    cy = cy + 40
+        self.labels.maxStack = cy + 2
+        cy = cy + 40
+    end
 
     if self.isContainer then
-        self:addChild(ISLabel:new(labelX, cy, 20, "Bag Grid Cols:", 1, 1, 1, 1, UIFont.Small, true))
+        self:addChild(ISLabel:new(labelX, cy, 20, "Grid Cols:", 1, 1, 1, 1, UIFont.Small, true))
         self.btnCMinus = ISButton:new(160, cy, btnW, btnH, "-", self, function(self) self.tempData.cols = math.max(1, self.tempData.cols - 1) end)
         self.btnCMinus:initialise()
         self:addChild(self.btnCMinus)
         self.btnCPlus = ISButton:new(220, cy, btnW, btnH, "+", self, function(self) self.tempData.cols = self.tempData.cols + 1 end)
         self.btnCPlus:initialise()
         self:addChild(self.btnCPlus)
-        
+        self.labels.cols = cy + 2
         cy = cy + 40
         
-        self:addChild(ISLabel:new(labelX, cy, 20, "Bag Grid Rows:", 1, 1, 1, 1, UIFont.Small, true))
+        self:addChild(ISLabel:new(labelX, cy, 20, "Grid Rows:", 1, 1, 1, 1, UIFont.Small, true))
         self.btnRMinus = ISButton:new(160, cy, btnW, btnH, "-", self, function(self) self.tempData.rows = math.max(1, self.tempData.rows - 1) end)
         self.btnRMinus:initialise()
         self:addChild(self.btnRMinus)
         self.btnRPlus = ISButton:new(220, cy, btnW, btnH, "+", self, function(self) self.tempData.rows = self.tempData.rows + 1 end)
         self.btnRPlus:initialise()
         self:addChild(self.btnRPlus)
-        
+        self.labels.rows = cy + 2
         cy = cy + 40
+        
+        -- Feedback do Max Container Grid Size (sandbox option) — só pra
+        -- containers SEM item (worldobj/player/floor), onde o teto se aplica.
+        if not self.isItem then
+            self.maxGridNote = cy
+            cy = cy + 18
+        end
     end
+    
+    -- ALTURA final conforme os campos exibidos
+    self.height = cy + 40
+    self:setHeight(self.height)
     
     -- Save Button
     self.btnSave = ISButton:new(self.width/2 - 40, cy + 10, 80, 25, "SAVE", self, self.onSave)
@@ -237,12 +281,16 @@ function GridDevToolUI:onSave()
         return
     end
 
-    GridDevTool.applyOverrides(self.fullType, self.tempData.w, self.tempData.h,
+    -- w/h (footprint) só fazem sentido quando o alvo TEM um item real. Container
+    -- de mundo / inventário do jogador: só cols/rows (grid) + stackable/maxStack.
+    local hasItem = (self.item ~= nil)
+    GridDevTool.applyOverrides(self.fullType,
+        hasItem and self.tempData.w or nil,
+        hasItem and self.tempData.h or nil,
         self.isContainer and self.tempData.cols or nil,
         self.isContainer and self.tempData.rows or nil,
         self.tempData.stackable,
         self.tempData.maxStackAuto and nil or self.tempData.maxStack)
-
     -- MP server-mandatory: envia pro servidor aplicar (autoridade) + broadcast.
     GridClientNetwork.sendOverrides(GridDevTool.Overrides)
 
@@ -327,21 +375,48 @@ function GridDevToolUI:clampAndSet(nx, ny)
     self:setY(ny)
 end
 
+--- Nome amigável do alvo pro título do DevTool (chave técnica → legível).
+function GridDevToolUI.friendlyName(self)
+    local k = self.fullType or "unknown"
+    if k == "player" then return "Player Inventory" end
+    if k == "floor" then return "Floor" end
+    if k:sub(1, 5) == "item:" then return k:sub(6) end
+    if k:sub(1, 9) == "worldobj:" then return k:sub(10) end
+    if k:sub(1, 6) == "ctype:" then return k:sub(7) end
+    return k
+end
+
 function GridDevToolUI:prerender()
     ISPanel.prerender(self)
-    self:drawTextCentre("Grid DevTool: " .. self.fullType, self.width / 2, 10, 1, 1, 1, 1, UIFont.Small)
+    self:drawTextCentre("Grid DevTool: " .. GridDevToolUI.friendlyName(self), self.width / 2, 10, 1, 1, 1, 1, UIFont.Small)
     
-    -- Valores desenhados ALINHADOS com as linhas reais do initialise (valores
-    -- ABSOLUTOS, não incrementais — incrementar bugava a posição):
-    --   W (40), H (80), Stackable (120), MaxStack (160), [container:]
-    --   Cols (200), Rows (240). x=205 é o centro entre os botões -/+ (160/220).
-    self:drawTextCentre(tostring(self.tempData.w), 205, 42, 1, 1, 1, 1, UIFont.Small)
-    self:drawTextCentre(tostring(self.tempData.h), 205, 82, 1, 1, 1, 1, UIFont.Small)
-    
-    if self.isContainer then
-        -- Pula Stackable (120) e MaxStack (160) → Cols em 200, Rows em 240
-        self:drawTextCentre(tostring(self.tempData.cols), 205, 202, 1, 1, 1, 1, UIFont.Small)
-        self:drawTextCentre(tostring(self.tempData.rows), 205, 242, 1, 1, 1, 1, UIFont.Small)
+    -- Valores desenhados ALINHADOS com as linhas reais do initialise (posições
+    -- dinâmicas conforme o tipo de alvo — self.labels). x=205 é o centro entre
+    -- os botões -/+ (160/220).
+    if self.labels then
+        if self.labels.w then
+            self:drawTextCentre(tostring(self.tempData.w), 205, self.labels.w, 1, 1, 1, 1, UIFont.Small)
+        end
+        if self.labels.h then
+            self:drawTextCentre(tostring(self.tempData.h), 205, self.labels.h, 1, 1, 1, 1, UIFont.Small)
+        end
+        if self.labels.cols then
+            self:drawTextCentre(tostring(self.tempData.cols), 205, self.labels.cols, 1, 1, 1, 1, UIFont.Small)
+        end
+        if self.labels.rows then
+            self:drawTextCentre(tostring(self.tempData.rows), 205, self.labels.rows, 1, 1, 1, 1, UIFont.Small)
+        end
+    end
+
+    -- Feedback do Max Container Grid Size (sandbox option): mostra o teto geral
+    -- vigente e avisa que o override FIRME pode ultrapassá-lo. Só pra
+    -- containers sem item (worldobj/player/floor).
+    if self.maxGridNote and not self.isItem then
+        local GridSandboxOptions = require("GridSandboxOptions")
+        local minW = GridSandboxOptions.getMinWorldGridWidth()
+        local maxV = GridSandboxOptions.getMaxContainerGridSize()
+        self:drawText("Grid (sandbox): W " .. tostring(minW) .. " / H " .. tostring(maxV),
+            self.width / 2 - 120, self.maxGridNote, 0.8, 0.9, 0.7, 1, UIFont.Small)
     end
 end
 
@@ -368,8 +443,19 @@ local function OnFillInventoryObjectContextMenu(player, context, items)
         end
     end
 
+    GridDevToolUI.addContextOption(context, player, testItem)
+end
+
+--- Adiciona a opção "[DevTool] Edit Grid Size" a um context menu. Aceita um
+--- ITEM ou um CONTAINER como alvo (o container resolve o grid do mundo/jogador).
+---@param context ISContextMenu
+---@param player number|IsoPlayer
+---@param target InventoryItem|ItemContainer
+function GridDevToolUI.addContextOption(context, player, target)
+    if not context or not target then return end
+    if not canUseDevTools(player) then return end
     local devOption = context:addOption("[DevTool] Edit Grid Size", nil, function()
-        local ui = GridDevToolUI:new(getMouseX() + 20, getMouseY(), testItem)
+        local ui = GridDevToolUI:new(getMouseX() + 20, getMouseY(), target)
         ui.player = player
         ui:initialise()
         ui:addToUIManager()
@@ -378,3 +464,5 @@ local function OnFillInventoryObjectContextMenu(player, context, items)
 end
 
 Events.OnFillInventoryObjectContextMenu.Add(OnFillInventoryObjectContextMenu)
+
+return GridDevToolUI

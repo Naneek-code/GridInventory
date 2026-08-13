@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Öğe başına arama süresi",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Bir konteyneri ararken her yığını ortaya çıkarmak için geçen süre (milisaniye). Yığın sayısıyla ölçeklenir: daha çok öğe, daha uzun arama.\n\n0 = anında (tıklamada her şeyi ortaya çıkarır).",
     "Sandbox_GridInventory_EnableDevTools": "DevTools'u Etkinleştir",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Öğe bağlam menüsüne \"[DevTool] Izgara Boyutunu Düzenle\" seçeneğini ekler; böylece oyunu -debug ile başlatmadan öğe alanlarını ve konteyner ızgaralarını yeniden boyutlandırabilirsiniz.\n\nAçık: DevTools bu kayıtta kullanılabilir. Çok oyunculuda, admin olmayan oyuncular seçeneği görebilir ancak sunucu değişikliklerin uygulanmasını reddeder.\n\nKapalı: yalnızca oyun -debug ile başlatıldığında kullanılabilir."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Öğe bağlam menüsüne \"[DevTool] Izgara Boyutunu Düzenle\" seçeneğini ekler; böylece oyunu -debug ile başlatmadan öğe alanlarını ve konteyner ızgaralarını yeniden boyutlandırabilirsiniz.\n\nAçık: DevTools bu kayıtta kullanılabilir. Çok oyunculuda, admin olmayan oyuncular seçeneği görebilir ancak sunucu değişikliklerin uygulanmasını reddeder.\n\nKapalı: yalnızca oyun -debug ile başlatıldığında kullanılabilir.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Maksimum konteyner ızgara boyutu",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Dünya konteyner ızgaraları için maksimum satır sayısı. Izgaralar bu sınıra kadar kapasiteye göre boyutlanır. DevTool ızgara geçersiz kılması, belirli konteynerler için bu sınırı aşabilir.\n\nVarsayılan 15, klasik davranışı korur.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "Oyuncu envanter genişliği",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "Oyuncunun ana envanter ızgarasının genişliği (sütunlar). Sabit değer (varsayılan 3). Oyuncu envanteri için DevTool ızgara geçersiz kılması bunu değiştirebilir.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "Oyuncu envanter yüksekliği",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "Oyuncunun ana envanter ızgarasının yüksekliği (satırlar). Sabit değer (varsayılan 4). Oyuncu envanteri için DevTool ızgara geçersiz kılması bunu değiştirebilir.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "Minimum dünya konteyner genişliği",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "Dünya konteyner ızgaraları için temel genişlik (sütunlar). Tüm dünya konteyner ızgaraları bu genişliği kullanır; yükseklik genel sınıra kadar kapasiteye göre boyutlanır. DevTool ızgara geçersiz kılması, belirli konteynerler için bunu değiştirebilir.\n\nVarsayılan 6, klasik davranışı korur."
 }

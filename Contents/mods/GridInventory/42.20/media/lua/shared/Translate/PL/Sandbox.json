@@ -16,5 +16,13 @@
     "Sandbox_GridInventory_SearchTimePerItem": "Czas szukania na przedmiot",
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Czas w milisekundach potrzebny do ujawnienia każdej sterty podczas przeszukiwania pojemnika. Skaluje się z liczbą stert: więcej przedmiotów, dłuższe szukanie.\n\n0 = natychmiast (ujawnia wszystko po kliknięciu).",
     "Sandbox_GridInventory_EnableDevTools": "Włącz DevTools",
-    "Sandbox_GridInventory_EnableDevTools_tooltip": "Dodaje opcję \"[DevTool] Edytuj rozmiar siatki\" do menu kontekstowego przedmiotów, dzięki czemu możesz zmieniać rozmiar zajmowanych przez przedmioty pól oraz siatki pojemników bez uruchamiania gry z -debug.\n\nWł.: DevTools dostępne w tym zapisie. W trybie wieloosobowym gracze bez uprawnień administratora widzą opcję, ale serwer odrzuca zastosowanie zmian.\n\nWył.: dostępne tylko, gdy gra jest uruchamiana z -debug."
+    "Sandbox_GridInventory_EnableDevTools_tooltip": "Dodaje opcję \"[DevTool] Edytuj rozmiar siatki\" do menu kontekstowego przedmiotów, dzięki czemu możesz zmieniać rozmiar zajmowanych przez przedmioty pól oraz siatki pojemników bez uruchamiania gry z -debug.\n\nWł.: DevTools dostępne w tym zapisie. W trybie wieloosobowym gracze bez uprawnień administratora widzą opcję, ale serwer odrzuca zastosowanie zmian.\n\nWył.: dostępne tylko, gdy gra jest uruchamiana z -debug.",
+    "Sandbox_GridInventory_MaxContainerGridSize": "Maksymalny rozmiar siatki pojemnika",
+    "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Maksymalna liczba wierszy dla siatek pojemników świata. Siatki są skalowane do pojemności aż do tego limitu. Nadpisanie siatki przez DevTool może przekroczyć ten limit dla konkretnych pojemników.\n\nDomyślna wartość 15 zachowuje klasyczne zachowanie.",
+    "Sandbox_GridInventory_InventoryPlayerWidth": "Szerokość ekwipunku gracza",
+    "Sandbox_GridInventory_InventoryPlayerWidth_tooltip": "Szerokość (kolumny) głównej siatki ekwipunku gracza. Stała wartość (domyślnie 3). Nadpisanie siatki przez DevTool dla ekwipunku gracza może to nadpisać.",
+    "Sandbox_GridInventory_InventoryPlayerHeight": "Wysokość ekwipunku gracza",
+    "Sandbox_GridInventory_InventoryPlayerHeight_tooltip": "Wysokość (wiersze) głównej siatki ekwipunku gracza. Stała wartość (domyślnie 4). Nadpisanie siatki przez DevTool dla ekwipunku gracza może to nadpisać.",
+    "Sandbox_GridInventory_MinWorldWidthGridSize": "Minimalna szerokość pojemników świata",
+    "Sandbox_GridInventory_MinWorldWidthGridSize_tooltip": "Podstawowa szerokość (kolumny) dla siatek pojemników świata. Wszystkie siatki pojemników świata używają tej szerokości; wysokość jest skalowana do pojemności aż do ogólnego limitu. Nadpisanie siatki przez DevTool może ją zastąpić dla konkretnych pojemników.\n\nDomyślna wartość 6 zachowuje klasyczne zachowanie."
 }
