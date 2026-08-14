@@ -51,9 +51,10 @@ function PaperDollWindow:initialise()
     self.avatarW = math.floor(200 * scale)
     self.avatarH = math.floor(400 * scale)
     self.avatarX = (self.width - self.avatarW) / 2
-    -- Ancora o avatar logo abaixo da titlebar (sem centralizar): o conteúdo
-    -- fica colado no topo e o scrollPanel rola o que passar da altura.
-    self.avatarY = self:titleBarHeight() + math.floor(10 * scale)
+    -- avatarY é relativo ao scrollPanel (que começa em titleBarHeight). Folga
+    -- no topo (~70px) pra barra de progresso da timed action (desenhada ~20px
+    -- acima do avatar) e o nome da action ficarem bem abaixo da titlebar.
+    self.avatarY = math.floor(70 * scale)
 
     self.avatarPanel = ISCharacterScreenAvatar:new(self.avatarX, self.avatarY, self.avatarW, self.avatarH)
     self.avatarPanel:setVisible(true)
@@ -137,6 +138,9 @@ function PaperDollWindow:initialise()
     self.overflowSlot:initialise()
     self.scrollPanel:addChild(self.overflowSlot)
     self.overflowSlot._pdCol = "overflow"
+    -- Inclui no self.slots pra o relayout reposicionar junto com os demais
+    -- (sem isso o overflow "Extra" ficava parado quando o layout mudava).
+    table.insert(self.slots, self.overflowSlot)
 
     -- Controles de Tempo (Apenas Single Player)
     if not isClient() then
@@ -276,11 +280,11 @@ function PaperDollWindow:relayout()
     self.uiScale = scale
     self.scale = scale
 
-    -- Avatar (ancorado abaixo da titlebar)
+    -- Avatar (relativo ao scrollPanel; folga no topo pra barra de progresso)
     self.avatarW = math.floor(200 * scale)
     self.avatarH = math.floor(400 * scale)
     self.avatarX = (self.width - self.avatarW) / 2
-    self.avatarY = self:titleBarHeight() + math.floor(10 * scale)
+    self.avatarY = math.floor(70 * scale)
     if self.avatarPanel then
         self.avatarPanel:setX(self.avatarX)
         self.avatarPanel:setY(self.avatarY)
@@ -372,12 +376,13 @@ function PaperDollWindow:relayout()
         return false
     end
 
-    -- Hotbar: reposiciona (recalcula com o novo scale)
-    if self.lastHotbarHash ~= nil then
-        local hotbar = getPlayerHotbar and getPlayerHotbar(self.playerNum)
-        if hotbar then
-            self:refreshHotbarUIs(hotbar)
-        end
+    -- Hotbar: reposiciona (recalcula com o novo scale). Roda SEMPRE no
+    -- relayout — os slots da hotbar são filhos do scrollPanel com posição
+    -- absoluta, então qualquer mudança de scale/largura precisa recriá-los pra
+    -- acompanhar (antes só rodava se o hash da hotbar já tinha sido calculado).
+    local hotbar = getPlayerHotbar and getPlayerHotbar(self.playerNum)
+    if hotbar then
+        self:refreshHotbarUIs(hotbar)
     end
 
     self._pdScale = scale
