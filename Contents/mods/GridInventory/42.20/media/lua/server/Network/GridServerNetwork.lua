@@ -10,6 +10,7 @@ local GridProtocol = require("Network/GridProtocol")
 local GridCore = require("DataModel/GridCore")
 local GridContainer = require("DataModel/GridContainer")
 local GridAdmin = require("System/GridAdmin")
+local ItemFootprint = require("Algorithm/ItemFootprint")
 
 local GridServerNetwork = {}
 
@@ -58,7 +59,6 @@ end
 --- Executa um movimento. Retorna "ok" | "notfound" | "invalid".
 local function processMove(player, args)
     if not args or not args.itemId then return "invalid" end
-
     local item = findItem(player, args.ref, args.itemId)
     if not item then return "notfound" end
 
@@ -130,6 +130,88 @@ local function processMove(player, args)
         manual = md.gridManual,
         sender = player:getUsername(),
     })
+    return "ok"
+end
+
+--- Executa um REORDER em LOTE (swap/multi-drag no MESMO grid). All-or-nothing.
+--- O cliente valida o drag INTEIRO com movedSet: A→célula de B é ok porque B
+--- também vai sair. Se o servidor recebesse UM REQUEST_MOVE por item e validasse
+--- cada um contra o modData ATUAL, o primeiro (A→posição de B, B ainda lá)
+--- colidiria → ERROR → o cliente reverte → bug do MP (item volta pra posição
+--- anterior). Aqui o servidor valida TODOS contra UMA ocupação, ignorando os
+--- itens do próprio lote (movedSet), igual ao cliente — e só aplica se TUDO
+--- passar. Retorna "ok" | "notfound" | "invalid".
+local function processReorder(player, args)
+    if not args or not args.ref or not args.moves or #args.moves == 0 then
+        return "invalid"
+    end
+
+    local target = GridProtocol.resolveContainerRef(args.ref, player)
+    if not target then return "invalid" end
+
+    -- Encontra TODOS os itens antes de validar (all-or-nothing).
+    local moves = {}
+    local movedSet = {}
+    for _, m in ipairs(args.moves) do
+        if m == nil or m.itemId == nil or m.x == nil or m.y == nil then
+            return "invalid"
+        end
+        local item = findItem(player, args.ref, m.itemId)
+        if not item then return "notfound" end
+        if item.isEquipped and item:isEquipped() then return "invalid" end
+        table.insert(moves, { item = item, x = tonumber(m.x), y = tonumber(m.y), rotated = m.rotated and true or false })
+        movedSet[item:getID()] = true
+    end
+
+    -- Occupação UMA vez, com o estado atual (itens do lote ainda na origem).
+    local w, h = GridContainer.getGridSize(target)
+    local grid = GridCore.new(w, h)
+    GridContainer.buildOccupancy(target, grid)
+
+    -- Valida TODOS contra a mesma ocupação, ignorando os itens do lote.
+    local validated = {}
+    for _, mv in ipairs(moves) do
+        local fw, fh = ItemFootprint.getSize(mv.item)
+        local ew, eh = mv.rotated and fh or fw, mv.rotated and fw or fh
+        local compatKey, stackInfo = GridContainer.getStackInfo(mv.item)
+        local ok = grid:canPlaceItem(
+            mv.item:getID(), mv.x, mv.y, ew, eh,
+            mv.item:getID(), compatKey, mv.rotated, stackInfo, movedSet
+        )
+        if not ok then
+            -- Lote INTEIRO rejeitado: ERROR pra cada item (cliente reverte todos).
+            for _, mv2 in ipairs(moves) do
+                sendServerCommand(player, GridProtocol.MODULE, GridProtocol.COMMANDS.ERROR, {
+                    itemId = mv2.item:getID(),
+                })
+            end
+            return "invalid"
+        end
+        table.insert(validated, mv)
+    end
+
+    -- Aplica TUDO + broadcast de cada item (server-mandatory).
+    for _, mv in ipairs(validated) do
+        local md = mv.item:getModData()
+        md.gridX = mv.x
+        md.gridY = mv.y
+        md.gridRot = mv.rotated
+        if args.gridContainer ~= nil then
+            md.gridContainer = args.gridContainer
+        end
+        if args.manual ~= nil then
+            md.gridManual = args.manual and true or nil
+        end
+        sendServerCommand(GridProtocol.MODULE, GridProtocol.COMMANDS.SYNC_ITEM, {
+            itemId = mv.item:getID(),
+            x = mv.x,
+            y = mv.y,
+            rotated = mv.rotated,
+            gridContainer = md.gridContainer,
+            manual = md.gridManual,
+            sender = player:getUsername(),
+        })
+    end
     return "ok"
 end
 
@@ -229,6 +311,23 @@ local function OnClientCommand(module, command, player, args)
         return
     end
 
+    if command == GridProtocol.COMMANDS.REQUEST_REORDER then
+        local status = processReorder(player, args)
+        if status == "notfound" then
+            -- Algum item do lote ainda em trânsito: enfileira o lote INTEIRO.
+            local pending = pendingMoves[player] or {}
+            pending["batch:" .. tostring(getTimestampMs())] = {
+                args = args,
+                player = player,
+                retries = 0,
+                lastTry = getTimestampMs(),
+                reorder = true,
+            }
+            pendingMoves[player] = pending
+        end
+        return
+    end
+
     if command ~= GridProtocol.COMMANDS.REQUEST_MOVE then return end
 
     local status = processMove(player, args)
@@ -254,7 +353,12 @@ Events.OnTick.Add(function()
             if now - (p.lastTry or 0) >= PENDING_DELAY_MS then
                 p.lastTry = now
                 p.retries = p.retries + 1
-                local status = processMove(p.player, p.args)
+                local status
+                if p.reorder then
+                    status = processReorder(p.player, p.args)
+                else
+                    status = processMove(p.player, p.args)
+                end
                 if status ~= "notfound" then
                     pending[itemId] = nil
                 elseif p.retries >= PENDING_RETRIES then

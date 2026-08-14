@@ -38,16 +38,19 @@ do
     _G.getSandboxOptions = nil
     H.ok(GridSandboxOptions.isReorderTimed() == true, "sem sandbox -> timed=true")
 
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = function()
         return { getOptionByName = function() return { getValue = function() return 1 end } end }
     end
     H.ok(GridSandboxOptions.isReorderTimed() == true, "sandbox value=1 -> timed=true")
 
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = function()
         return { getOptionByName = function() return { getValue = function() return 2 end } end }
     end
     H.ok(GridSandboxOptions.isReorderTimed() == false, "sandbox value=2 -> timed=false")
 
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = function()
         return { getOptionByName = function() error("boom") end }
     end
@@ -57,19 +60,23 @@ end
 
 -- ─── isReorderMoveWhileWalking: sandbox option (default LIGADA) ──────────────
 do
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = nil
     H.ok(GridSandboxOptions.isReorderMoveWhileWalking() == true, "sem sandbox -> pode andar=true (default ligada)")
 
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = function()
         return { getOptionByName = function() return { getValue = function() return true end } end }
     end
     H.ok(GridSandboxOptions.isReorderMoveWhileWalking() == true, "sandbox value=true -> pode andar")
 
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = function()
         return { getOptionByName = function() return { getValue = function() return false end } end }
     end
     H.ok(GridSandboxOptions.isReorderMoveWhileWalking() == false, "sandbox value=false -> parado")
 
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = function()
         return { getOptionByName = function() error("boom") end }
     end

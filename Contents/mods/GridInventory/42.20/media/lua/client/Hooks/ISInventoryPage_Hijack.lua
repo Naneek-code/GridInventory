@@ -2,6 +2,7 @@ require "ISUI/ISInventoryPage"
 local PaperDollWindow = require("UI/PaperDoll/PaperDollWindow")
 local GlobalDragRender = require("UI/GridRender/GlobalDragRender")
 local GridModOptions = require("System/GridModOptions")
+local GridInventory_Search = require("System/GridInventory_Search")
 
 -- Precisamos manter uma referência global para o PaperDoll
 GridInventory_PaperDollWindow = GridInventory_PaperDollWindow or {}
@@ -67,12 +68,29 @@ function ISInventoryPage:update()
     -- Roda o Zomboid (e o maldito CleanUI) primeiro!
     og_update(self)
 
+    -- OTIMIZAÇÃO DE FPS: o UIManager chama update() em TODO elemento todo
+    -- frame, mesmo os invisíveis. O vanilla ISInventoryPage:update já faz
+    -- early-return quando invisível, mas o nosso corpo (layout de grids,
+    -- setWidth/X/Y/Height, etc — tudo JNI) rodava mesmo com o inventário
+    -- FECHADO. Pulamos TUDO aqui (inclusive o coalesce — o dirty flag fica
+    -- pendente e roda quando o painel reabrir, que é quando importa).
+    if not self:getIsVisible() then return end
+
+    if GridInventory_Profiler then GridInventory_Profiler.count("pageUpdate") end
+
+    -- Marca o início do frame pro cache de busca (Tarkov) UMA vez por frame
+    -- (não por grid): needsSearch / isItemHidden / countHiddenStacks
+    -- compartilham UMA varredura do container por frame em vez de re-iterar os
+    -- itens a cada consulta do render E em vez de G vezes (uma por grid) como
+    -- acontecia quando cada GridRender:update chamava beginFrame().
+    GridInventory_Search.beginFrame()
+
     -- Coalesce do onInventoryUpdate: o refreshContainer (remap de todos os
     -- containers) roda no maximo 1x por frame e apenas com o painel visivel.
     local pane = self.inventoryPane
     if pane and pane.gridRefreshDirty then
         pane.gridRefreshDirty = nil
-        if self:getIsVisible() and pane:getIsVisible() then
+        if pane:getIsVisible() then
             pane:refreshContainer()
         end
     end

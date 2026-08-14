@@ -320,4 +320,49 @@ do
     H.ok(fx == 1 and fy == 1, "findFreeSpace incompatível vai pra célula livre (1,1) [(" .. tostring(fx) .. "," .. tostring(fy) .. ")]")
 end
 
+-- ─── Teste 15: cache de getPileUnits (stacks[leader].units) ─────────────────
+-- O getPileUnits é O(1) lendo o cache incremental; verifica que o cache
+-- permanece consistente após: empilhar, remover membro, remover LÍDER com
+-- promoção, e relocatePile (que remove tudo e re-empilha no alvo).
+do
+    local g = GridCore.new(6, 6)
+    local si = { limit = 100, units = 5 }
+
+    -- líder a + membros b,c → units = 5*4 = 20
+    H.ok(g:insertItem("a", 1, 1, 1, 1, false, nil, "stack:C", si), "a líder")
+    H.ok(g:insertItem("b", 1, 1, 1, 1, false, nil, "stack:C", si), "b membro")
+    H.ok(g:insertItem("c", 1, 1, 1, 1, false, nil, "stack:C", si), "c membro")
+    H.ok(g:getPileUnits("a") == 15, "cache: 3 itens x 5 = 15 units [units=" .. g:getPileUnits("a") .. "]")
+
+    -- remove membro c → 2 itens x 5 = 10
+    g:removeItem("c")
+    H.ok(g:getPileUnits("a") == 10, "após remover membro: 10 units [units=" .. g:getPileUnits("a") .. "]")
+
+    -- remove o LÍDER a → promove b como novo líder (b+c... na verdade só b
+    -- restou como membro; c saiu). Pilha = { b } → 5 units.
+    g:removeItem("a")
+    local leader = nil
+    for id, d in pairs(g.items) do
+        if not d.stackMemberOf then leader = id end
+    end
+    H.ok(leader == "b", "promoção: b virou líder [leader=" .. tostring(leader) .. "]")
+    H.ok(g:getPileUnits("b") == 5, "após promoção: 1 item x 5 = 5 units [units=" .. g:getPileUnits("b") .. "]")
+
+    -- relocatePile: b (líder, sem membros) é absorvido por x de outra célula.
+    -- b em (1,1); x em (3,1) com 2 itens (x,y). b absorvido → 3 itens x 5.
+    g:insertItem("x", 3, 1, 1, 1, false, nil, "stack:C", si)
+    g:insertItem("y", 3, 1, 1, 1, false, nil, "stack:C", si)
+    local moved = g:relocatePile("b", "x")
+    H.ok(moved ~= nil, "relocatePile b→x ok")
+    H.ok(g:getPileUnits("x") == 15, "após relocatePile: 3 itens x 5 = 15 units [units=" .. g:getPileUnits("x") .. "]")
+
+    -- item SOLO (sem pilha) também reporta units via stackInfo
+    g:insertItem("solo", 5, 1, 1, 1, false, nil, "stack:D", si)
+    H.ok(g:getPileUnits("solo") == 5, "item solo = 5 units [units=" .. g:getPileUnits("solo") .. "]")
+
+    -- item sem stackInfo → 0 units
+    g:insertItem("noSI", 1, 5, 1, 1, false, nil)
+    H.ok(g:getPileUnits("noSI") == 0, "item sem stackInfo = 0 units [units=" .. g:getPileUnits("noSI") .. "]")
+end
+
 H.finish()

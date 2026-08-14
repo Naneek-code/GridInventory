@@ -95,15 +95,31 @@ Events.OnGameBoot.Add(function()
         -- MP FLICKER FIX: Só recriamos os GridRenders se a estrutura de mochilas mudou
         -- ou se algum inventário overflow precisou nascer/morrer.
         local currentBackpackHash = ""
+        -- OTIMIZAÇÃO: quando o poll 300ms disparou o hard refresh, ele JÁ rodou o
+        -- gc:refresh() de cada grid (linhas ~366-373). Sem essa flag o refreshContainer
+        -- REFARIA o remap de todos os containers = duplo O(n*W*H) na mesma mudança.
+        local skipRefresh = self._pollAlreadyRefreshed
+        self._pollAlreadyRefreshed = nil
         for _, c in ipairs(containersToRender) do
             currentBackpackHash = currentBackpackHash .. tostring(c.inv) .. "|"
             local gc = GridContainer.getOrCreate(c.inv, self.player)
-            local okRefresh, refreshErr = pcall(function() gc:refresh() end)
-            if not okRefresh then
-                print("[GridInventory] ERRO no refreshContainer: " .. tostring(refreshErr))
+            if not skipRefresh then
+                local okRefresh, refreshErr = pcall(function() gc:refresh() end)
+                if not okRefresh then
+                    print("[GridInventory] ERRO no refreshContainer: " .. tostring(refreshErr))
+                end
             end
             local newUnpos = gc.unpositioned and #gc.unpositioned or 0
             currentBackpackHash = currentBackpackHash .. "UNPOS:" .. newUnpos .. "|"
+            -- Conteúdo do overflow no hash: o OverflowGridRender é um SNAPSHOT, e o
+            -- size pode ser o mesmo com itens DIFERENTES (um volta pro grid, outro
+            -- cai no overflow). Sem os IDs o hash não muda e a UI mostra itens velhos.
+            if newUnpos > 0 then
+                for _, ui in ipairs(gc.unpositioned) do
+                    currentBackpackHash = currentBackpackHash .. "O:" .. ui:getID() .. ";"
+                end
+                currentBackpackHash = currentBackpackHash .. "|"
+            end
             -- Nº de grids: o chão abre grids extras (overflow vira grid real).
             -- Como nesses casos o unpositioned fica 0, sem contar os grids o hash
             -- NÃO muda e a 2ª grid de chão nunca nasceria na UI.
@@ -357,31 +373,46 @@ Events.OnGameBoot.Add(function()
                 self.lastGridHash = currentHash
                 
                 local needsHardRefresh = false
-                
-                -- Fazemos um refresh lógico/silencioso apenas
+
+                -- Fazemos um refresh lógico/silencioso apenas. IMPORTANTE: itera
+                -- pollInv (o MESMO conjunto do refreshContainer: backpacks ou
+                -- container ativo) — antes iterava gridContainerUis, que diverge
+                -- (overflow/floor são UIs extras do mesmo container) e fazia o
+                -- _pollAlreadyRefreshed pular o refresh de containers que o poll
+                -- não tinha tocado.
+                local refreshedAny = false
+                for _, inv in ipairs(pollInv) do
+                    if inv then
+                        refreshedAny = true
+                        local gridContainer = GridContainer.getOrCreate(inv, self.player)
+
+                        local oldUnpositioned = gridContainer.unpositioned and #gridContainer.unpositioned or 0
+
+                        local okRefresh, refreshErr = pcall(function() gridContainer:refresh() end)
+                        if not okRefresh then
+                            print("[GridInventory] ERRO no refresh do container: " .. tostring(refreshErr))
+                        end
+
+                        local newUnpositioned = gridContainer.unpositioned and #gridContainer.unpositioned or 0
+
+                        -- QUALQUER mudança no overflow exige hard refresh: o
+                        -- OverflowGridRender é um SNAPSHOT criado no rebuild. Se
+                        -- um item de overflow volta pro grid sem zerar (ex: 2→1),
+                        -- sem o rebuild a UI continua mostrando o item que já saiu
+                        -- ("overflow perdido") até um rebuild forçado (trocar de
+                        -- container). O crossing 0↔>0 antigo só cobria nascer/morrer.
+                        if oldUnpositioned ~= newUnpositioned then
+                            needsHardRefresh = true
+                        end
+                    end
+                end
+
+                -- Checagens UI-level (baratas, sem refresh): STALE de instância e
+                -- contagem de grids de chão. Independentes do passe acima.
                 if self.gridContainerUis then
                     for _, gridUi in ipairs(self.gridContainerUis) do
                         local inv = gridUi.inventoryContainer
                         if inv then
-                            local gridContainer = GridContainer.getOrCreate(inv, self.player)
-                            
-                            local oldUnpositioned = gridContainer.unpositioned and #gridContainer.unpositioned or 0
-                            
-                            local okRefresh, refreshErr = pcall(function() gridContainer:refresh() end)
-                            if not okRefresh then
-                                print("[GridInventory] ERRO no refresh do container: " .. tostring(refreshErr))
-                            end
-                            
-                            local newUnpositioned = gridContainer.unpositioned and #gridContainer.unpositioned or 0
-                            
-                            -- Se um overflow grid precisar nascer ou morrer, precisamos de um hard refresh!
-                            if (oldUnpositioned == 0 and newUnpositioned > 0) or (oldUnpositioned > 0 and newUnpositioned == 0) then
-                                needsHardRefresh = true
-                            end
-                            
-                            -- STALE: o GridRender aponta pra instância órfã (GridDevTool
-                            -- limpou GridContainer.instances) → força rebuild. Sem isso o
-                            -- grid NUNCA reflete mudanças (loot congela ao pegar item).
                             if not needsHardRefresh and gridUi.gridCore then
                                 local gc = GridContainer.instances[inv]
                                 if gc and gc.grids and gc.grids[1] and gridUi.gridCore ~= gc.grids[1] then
@@ -394,6 +425,7 @@ Events.OnGameBoot.Add(function()
                             -- precisa nascer/morrer junto. Compara a contagem de
                             -- grids do container com as UIs não-overflow dele.
                             if not needsHardRefresh and inv.getType and inv:getType() == "floor" then
+                                local gridContainer = GridContainer.getOrCreate(inv, self.player)
                                 local uiCount = 0
                                 for _, other in ipairs(self.gridContainerUis) do
                                     if not other.isOverflow and other.inventoryContainer == inv then
@@ -406,11 +438,17 @@ Events.OnGameBoot.Add(function()
                             end
                         end
                     end
-                else
+                elseif #pollInv > 0 then
                     needsHardRefresh = true
                 end
-                
+
                 if needsHardRefresh then
+                    -- O refresh() de todos os containers JÁ rodou neste poll (passe
+                    -- acima, mesmos containers do refreshContainer). Informa o
+                    -- refreshContainer pra NÃO refazer o remap (duplo custo).
+                    if refreshedAny then
+                        self._pollAlreadyRefreshed = true
+                    end
                     self:refreshContainer()
                     -- NÃO aborta o frame: o FlexBox abaixo reposiciona os grids
                     -- recriados NO MESMO frame. Abortar deixava tudo no baseY=0

@@ -629,6 +629,10 @@ end
 
 --- Tenta organizar todos os itens do container físico dentro da malha matemática.
 function GridContainer:refresh()
+    if GridInventory_Profiler and GridInventory_Profiler.enabled then
+        GridInventory_Profiler.count("refresh")
+    end
+
     local hotbar = getPlayerHotbar(self.playerNum)
     if hotbar and hotbar.isRefreshingHotbar then
         -- Segurança: o flag pode ficar preso em true se o refresh do hotbar

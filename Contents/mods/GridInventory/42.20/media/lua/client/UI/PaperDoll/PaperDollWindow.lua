@@ -581,7 +581,11 @@ end
 function PaperDollWindow:refreshOverflow(wornItems, prim, sec)
     local fixedSlotsMap = {}
     for _, s in ipairs(self.slots) do
-        if s.getEquippedItems then
+        -- Pula o próprio overflowSlot: ele está em self.slots (pro relayout
+        -- reposicionar), mas os itens DELE não são "fixos" — são exatamente o
+        -- que este refresh vai exibir. Incluí-lo fazia o addIfMissing pular os
+        -- itens do overflow a cada 2º refresh (sumiam e voltavam, piscando).
+        if s ~= self.overflowSlot and s.getEquippedItems then
             local items = s:getEquippedItems()
             for _, it in ipairs(items) do
                 fixedSlotsMap[it] = true

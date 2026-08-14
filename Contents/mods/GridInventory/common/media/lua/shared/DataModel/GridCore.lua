@@ -32,10 +32,14 @@ function GridCore.new(width, height)
     -- Dictionary for pending items (ghosts): ghostItems[itemId] = { x, y, w, h, rotated, itemObj, timeAdded, compatKey }
     self.ghostItems = {}
     
-    -- Pilhas (stacks): stacks[leaderId] = { members = { [memberId] = true } }
+    -- Pilhas (stacks): stacks[leaderId] = { members = { [memberId] = true },
+    --                                          units = <total de unidades> }
     -- Vários itens COMPATÍVEIS (mesmo compatKey) podem ocupar a MESMA célula.
     -- As células sempre apontam para o LEADER; os members só existem em
     -- `items` (posição espelhada) e em `stacks[leader].members`.
+    -- `units` é o CACHE do getPileUnits (soma de stackInfo.units do líder +
+    -- membros) — mantido incrementalmente em insertItem/removeItem pra manter
+    -- o getPileUnits O(1) (sem iterar a pilha toda a cada render/frame).
     self.stacks = {}
     
     return self
@@ -181,9 +185,11 @@ function GridCoreInstance:insertItem(itemId, x, y, w, h, isRotated, itemObj, com
             and occData.w == w and occData.h == h
             and occData.rotated == (isRotated or false) then
             if not self.stacks[occ] then
-                self.stacks[occ] = { members = {} }
+                local occUnits = occData.stackInfo and occData.stackInfo.units or 0
+                self.stacks[occ] = { members = {}, units = occUnits }
             end
             self.stacks[occ].members[itemId] = true
+            self.stacks[occ].units = self.stacks[occ].units + (stackInfo and stackInfo.units or 0)
             self.items[itemId] = {
                 x = x,
                 y = y,
@@ -238,6 +244,7 @@ function GridCoreInstance:removeItem(itemId)
         local leader = itemData.stackMemberOf
         if self.stacks[leader] and self.stacks[leader].members then
             self.stacks[leader].members[itemId] = nil
+            self.stacks[leader].units = self.stacks[leader].units - (itemData.stackInfo and itemData.stackInfo.units or 0)
             local left = 0
             for _ in pairs(self.stacks[leader].members) do left = left + 1 end
             if left == 0 then self.stacks[leader] = nil end
@@ -268,6 +275,11 @@ function GridCoreInstance:removeItem(itemId)
             local members = self.stacks[itemId].members
             members[itemId] = nil
             members[nextLeader] = nil
+            -- Cache de units: o líder removido sai da pilha; o promovido já
+            -- estava contabilizado como membro, então só subtrai as units do
+            -- líder que saiu.
+            local promotedUnits = self.stacks[itemId].units
+                - (itemData.stackInfo and itemData.stackInfo.units or 0)
             local left = 0
             for mId, _ in pairs(members) do
                 left = left + 1
@@ -279,7 +291,7 @@ function GridCoreInstance:removeItem(itemId)
                 end
             end
             if left > 0 then
-                self.stacks[nextLeader] = { members = members }
+                self.stacks[nextLeader] = { members = members, units = promotedUnits }
             end
             for cx = itemData.x, itemData.x + itemData.w - 1 do
                 for cy = itemData.y, itemData.y + itemData.h - 1 do
@@ -352,22 +364,20 @@ function GridCoreInstance:getStackSize(itemId)
 end
 
 --- Total de UNIDADES na pilha (soma de stackInfo.units de líder + membros).
+--- O(1): usa o cache incremental `stacks[leader].units` mantido por
+--- insertItem/removeItem/relocatePile — NÃO itera os membros a cada chamada
+--- (antes era O(nº de membros) e rodava a cada frame no render + no BFS de
+--- consolidação; com pilhas de até 1000 objetos o custo era absurdo).
 function GridCoreInstance:getPileUnits(leaderId)
-    local total = 0
-    local ld = self.items[leaderId]
-    if ld and ld.stackInfo and ld.stackInfo.units then
-        total = total + ld.stackInfo.units
-    end
     local s = self.stacks[leaderId]
-    if s and s.members then
-        for mId in pairs(s.members) do
-            local d = self.items[mId]
-            if d and d.stackInfo and d.stackInfo.units then
-                total = total + d.stackInfo.units
-            end
-        end
+    if s then
+        return s.units
     end
-    return total
+    local ld = self.items[leaderId]
+    if ld and ld.stackInfo then
+        return ld.stackInfo.units or 1
+    end
+    return 0
 end
 
 --- Move uma pilha INTEIRA (líder + membros) pra cima de outra pilha compatível

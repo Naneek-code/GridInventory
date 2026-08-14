@@ -322,4 +322,80 @@ do
     GridInventory_AutoSlotFlash = nil
 end
 
+-- ─── Teste 16: REGRESSÃO — overflow volta pro grid quando espaço abre ───────
+-- Bug reportado: ao liberar espaço no grid, o item de overflow NÃO refluía até
+-- um rebuild forçado (trocar de container). O refresh() deve recolocar o item
+-- que agora cabe (a UI do overflow é um snapshot só recriado no rebuild — se a
+-- matemática não refletir o reflow, o snapshot fica stale pra sempre).
+do
+    -- 13 itens 1x1 num grid 6x2 (12 slots) → 12 no grid, 1 no overflow.
+    local items = {}
+    for i = 1, 13 do
+        table.insert(items, makeItem("r" .. i, "Base.Reflow" .. i, 0.1, nil, nil))
+    end
+    local gc = freshContainer(items)
+    local unpos1 = gc:refresh()
+    H.ok(#unpos1 == 1, "cheio: 1 item no overflow [n=" .. #unpos1 .. "]")
+    local gridCount = 0
+    for _ in pairs(gc.grids[1].items) do gridCount = gridCount + 1 end
+    H.ok(gridCount == 12, "cheio: 12 itens no grid [n=" .. gridCount .. "]")
+
+    -- Libera 1 slot (jogador pegou um item do grid) → refresh → overflow reflui.
+    table.remove(items, 1)
+    local unpos2 = gc:refresh()
+    H.ok(#unpos2 == 0, "espaço aberto: overflow refluiu pro grid [n=" .. #unpos2 .. "]")
+    local gridCount2 = 0
+    for _ in pairs(gc.grids[1].items) do gridCount2 = gridCount2 + 1 end
+    H.ok(gridCount2 == 12, "espaço aberto: 12 itens no grid (todos cabem) [n=" .. gridCount2 .. "]")
+end
+
+-- ─── Teste 17: REGRESSÃO — REORDER no mesmo grid devolve item do overflow ────
+-- Reorder é puramente modData (o item NÃO sai do container): em SP não há eco
+-- do servidor, o poll 300ms não detecta (hash de itens igual) e OnContainerUpdate
+-- não dispara. O fix (GridClientNetwork.markGridChanged no performGridReorder)
+-- dispara o refresh — e a matemática precisa recolocar o overflow que agora cabe
+-- num bloco contíguo aberto pelo reorder.
+do
+    -- Grid 6x2 (12 slots). 8 itens 1x1 ocupam as 2 colunas centrais x 2 linhas,
+    -- deixando livres os 4 CANTOS (sem NENHUM bloco 2x2 contíguo) → o item
+    -- 2x2 ("Base.Pan") NÃO cabe → overflow.
+    local items = {
+        makeItem("s1", "Base.S1", 0.1, 2, 1),
+        makeItem("s2", "Base.S2", 0.1, 3, 1),
+        makeItem("s3", "Base.S3", 0.1, 4, 1),
+        makeItem("s4", "Base.S4", 0.1, 5, 1),
+        makeItem("s5", "Base.S5", 0.1, 2, 2),
+        makeItem("s6", "Base.S6", 0.1, 3, 2),
+        makeItem("s7", "Base.S7", 0.1, 4, 2),
+        makeItem("s8", "Base.S8", 0.1, 5, 2),
+        makeItem("zbig", "Base.Pan", 2.0, nil, nil), -- 2x2 (override nativo)
+    }
+    local gc = freshContainer(items)
+    local unpos1 = gc:refresh()
+    local bigInOverflow = false
+    for _, u in ipairs(unpos1) do
+        if u:getID() == "zbig" then bigInOverflow = true end
+    end
+    H.ok(bigInOverflow, "2x2 sem bloco contíguo -> zbig no overflow")
+    H.ok(#unpos1 == 1, "overflow tem só o zbig [n=" .. #unpos1 .. "]")
+
+    -- REORDER no mesmo grid: move s4 (5,1)→(1,1) e s8 (5,2)→(1,2), abrindo o
+    -- bloco 2x2 (5,1)-(6,2) contíguo. Isso é EXATAMENTE o que o performGridReorder
+    -- grava no modData (gridX/gridY/gridManual) antes do markGridChanged.
+    items[4]:getModData().gridX = 1
+    items[4]:getModData().gridY = 1
+    items[4]:getModData().gridManual = true
+    items[8]:getModData().gridX = 1
+    items[8]:getModData().gridY = 2
+    items[8]:getModData().gridManual = true
+
+    -- Refresh (o que o markGridChanged → refreshContainerGrid → gc:refresh() faz).
+    local unpos2 = gc:refresh()
+    H.ok(#unpos2 == 0, "reorder abriu bloco 2x2 -> zbig voltou pro grid [n=" .. #unpos2 .. "]")
+    local bigBack = gc.grids[1].items["zbig"]
+    H.ok(bigBack ~= nil, "zbig está no grid")
+    H.ok(bigBack and bigBack.x == 5 and bigBack.y == 1,
+        "zbig ancorou no bloco aberto (5,1) [(" .. tostring(bigBack and bigBack.x) .. "," .. tostring(bigBack and bigBack.y) .. ")]")
+end
+
 H.finish()

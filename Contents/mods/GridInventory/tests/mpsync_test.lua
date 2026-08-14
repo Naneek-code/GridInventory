@@ -108,6 +108,26 @@ local function doMove(player, args)
     return sent
 end
 
+-- helper: chama um REQUEST_REORDER (lote) via o handler do servidor
+local function doReorder(player, moves, ref)
+    GridContainer.instances = {}
+    local sent = {}
+    _G.sendServerCommand = function(a1, a2, a3, a4)
+        if type(a1) == "string" then
+            table.insert(sent, { cmd = a2, args = a3 })
+        else
+            table.insert(sent, { cmd = a3, args = a4 })
+        end
+    end
+    onClientCommand(GridProtocol.MODULE, GridProtocol.COMMANDS.REQUEST_REORDER, player, {
+        ref = ref or { type = "player" },
+        gridContainer = "sig-test",
+        manual = true,
+        moves = moves,
+    })
+    return sent
+end
+
 -- ─── Teste 1: buildContainerRef — inventário do jogador ─────────────────────
 do
     local p = makePlayer({})
@@ -335,6 +355,245 @@ do
         .. tostring(w) .. "x" .. tostring(h) .. ")]")
 
     GridDevTool.Overrides = {}
+end
+
+-- ─── Teste 18: DEBOUNCE do SYNC_ITEM no cliente ─────────────────────────────
+-- OTIMIZAÇÃO: N mensagens no MESMO instante (consolidação de pilha, vários
+-- jogadores looteando o mesmo container) acumulam num lote e fazem UM
+-- refresh() por janela de 50ms — antes era 1 remap O(n*W*H) POR mensagem.
+-- A persistência (modData) continua IMEDIATA: só o re-layout é adiado.
+do
+    local clock = 0
+    _G.getTimestampMs = function() return clock end
+    _G.isClient = function() return true end
+    _G.getPlayer = function() return { getPlayerNum = function() return 0 end } end
+    _G.getPlayerInventory = function() return nil end
+    _G.getPlayerLoot = function() return nil end
+    _G.getPlayerHotbar = function() return nil end
+    _G.getSpecificPlayer = function() return nil end
+
+    local container = makeContainer({}, 12, "Bag")
+    local refreshCount = 0
+    local ogRefresh = GridContainer.refresh
+    GridContainer.refresh = function(self, ...)
+        refreshCount = refreshCount + 1
+        return ogRefresh(self, ...)
+    end
+
+    local md = { gridX = nil, gridY = nil }
+    local ogFind = GridClientNetwork.findItem
+    GridClientNetwork.findItem = function()
+        return { getModData = function() return md end, getContainer = function() return container end }
+    end
+
+    -- 3 SYNC_ITEMs no MESMO instante (clock parado)
+    for i = 1, 3 do
+        onServerCommand(GridProtocol.MODULE, GridProtocol.COMMANDS.SYNC_ITEM, {
+            itemId = "d" .. i, x = i, y = 1, rotated = false,
+        })
+    end
+    H.ok(refreshCount == 0, "3 SYNC_ITEMs no instante -> 0 refresh (debounce) [n=" .. refreshCount .. "]")
+    H.ok(md.gridX == 3 and md.gridY == 1,
+        "persistência IMEDIATA: modData aplicado sem esperar o flush [("
+        .. tostring(md.gridX) .. "," .. tostring(md.gridY) .. ")]")
+
+    -- Força o flush do lote -> UM refresh() só
+    GridClientNetwork.flushPendingRefreshes()
+    H.ok(refreshCount == 1, "lote de 3 mensagens -> 1 refresh() [n=" .. refreshCount .. "]")
+
+    GridClientNetwork.findItem = ogFind
+    GridContainer.refresh = ogRefresh
+    _G.getTimestampMs = function() return 0 end
+    _G.isClient = nil
+    _G.getPlayer = nil
+    _G.getPlayerInventory = nil
+    _G.getPlayerLoot = nil
+end
+
+-- ─── Teste 19: markGridChanged — reorder no MESMO grid toca o pane ──────────
+-- O reorder não muda o hash de itens (só modData) e em SP não tem eco do
+-- servidor → NADA dispararia o refresh. O markGridChanged (chamado no
+-- performGridReorder) deve rodar gc:refresh() e marcar gridRefreshDirty no
+-- pane que renderiza o container (caminho do OverflowGridRender snapshot).
+do
+    local clock = 1000
+    _G.getTimestampMs = function() return clock end
+    _G.isClient = function() return true end
+    _G.getPlayer = function() return { getPlayerNum = function() return 0 end } end
+
+    local container = makeContainer({}, 12, "Bag")
+    local refreshCount = 0
+    local ogRefresh = GridContainer.refresh
+    GridContainer.refresh = function(self, ...)
+        refreshCount = refreshCount + 1
+        return ogRefresh(self, ...)
+    end
+
+    local dirty = false
+    local pane = {
+        gridContainerUis = { { inventoryContainer = container } },
+    }
+    _G.getPlayerInventory = function()
+        return { inventoryPane = pane }
+    end
+    _G.getPlayerLoot = function() return nil end
+
+    GridClientNetwork.markGridChanged(container, 0)
+    GridClientNetwork.flushPendingRefreshes()
+    H.ok(refreshCount == 1, "markGridChanged -> 1 gc:refresh() [n=" .. refreshCount .. "]")
+    H.ok(pane.gridRefreshDirty == true, "markGridChanged marcou o pane (gridRefreshDirty)")
+
+    GridContainer.refresh = ogRefresh
+    _G.getTimestampMs = function() return 0 end
+    _G.isClient = nil
+    _G.getPlayer = nil
+    _G.getPlayerInventory = nil
+    _G.getPlayerLoot = nil
+end
+
+-- ─── Teste 20: REORDER em lote (swap) — servidor rejeita sem o movedSet ────
+-- O cliente valida o drag INTEIRO com movedSet (A→célula de B é ok: B vai sair).
+-- Mas o servidor recebe UM REQUEST_MOVE por item e valida CADA um contra o
+-- modData ATUAL (B ainda na posição antiga) → REJEITA o primeiro → ERROR →
+-- clearItemPosition → item volta pra posição anterior. Reproduz o bug do MP.
+do
+    local a = makeItem("a", "Base.ReorderSwapA", 0.1, 1, 1)
+    local b = makeItem("b", "Base.ReorderSwapB", 0.1, 2, 1)
+    local player = makePlayer({ a, b })
+
+    -- O que o cliente envia ao reorderar A→(2,1) e B→(1,1) (swap):
+    -- dois REQUEST_MOVEs separados (performGridReorder envia um por item).
+    local sent1 = doMove(player, { itemId = "a", ref = { type = "player" }, x = 2, y = 1, rotated = false })
+    local sent2 = doMove(player, { itemId = "b", ref = { type = "player" }, x = 1, y = 1, rotated = false })
+
+    local errA, errB = false, false
+    for _, s in ipairs(sent1) do
+        if s.cmd == GridProtocol.COMMANDS.ERROR then errA = true end
+    end
+    for _, s in ipairs(sent2) do
+        if s.cmd == GridProtocol.COMMANDS.ERROR then errB = true end
+    end
+    H.ok(errA and errB,
+        "REPRO: swap de 2 itens -> servidor rejeita os 2 (ERROR) [errA=" .. tostring(errA) .. ", errB=" .. tostring(errB) .. "]")
+end
+
+-- ─── Teste 21: REQUEST_REORDER em lote — swap aplicado all-or-nothing ───────
+-- O fix do bug: o cliente envia TODOS os alvos num comando. O servidor valida o
+-- lote junto (movedSet = itens do lote ignoram as posições antigas) e aplica
+-- tudo. Swap A↔B: A→(2,1) era inválido isoladamente (B ainda lá) mas no lote
+-- é válido porque B vai sair.
+do
+    local a = makeItem("a", "Base.ReorderSwapA", 0.1, 1, 1)
+    local b = makeItem("b", "Base.ReorderSwapB", 0.1, 2, 1)
+    local player = makePlayer({ a, b })
+
+    local sent = doReorder(player, {
+        { itemId = "a", x = 2, y = 1, rotated = false },
+        { itemId = "b", x = 1, y = 1, rotated = false },
+    })
+
+    local err, ok = false, 0
+    for _, s in ipairs(sent) do
+        if s.cmd == GridProtocol.COMMANDS.ERROR then err = true end
+        if s.cmd == GridProtocol.COMMANDS.SYNC_ITEM then ok = ok + 1 end
+    end
+    H.ok(not err and ok == 2,
+        "swap em lote -> aplicado (2 SYNC_ITEM, 0 ERROR) [err=" .. tostring(err) .. ", ok=" .. ok .. "]")
+    H.ok(a:getModData().gridX == 2 and a:getModData().gridY == 1,
+        "lote: a aplicado em (2,1) [" .. tostring(a:getModData().gridX) .. "," .. tostring(a:getModData().gridY) .. "]")
+    H.ok(b:getModData().gridX == 1 and b:getModData().gridY == 1,
+        "lote: b aplicado em (1,1) [" .. tostring(b:getModData().gridX) .. "," .. tostring(b:getModData().gridY) .. "]")
+    H.ok(a:getModData().gridManual == true,
+        "lote: gridManual true persistido [" .. tostring(a:getModData().gridManual) .. "]")
+end
+
+-- ─── Teste 22: REQUEST_REORDER em lote — colisão real rejeita TUDO ──────────
+-- Se UM alvo do lote colide com um item que NÃO vai sair, o lote INTEIRO é
+-- rejeitado (ERROR pra cada item) e NADA é gravado.
+do
+    local a = makeItem("a", "Base.ReorderSwapA", 0.1, 1, 1)
+    local b = makeItem("b", "Base.ReorderSwapB", 0.1, 2, 1)
+    local c = makeItem("c", "Base.ReorderSwapC", 0.1, 3, 1)
+    local player = makePlayer({ a, b, c })
+
+    -- Lote tenta: a→(3,1) colidindo com c (que NÃO sai) e b→(1,1) (ok isolado).
+    local sent = doReorder(player, {
+        { itemId = "a", x = 3, y = 1, rotated = false },
+        { itemId = "b", x = 1, y = 1, rotated = false },
+    })
+
+    local errs, syncs = 0, 0
+    for _, s in ipairs(sent) do
+        if s.cmd == GridProtocol.COMMANDS.ERROR then errs = errs + 1 end
+        if s.cmd == GridProtocol.COMMANDS.SYNC_ITEM then syncs = syncs + 1 end
+    end
+    H.ok(errs == 2 and syncs == 0,
+        "lote com colisão real -> ERROR nos 2 itens, nada aplicado [errs=" .. errs .. ", syncs=" .. syncs .. "]")
+    H.ok(a:getModData().gridX == 1 and b:getModData().gridX == 2,
+        "lote rejeitado: posições originais preservadas [a=" .. tostring(a:getModData().gridX) .. ", b=" .. tostring(b:getModData().gridX) .. "]")
+end
+
+-- ─── Teste 23: REQUEST_REORDER em lote — item do lote ainda em trânsito ─────
+-- Se algum item do lote não foi encontrado (transfer não terminou), o lote
+-- INTEIRO entra na fila de pendências e é reenviado depois.
+do
+    local a = makeItem("a", "Base.ReorderSwapA", 0.1, 1, 1)
+    local b = makeItem("b", "Base.ReorderSwapB", 0.1, 2, 1)
+    local player = makePlayer({ a })
+
+    local sent = doReorder(player, {
+        { itemId = "a", x = 2, y = 1, rotated = false },
+        { itemId = "b", x = 1, y = 1, rotated = false },
+    })
+
+    -- Nada foi aplicado nem rejeitado: "b" não existe (notfound → fila).
+    local syncs, errs = 0, 0
+    for _, s in ipairs(sent) do
+        if s.cmd == GridProtocol.COMMANDS.ERROR then errs = errs + 1 end
+        if s.cmd == GridProtocol.COMMANDS.SYNC_ITEM then syncs = syncs + 1 end
+    end
+    H.ok(syncs == 0 and errs == 0,
+        "lote com item em trânsito -> nem SYNC nem ERROR (vai pra fila) [syncs=" .. syncs .. ", errs=" .. errs .. "]")
+end
+
+-- ─── Teste 24: cliente envia REQUEST_REORDER em lote (sendReorder) ──────────
+-- O fix no cliente: em vez de N REQUEST_MOVE (um por item), o performGridReorder
+-- envia UM comando de lote com todos os alvos (o servidor valida junto).
+do
+    local a = makeItem("a", "Base.ReorderSwapA", 0.1, 1, 1)
+    local b = makeItem("b", "Base.ReorderSwapB", 0.1, 2, 1)
+    local player = makePlayer({ a, b })
+    local container = player:getInventory()
+
+    local sentCmd = nil
+    _G.isClient = function() return true end
+    _G.getPlayer = function() return { getPlayerNum = function() return 0 end } end
+    _G.sendClientCommand = function(player, module, cmd, args) sentCmd = { module = module, cmd = cmd, args = args } end
+
+    local targets = {
+        { item = { id = "a", rotated = false, itemObj = a }, tx = 2, ty = 1, ew = 1, eh = 1 },
+        { item = { id = "b", rotated = false, itemObj = b }, tx = 1, ty = 1, ew = 1, eh = 1 },
+    }
+    GridClientNetwork.sendReorder(container, targets, "sig-test")
+
+    H.ok(sentCmd and sentCmd.module == GridProtocol.MODULE
+        and sentCmd.cmd == GridProtocol.COMMANDS.REQUEST_REORDER,
+        "sendReorder envia REQUEST_REORDER no módulo certo ["
+        .. tostring(sentCmd and sentCmd.cmd) .. "]")
+    H.ok(sentCmd and sentCmd.args and #sentCmd.args.moves == 2,
+        "lote contém os 2 alvos [" .. tostring(sentCmd and sentCmd.args and #sentCmd.args.moves) .. "]")
+    H.ok(sentCmd and sentCmd.args.moves[1].itemId == "a"
+        and sentCmd.args.moves[1].x == 2 and sentCmd.args.moves[1].y == 1,
+        "alvo 1 = a→(2,1) [" .. tostring(sentCmd and sentCmd.args.moves[1].itemId) .. "]")
+    H.ok(sentCmd and sentCmd.args.moves[2].itemId == "b"
+        and sentCmd.args.moves[2].x == 1 and sentCmd.args.moves[2].y == 1,
+        "alvo 2 = b→(1,1) [" .. tostring(sentCmd and sentCmd.args.moves[2].itemId) .. "]")
+    H.ok(sentCmd and sentCmd.args.manual == true and sentCmd.args.gridContainer == "sig-test",
+        "lote carrega manual=true e assinatura do container")
+
+    _G.isClient = nil
+    _G.getPlayer = nil
+    _G.sendClientCommand = nil
 end
 
 H.finish()

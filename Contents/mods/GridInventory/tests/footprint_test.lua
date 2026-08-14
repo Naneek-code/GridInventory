@@ -9,6 +9,7 @@ _G.instanceof = function() return false end
 
 local ItemFootprint = require("Algorithm/ItemFootprint")
 ItemFootprint.clearCache()
+local GridSandboxOptions = require("GridSandboxOptions")
 
 -- Mock de item: fullType, peso e displayCategory/instanceof controláveis.
 -- container = { cap = N } faz o item ser um InventoryContainer com capacidade N.
@@ -455,6 +456,7 @@ do
     -- SEM override: teto geral do sandbox limita a fórmula. Mock do sandbox
     -- por NOME de opção (largura mínima default 6, teto 8).
     _G.GridDevTool = { Overrides = {} }
+    GridSandboxOptions.invalidateCache()
     local savedGetSandbox = _G.getSandboxOptions
     _G.getSandboxOptions = function()
         return { getOptionByName = function(self, name)
@@ -470,6 +472,7 @@ do
     -- cap 60 → 6 x ceil(60/3)=20, teto geral 8 → 6x8
     H.ok(w == 6 and h == 8, "grid mundo: teto sandbox 8 limita cap 60 (6x8) [" .. w .. "x" .. h .. "]")
     -- Largura mínima 8 (sandbox) → todos os containers de mundo ficam mais largos
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = function()
         return { getOptionByName = function(self, name)
             local opts = {
@@ -495,6 +498,7 @@ do
     -- ATENÇÃO: o GridSandboxOptions chama getOptionByName com `:` — o mock
     -- precisa receber (self, name).
     local savedGetSandbox2 = _G.getSandboxOptions
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = function()
         return { getOptionByName = function(self, name)
             local opts = {
@@ -514,6 +518,7 @@ do
     w, h = GridContainer.getGridSize(playerContainer)
     H.ok(w == 5 and h == 6, "grid inv jogador: usa opções próprias -> 5x6 [" .. w .. "x" .. h .. "]")
     -- Sem opções (default): 3x4
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = nil
     w, h = GridContainer.getGridSize(playerContainer)
     H.ok(w == 3 and h == 4, "grid inv jogador: default 3x4 [" .. w .. "x" .. h .. "]")

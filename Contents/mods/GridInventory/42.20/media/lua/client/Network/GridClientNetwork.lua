@@ -70,11 +70,28 @@ function GridClientNetwork.findItem(itemId)
 end
 
 --- Re-renderiza o grid do container (e marca o pane pra rebuild de overflow).
-local function refreshContainerGrid(container, playerNum)
-    if not container then return end
-    local gc = GridContainer.getOrCreate(container, playerNum)
-    gc:refresh()
-    local function markPane(page)
+--- COM DEBOUNCE: N mensagens SYNC_ITEM no mesmo instante (ex.: consolidação de
+--- uma pilha inteira, ou vários jogadores looteando o mesmo container) agora
+--- acumulam os containers pendentes e fazem UM refresh() por janela de
+--- REFRESH_DEBOUNCE_MS — antes era 1 refresh() (remap O(n*W*H)) POR mensagem.
+--- Os modData são gravados na hora em applyItemPosition (persistência intacta);
+--- só o re-layout do cliente é adiado ~1 frame, imperceptível.
+local REFRESH_DEBOUNCE_MS = 50
+local _pendingRefreshes = {}   -- [container] = playerNum
+local _pendingCount = 0        -- contador espelho (o PZ42/Kahlua não tem next())
+local _lastRefreshRun = 0
+
+local function flushPendingRefreshes(force)
+    local now = getTimestampMs()
+    if not force and now - _lastRefreshRun < REFRESH_DEBOUNCE_MS then
+        return
+    end
+    if _pendingCount == 0 then
+        _lastRefreshRun = now
+        return
+    end
+
+    local function markPane(page, container)
         if page and page.inventoryPane and page.inventoryPane.gridContainerUis then
             for _, g in ipairs(page.inventoryPane.gridContainerUis) do
                 if g.inventoryContainer == container then
@@ -83,8 +100,48 @@ local function refreshContainerGrid(container, playerNum)
             end
         end
     end
-    markPane(getPlayerInventory(playerNum))
-    markPane(getPlayerLoot(playerNum))
+
+    for container, playerNum in pairs(_pendingRefreshes) do
+        _pendingRefreshes[container] = nil
+        _pendingCount = _pendingCount - 1
+        local gc = GridContainer.getOrCreate(container, playerNum)
+        gc:refresh()
+        if GridInventory_Profiler and GridInventory_Profiler.enabled then
+            GridInventory_Profiler.count("reflows")
+        end
+        markPane(getPlayerInventory(playerNum), container)
+        markPane(getPlayerLoot(playerNum), container)
+    end
+    _lastRefreshRun = now
+end
+
+local function refreshContainerGrid(container, playerNum)
+    if not container then return end
+    if not _pendingRefreshes[container] then
+        _pendingCount = _pendingCount + 1
+    end
+    _pendingRefreshes[container] = playerNum
+    flushPendingRefreshes(false)
+end
+
+--- Marca um container pra re-render (gc:refresh + markPane), sem depender de
+--- eco de rede. Usado pelo reorder no MESMO grid: em SP o sendItemMove retorna
+--- cedo (não é client) e o poll 300ms não detecta (hash de itens não muda —
+--- reorder só mexe em modData). Sem esse toque, o OverflowGridRender (snapshot)
+--- fica stale até um rebuild forçado (trocar de container).
+function GridClientNetwork.markGridChanged(container, playerNum)
+    refreshContainerGrid(container, playerNum)
+end
+
+--- Exposto pro teste: força o flush dos refreshes pendentes.
+function GridClientNetwork.flushPendingRefreshes()
+    flushPendingRefreshes(true)
+end
+
+--- Tick: escoa o lote pendente final sem forçar (só roda se o debounce já
+--- venceu) — cobre o caso de a última mensagem ter ficado pendente.
+function GridClientNetwork.tickFlush()
+    flushPendingRefreshes(false)
 end
 
 --- Envia a posição de um item no grid pro servidor (server-mandatory).
@@ -112,6 +169,45 @@ function GridClientNetwork.sendItemMove(container, itemId, x, y, rotated, gridCo
         rotated = rotated and true or false,
         gridContainer = gridContainer,
         manual = manual and true or nil,
+    })
+end
+
+--- Envia um REORDER em LOTE pro servidor (swap/multi-drag no MESMO grid).
+--- O drop no mesmo grid valida os alvos no cliente com movedSet (todos os itens
+--- "saindo" juntos — A→célula de B é ok porque B também vai sair). Enviar um
+--- REQUEST_MOVE por item faz o servidor validar CADA um isoladamente contra o
+--- modData atual (B ainda na posição antiga) → ERROR → item volta pra posição
+--- anterior (bug do MP). Este comando entrega TODOS os alvos de uma vez: o
+--- servidor valida o lote junto (mesmo movedSet) e aplica all-or-nothing.
+--- @param container ItemContainer container ALVO (o grid onde soltou)
+--- @param targets table lista do GridReorder.computeTargets ({item, tx, ty, ew, eh})
+--- @param gridContainer string|nil assinatura do container (valida a posição salva)
+function GridClientNetwork.sendReorder(container, targets, gridContainer)
+    if not isClient() then return end
+    local player = getPlayer()
+    if not player or not container or not targets or #targets == 0 then return end
+
+    local ref = GridProtocol.buildContainerRef(container)
+    if not ref then return end
+
+    local moves = {}
+    for _, t in ipairs(targets) do
+        if t.item and t.item.itemObj and t.item.itemObj.getID then
+            table.insert(moves, {
+                itemId = t.item.itemObj:getID(),
+                x = tonumber(t.tx),
+                y = tonumber(t.ty),
+                rotated = (t.item.rotated or false),
+            })
+        end
+    end
+    if #moves == 0 then return end
+
+    sendClientCommand(player, GridProtocol.MODULE, GridProtocol.COMMANDS.REQUEST_REORDER, {
+        ref = ref,
+        gridContainer = gridContainer,
+        manual = true, -- reorder = o jogador escolheu a célula (gridManual)
+        moves = moves,
     })
 end
 
@@ -230,6 +326,9 @@ local function OnServerCommand(module, command, args)
     if not player then return end
 
     if command == GridProtocol.COMMANDS.SYNC_ITEM then
+        if GridInventory_Profiler and GridInventory_Profiler.enabled then
+            GridInventory_Profiler.count("syncItems")
+        end
         -- NÃO ignora o eco do próprio envio: o modData local pode ser
         -- sobrescrito pelo sync do container (com a posição ainda vazia)
         -- enquanto o REQUEST_MOVE está pendente no servidor. Aplicar o eco
@@ -292,6 +391,14 @@ function GridClientNetwork.sendSearchReveal(containerKey, itemIds)
 end
 
 Events.OnServerCommand.Add(OnServerCommand)
+
+-- Garante o flush do debounce mesmo que parem de chegar mensagens (o lote
+-- final pendente escoa no próximo tick em vez de ficar preso).
+Events.OnTick.Add(function()
+    if GridClientNetwork.tickFlush then
+        GridClientNetwork.tickFlush()
+    end
+end)
 
 -- Exposição GLOBAL pro shared (padrão do mod, ex.: GridInventory_InTransit):
 -- o GridContainer:refresh roda em common/ e usa GridClientNetwork.sendItemMove

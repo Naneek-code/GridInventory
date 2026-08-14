@@ -11,6 +11,9 @@ GridProtocol.MODULE = "GridInventory"
 
 GridProtocol.COMMANDS = {
     REQUEST_MOVE = "ReqMove",       -- Cliente pede para o servidor gravar a posição no grid
+    REQUEST_REORDER = "ReqReorder", -- Reorder em LOTE (swap/multi-drag no MESMO grid):
+                                    -- todos os alvos num comando; servidor valida o
+                                    -- lote junto (movedSet) e aplica all-or-nothing.
     SYNC_ITEM    = "SyncItem",      -- Servidor broadcasta a posição autoritativa pros clientes
     ERROR        = "ErrorMsg",      -- Servidor nega (colisão/cheat) e o cliente reverte
     GET_OVERRIDES = "GetOverrides", -- Cliente pede os overrides do servidor (no join)

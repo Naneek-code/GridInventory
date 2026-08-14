@@ -659,6 +659,10 @@ function GridRender:startSearch()
 end
 
 function GridRender:render()
+    if GridInventory_Profiler and GridInventory_Profiler.enabled and self.gridCore then
+        GridInventory_Profiler.renderGrid(self.gridCore.width or 0, self.gridCore.height or 0)
+    end
+
     local mouseX = self:getMouseX()
     local mouseY = self:getMouseY()
     
@@ -822,18 +826,21 @@ function GridRender:render()
     -- idade/umidade (o vanilla faz isso ao renderizar itens em containers
     -- visíveis). Só o LÍDER desenha o ícone.
     for itemId, data in pairs(self.gridCore.items) do
-        if data.stackMemberOf and data.itemObj then
-            if data.itemObj.updateAge then data.itemObj:updateAge() end
-            if data.itemObj.updateWetness then data.itemObj:updateWetness() end
-        end
-    end
-
-    for itemId, data in pairs(self.gridCore.items) do
         -- Membros de pilha não são desenhados individualmente: só o LÍDER
         -- renderiza (ícone + badge de contagem). As células apontam pro líder.
+        -- (Passo único: o tick de age/wetness do membro de pilha roda aqui,
+        -- dentro do mesmo loop do líder — antes eram 2 passes de pairs().)
         if data.stackMemberOf then
-            -- skip
+            if data.itemObj then
+                if data.itemObj.updateAge then data.itemObj:updateAge() end
+                if data.itemObj.updateWetness then data.itemObj:updateWetness() end
+            end
+            -- skip render
         else
+        if GridInventory_Profiler and GridInventory_Profiler.enabled then
+            GridInventory_Profiler.count("items")
+        end
+
         -- Se estivermos arrastando, não renderizamos o item localmente se for um dos arrastados.
         local isDragged = GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid == self and GridInventory_GlobalDrag.itemsMap[itemId]
         
@@ -1855,10 +1862,19 @@ function GridRender:performGridReorder(targets)
             modData.gridContainer = GridContainer.containerSignature(self.inventoryContainer)
             -- Posição MANUAL: consolidação de pilhas nunca move este item.
             modData.gridManual = true
-            -- MP server-mandatory: o servidor grava e broadcasta a posição.
-            GridClientNetwork.sendItemMove(self.inventoryContainer, t.item.itemObj:getID(), t.tx, t.ty, t.item.rotated, modData.gridContainer, true)
         end
     end
+    -- MP server-mandatory: um comando em LOTE com TODOS os alvos. O servidor
+    -- valida o lote junto (movedSet) e aplica all-or-nothing — se enviássemos
+    -- um REQUEST_MOVE por item, o servidor validaria cada um contra o modData
+    -- atual (os outros itens ainda na origem) e o primeiro swap colidiria.
+    GridClientNetwork.sendReorder(self.inventoryContainer, targets,
+        GridContainer.containerSignature(self.inventoryContainer))
+    -- Reorder no MESMO grid é só modData: nada mais dispara refresh (poll: hash
+    -- de itens igual; OnContainerUpdate: item não saiu do container; SP: sem eco
+    -- do servidor). Toca o pane na hora pra o OverflowGridRender (snapshot) ser
+    -- reconstruído se o reorder abriu espaço pro overflow voltar pro grid.
+    GridClientNetwork.markGridChanged(self.inventoryContainer, self.playerNum)
     self.selectedItems = {}
     return true
 end
@@ -2596,10 +2612,6 @@ function GridRender:updateTooltip()
 end
 
 function GridRender:update()
-    -- Marca o início do frame pro cache de busca (Tarkov): needsSearch /
-    -- isItemHidden / countHiddenStacks compartilham UMA varredura do container
-    -- por frame em vez de re-iterar os itens a cada consulta do render.
-    GridInventory_Search.beginFrame()
     ISPanel.update(self)
     self:updateTooltip()
 

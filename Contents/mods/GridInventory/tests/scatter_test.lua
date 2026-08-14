@@ -113,17 +113,20 @@ end
 do
     reset()
     local GridSandboxOptions = require("GridSandboxOptions")
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = function()
         return { getOptionByName = function() return { getValue = function() return 2 end } end }
     end
     H.ok(GridSandboxOptions.getScatterMode() == "always", "sandbox value=2 -> always [" .. GridSandboxOptions.getScatterMode() .. "]")
     H.ok(ScatterLayout.shouldScatter(makeContainer(true, false), 0) == true, "via sandbox always -> espalha")
 
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = function()
         return { getOptionByName = function() return { getValue = function() return 3 end } end }
     end
     H.ok(GridSandboxOptions.getScatterMode() == "never", "sandbox value=3 -> never [" .. GridSandboxOptions.getScatterMode() .. "]")
 
+    GridSandboxOptions.invalidateCache()
     _G.getSandboxOptions = function()
         return { getOptionByName = function() return { getValue = function() return 1 end } end }
     end
@@ -134,7 +137,34 @@ end
 do
     reset()
     local GridSandboxOptions = require("GridSandboxOptions")
+    GridSandboxOptions.invalidateCache()
+    _G.getSandboxOptions = nil
     H.ok(GridSandboxOptions.getScatterMode() == "auto", "sem sandbox -> auto [" .. GridSandboxOptions.getScatterMode() .. "]")
+end
+
+-- ─── Cache do GridSandboxOptions: hit + invalidação ─────────────────────────
+do
+    reset()
+    local GridSandboxOptions = require("GridSandboxOptions")
+    GridSandboxOptions.invalidateCache()
+    local calls = 0
+    _G.getSandboxOptions = function()
+        calls = calls + 1
+        return { getOptionByName = function() return { getValue = function() return 2 end } end }
+    end
+    GridSandboxOptions.getScatterMode()
+    GridSandboxOptions.getScatterMode()
+    GridSandboxOptions.getScatterMode()
+    H.ok(calls == 1, "cache: 3 leituras do MESMO getter -> 1 getSandboxOptions [calls=" .. calls .. "]")
+
+    GridSandboxOptions.invalidateCache()
+    GridSandboxOptions.getScatterMode()
+    H.ok(calls == 2, "invalidateCache: próxima leitura busca de novo [calls=" .. calls .. "]")
+
+    GridSandboxOptions.invalidateCache()
+    _G.getSandboxOptions = nil
+    H.ok(GridSandboxOptions.getScatterMode() == "auto", "cache sem sandbox -> fallback auto")
+    _G.getSandboxOptions = nil
 end
 
 H.finish()
