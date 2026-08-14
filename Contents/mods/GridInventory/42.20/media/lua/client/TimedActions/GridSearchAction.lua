@@ -88,6 +88,16 @@ end
 
 function GridSearchAction:update()
     ISBaseTimedAction.update(self)
+    -- Mantém o container como ALVO ativo enquanto a busca roda (mesma regra da
+    -- ISInventoryTransferAction:update do vanilla: enquanto a ação está ativa o
+    -- container vasculhado permanece selecionado no painel de loot).
+    local cont = self.gridRender and self.gridRender.inventoryContainer
+    if cont then
+        local pLoot = getPlayerLoot(self.playerNum)
+        if pLoot and pLoot.selectButtonForContainer then
+            pLoot:selectButtonForContainer(cont)
+        end
+    end
     -- Revela progressivamente conforme o progresso (getJobDelta 0..1).
     -- ATENÇÃO: usar self.jobDelta (campo inexistente) = nil → nunca revelava;
     -- getJobDelta() é o método real (delega pro self.action). Protege se a
