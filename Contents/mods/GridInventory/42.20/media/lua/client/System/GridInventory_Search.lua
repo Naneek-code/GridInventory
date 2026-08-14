@@ -567,6 +567,10 @@ if not GridInventory_Search.transferHookInstalled and ISInventoryPane then
         local destKey = GridInventory_Search.containerKey(target, playerObj)
         if not destKey then return end
         -- Origem = inventário do jogador (o item veio DELE) → revela.
+        -- SEM wipe (noWipe=true): o item foi COLOCADO pelo jogador, não
+        -- descoberto — rodar o wipe branco aqui "descobriria" um item que o
+        -- jogador acabou de pôr no container. Só marca como vasculhado (para
+        -- não voltar a ficar oculto) e invalida o cache de render.
         local pn = playerObj.getPlayerNum and playerObj:getPlayerNum() or 0
         for _, item in ipairs(items) do
             if item and item.getID then
@@ -574,7 +578,7 @@ if not GridInventory_Search.transferHookInstalled and ISInventoryPane then
                 local fromPlayer = src and src.isInCharacterInventory
                     and src:isInCharacterInventory(playerObj)
                 if fromPlayer then
-                    GridInventory_Search.markSearched(playerObj, destKey, item:getID())
+                    GridInventory_Search.markSearched(playerObj, destKey, item:getID(), true)
                 end
             end
         end

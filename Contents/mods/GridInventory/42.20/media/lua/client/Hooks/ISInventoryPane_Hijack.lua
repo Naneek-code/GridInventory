@@ -171,10 +171,12 @@ Events.OnGameBoot.Add(function()
                 gridUi.isFloor = GridContainer.containerSignature(inv) == "floor"
                 
                 if self.inventoryPage and self.inventoryPage.onCharacter then
-                    -- Margem de 25px para dar espaço para a scrollbar
-                    gridUi.baseX = self.width - gridUi.width - 25
+                    -- Margem de 15px para a scrollbar (mesma do flexbox no prerender)
+                    gridUi.baseX = self.width - gridUi.width - 15
                 else
-                    gridUi.baseX = 10
+                    -- Loot: mesma margem de 15px pro espelho simétrico (sem
+                    -- scrollbar na esquerda, mas igual ao lado do jogador).
+                    gridUi.baseX = 15
                 end
                 
                 gridUi:setX(gridUi.baseX)
@@ -198,7 +200,7 @@ Events.OnGameBoot.Add(function()
                     overflowUi.baseGridHeight = overflowUi.height
                     overflowUi.isFloor = GridContainer.containerSignature(inv) == "floor"
                     
-                    overflowUi.baseX = 10
+                    overflowUi.baseX = 15
                     overflowUi:setX(overflowUi.baseX)
                     overflowUi.baseY = 0
                     
@@ -225,7 +227,7 @@ Events.OnGameBoot.Add(function()
             overflowUi.baseGridHeight = overflowUi.height
             overflowUi.isFloor = GridContainer.containerSignature(self.inventory) == "floor"
             
-            overflowUi.baseX = self.width - overflowUi.width - 25
+            overflowUi.baseX = self.width - overflowUi.width - 15
             overflowUi:setX(overflowUi.baseX)
             overflowUi.baseY = 0
             
@@ -434,13 +436,25 @@ Events.OnGameBoot.Add(function()
         local isPlayer = (self.inventoryPage and self.inventoryPage.onCharacter)
         local core = getCore()
         local screenW = core:getScreenWidth()
-        local panelW = (screenW - 350) / 2
-        if not GridModOptions.isFullscreenPanel() then
-            panelW = self.width
+        -- Largura real do painel: o ISInventoryPage_Hijack já calcula isso no
+        -- update (paperDollW com UI Scale + expansão pro grid ativo caber) e
+        -- seta self.width do pane. Recalcular com (screenW-350)/2 aqui deixava
+        -- um GAP entre o grid e a coluna de bolsas: com UI Scale >100 ou um
+        -- grid largo, o painel real fica MAIOR que essa conta, e como o layout
+        -- do jogador ancora o grid pela DIREITA (paneWidth - xMargin), o grid
+        -- parava antes do fim real — sobrava espaço até a coluna de bolsas.
+        local paneWidth = self.width
+        if paneWidth <= 0 then
+            paneWidth = (screenW - 350) / 2
         end
-        local paneWidth = panelW - (self.inventoryPage and self.inventoryPage.buttonSize or 32)
         
-        local xMargin = isPlayer and 25 or 10
+        -- Margem da borda do pane. No jogador, o grid termina ANTES da
+        -- scrollbar (que fica no canto direito, ~15px). No loot não há scrollbar
+        -- na esquerda, mas pra manter o ESPELHO simétrico dos dois painéis
+        -- (inv = grid à direita, loot = grid à esquerda) usamos a MESMA margem
+        -- dos dois lados: 15px. Senão o grid do loot fica colado na coluna de
+        -- bolsas enquanto o do jogador fica mais afastado — visual estranho.
+        local xMargin = 15
         
         local curX = isPlayer and (paneWidth - xMargin) or xMargin
         local curY = 15
