@@ -91,13 +91,29 @@ function GridContainer.getGridSize(inventory)
     local overrideKey = GridContainer.getOverrideKey(inventory)
     if overrideKey then
         local override = GridDevTool and GridDevTool.Overrides and GridDevTool.Overrides[overrideKey]
-        if not override then
+        -- Compatibilidade com o formato ANTIGO do GridOverrides.ini: lá o
+        -- fullType puro ("Base.X") guardava cols/rows JUNTO com w/h (chave só
+        -- do container). Migramos/gravamos no formato novo (cols/rows em
+        -- "item:Base.X"), mas jogadores com arquivo antigo podem ter a chave
+        -- prefixada EXISTINDO sem cols/rows (ex.: "item:Base.Bag" só com w/h) —
+        -- isso BLOQUEIA o fallback abaixo e o grid calibrado no "Base.X" era
+        -- ignorado. Então: o fallback roda se a chave prefixada não existe OU
+        -- se existe mas não fornece cols/rows.
+        local overrideHasCols = override and (override.cols or override.rows)
+        if not overrideHasCols then
             -- Compatibilidade: overrides antigos de bags gravados com o fullType
             -- PURO (sem prefixo "item:").
             local containingItem = inventory:getContainingItem()
             if containingItem and containingItem.getFullType then
-                override = GridDevTool and GridDevTool.Overrides
+                local legacy = GridDevTool and GridDevTool.Overrides
                     and GridDevTool.Overrides[containingItem:getFullType()]
+                if legacy then
+                    -- Mescla: o que a chave prefixada tiver (w/h etc) prevalece,
+                    -- mas cols/rows vêm do legado (que pode não estar na nova).
+                    if not override then override = {} end
+                    if legacy.cols and not override.cols then override.cols = legacy.cols end
+                    if legacy.rows and not override.rows then override.rows = legacy.rows end
+                end
             end
         end
         if override then

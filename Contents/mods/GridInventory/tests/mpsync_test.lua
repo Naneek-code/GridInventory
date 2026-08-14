@@ -297,4 +297,44 @@ do
     _G.getPlayer = nil
 end
 
+-- ─── Teste 17: compatibilidade do formato ANTIGO do GridOverrides.ini ───────
+-- Formato antigo guardava cols/rows no fullType PURO ("Base.X"). O formato novo
+-- usa "item:Base.X" pro grid. Se a chave prefixada EXISTE mas só com w/h (sem
+-- cols/rows), o fallback pro "Base.X" precisa MESMO ASSIM rodar (antes ficava
+-- bloqueado e o grid calibrado era ignorado — bug que quebrou jogadores com
+-- arquivo antigo).
+do
+    -- Limpa e injeta os dois formatos misturados (caso real do jogador).
+    GridDevTool.Overrides = {
+        ["Base.ToolRoll_Leather"] = { w = 2, h = 1, cols = 6, rows = 2, maxStack = 1000 },
+        -- chave prefixada EXISTE mas sem cols/rows (legado intermediário):
+        ["item:Base.ToolRoll_Leather"] = { w = 1, h = 1, maxStack = 1000 },
+    }
+
+    -- Container de item (bolsa) cujo item é o ToolRoll_Leather.
+    local bagItem = { getFullType = function() return "Base.ToolRoll_Leather" end }
+    local bagInv = {
+        getContainingItem = function() return bagItem end,
+        getParent = function() return nil end,
+        getType = function() return "Bag" end,
+        getCapacity = function() return 12 end,
+    }
+
+    local w, h = GridContainer.getGridSize(bagInv)
+    H.ok(w == 6 and h == 2,
+        "grid legado: chave prefixada sem cols/rows NÃO bloqueia fallback do Base.X (6x2) [("
+        .. tostring(w) .. "x" .. tostring(h) .. ")]")
+
+    -- Formato novo puro (só prefixada com cols/rows) continua ganhando.
+    GridDevTool.Overrides = {
+        ["item:Base.ToolRoll_Leather"] = { cols = 8, rows = 3 },
+    }
+    w, h = GridContainer.getGridSize(bagInv)
+    H.ok(w == 8 and h == 3,
+        "grid formato novo: chave prefixada com cols/rows prevalece (8x3) [("
+        .. tostring(w) .. "x" .. tostring(h) .. ")]")
+
+    GridDevTool.Overrides = {}
+end
+
 H.finish()
