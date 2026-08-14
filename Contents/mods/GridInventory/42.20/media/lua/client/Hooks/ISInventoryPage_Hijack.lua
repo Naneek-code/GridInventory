@@ -3,6 +3,7 @@ local PaperDollWindow = require("UI/PaperDoll/PaperDollWindow")
 local GlobalDragRender = require("UI/GridRender/GlobalDragRender")
 local GridModOptions = require("System/GridModOptions")
 local GridInventory_Search = require("System/GridInventory_Search")
+local GridJoypad = require("System/GridJoypad")
 
 -- Precisamos manter uma referência global para o PaperDoll
 GridInventory_PaperDollWindow = GridInventory_PaperDollWindow or {}
@@ -84,6 +85,12 @@ function ISInventoryPage:update()
     -- itens a cada consulta do render E em vez de G vezes (uma por grid) como
     -- acontecia quando cada GridRender:update chamava beginFrame().
     GridInventory_Search.beginFrame()
+
+    -- Joypad: move o cursor com o analógico (só quando este painel tem foco
+    -- do controle e um jogador está usando gamepad).
+    if JoypadState and JoypadState.players and JoypadState.players[self.player + 1] then
+        GridJoypad.pollAnalog(self.player, self)
+    end
 
     -- Coalesce do onInventoryUpdate: o refreshContainer (remap de todos os
     -- containers) roda no maximo 1x por frame e apenas com o painel visivel.
@@ -998,6 +1005,8 @@ function ISInventoryPage:selectContainer(button)
     if self.inventoryPane and self.inventoryPane.gridRefreshDirty ~= nil then
         self.inventoryPane.gridRefreshDirty = true
     end
+    -- Cursor do joypad acompanha o container ativo (mochila clicada, etc).
+    GridJoypad.reanchorToActive(self.player, self)
 end
 
 local og_pageSetNewContainer = ISInventoryPage.setNewContainer
@@ -1006,6 +1015,7 @@ function ISInventoryPage:setNewContainer(inventory)
     if self.inventoryPane and self.inventoryPane.gridRefreshDirty ~= nil then
         self.inventoryPane.gridRefreshDirty = true
     end
+    GridJoypad.reanchorToActive(self.player, self)
 end
 
 -- HEIGHT FIX (respirar do painel): o vanilla refreshBackpacks termina com
@@ -1097,4 +1107,146 @@ function ISInventoryPage:onMouseDownOutside(x, y)
         return
     end
     og_pageMouseDownOutside(self, x, y)
+end
+-- ============================================================================
+-- SUPORTE A CONTROLE (JOYPAD)
+-- ============================================================================
+-- O foco do joypad continua na ISInventoryPage (vanilla). Interceptamos os
+-- métodos de joypad da página e roteamos pro GridJoypad, que mantém o cursor
+-- virtual (col,row) sobre as grids do mod. A/D-pad/analógico navegam, e os
+-- botões replicam o mapeamento vanilla:
+--   A = contexto do item sob o cursor   X = pegar/transferir
+--   B = abrir/selecionar mochila        Y = fechar inventário
+--   LB/RB = trocar container (3 modos do vanilla)
+-- Sempre que a ISInventoryPage perde o foco (ex.: menu de contexto aberto),
+-- quem recebe os eventos é o menu (o B do menu devolve o foco pra cá).
+
+local og_pageGainJoypadFocus = ISInventoryPage.onGainJoypadFocus
+function ISInventoryPage:onGainJoypadFocus(joypadData)
+    og_pageGainJoypadFocus(self, joypadData)
+    GridJoypad.anchorOnFocus(self.player, self)
+end
+
+local og_pageJoypadDown = ISInventoryPage.onJoypadDown
+function ISInventoryPage:onJoypadDown(button, joypadData)
+    ISContextMenu.globalPlayerContext = self.player
+    local playerObj = getSpecificPlayer(self.player)
+
+    if button == Joypad.AButton then
+        GridJoypad.openContext(self.player, self)
+    elseif button == Joypad.BButton then
+        if isPlayerDoingActionThatCanBeCancelled(playerObj) then
+            stopDoingActionThatCanBeCancelled(playerObj)
+            return
+        end
+        GridJoypad.activateB(self.player, self)
+    elseif button == Joypad.XButton and not JoypadState.disableGrab then
+        GridJoypad.grab(self.player, self)
+    elseif button == Joypad.YButton and not JoypadState.disableYInventory then
+        setJoypadFocus(self.player, nil)
+    end
+
+    -- Troca de container: 1 = LB no inv / RB no loot, 2 = ambos no painel
+    -- atual, 3 = LB/RB focam inv/loot. Mantido 100% igual ao vanilla.
+    local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
+    if getCore():getGameMode() == "Tutorial" then shoulderSwitch = 1 end
+    if button == Joypad.LBumper then
+        if shoulderSwitch == 1 then
+            getPlayerInventory(self.player):selectNextContainer()
+        elseif shoulderSwitch == 2 then
+            self:selectPrevContainer()
+        elseif shoulderSwitch == 3 then
+            setJoypadFocus(self.player, getPlayerInventory(self.player))
+        end
+        -- Modos 1 e 2: o foco continua NESTE painel, então o cursor acompanha
+        -- o container ativo dele. Modo 3: o setJoypadFocus troca o foco e o
+        -- onGainJoypadFocus do outro painel já ancora o cursor lá.
+        if shoulderSwitch ~= 3 then
+            GridJoypad.reanchorToActive(self.player, self)
+        end
+    end
+    if button == Joypad.RBumper then
+        if shoulderSwitch == 1 then
+            getPlayerLoot(self.player):selectNextContainer()
+        elseif shoulderSwitch == 2 then
+            self:selectNextContainer()
+        elseif shoulderSwitch == 3 then
+            setJoypadFocus(self.player, getPlayerLoot(self.player))
+        end
+        if shoulderSwitch ~= 3 then
+            GridJoypad.reanchorToActive(self.player, self)
+        end
+    end
+end
+
+local og_pageJoypadDirUp = ISInventoryPage.onJoypadDirUp
+function ISInventoryPage:onJoypadDirUp(joypadData)
+    local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
+    if shoulderSwitch == 3 then
+        if JoypadButton.LeftBump:isDown(joypadData.id) then
+            getPlayerInventory(self.player):selectPrevContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+        if JoypadButton.RightBump:isDown(joypadData.id) then
+            getPlayerLoot(self.player):selectPrevContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+    end
+    GridJoypad.handleDir(self.player, self, 0, -1)
+end
+
+local og_pageJoypadDirDown = ISInventoryPage.onJoypadDirDown
+function ISInventoryPage:onJoypadDirDown(joypadData)
+    local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
+    if shoulderSwitch == 3 then
+        if JoypadButton.LeftBump:isDown(joypadData.id) then
+            getPlayerInventory(self.player):selectNextContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+        if JoypadButton.RightBump:isDown(joypadData.id) then
+            getPlayerLoot(self.player):selectNextContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+    end
+    GridJoypad.handleDir(self.player, self, 0, 1)
+end
+
+local og_pageJoypadDirLeft = ISInventoryPage.onJoypadDirLeft
+function ISInventoryPage:onJoypadDirLeft(joypadData)
+    local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
+    if shoulderSwitch == 3 then
+        if JoypadButton.LeftBump:isDown(joypadData.id) then
+            getPlayerInventory(self.player):selectPrevContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+        if JoypadButton.RightBump:isDown(joypadData.id) then
+            getPlayerLoot(self.player):selectPrevContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+    end
+    GridJoypad.handleDir(self.player, self, -1, 0)
+end
+
+local og_pageJoypadDirRight = ISInventoryPage.onJoypadDirRight
+function ISInventoryPage:onJoypadDirRight(joypadData)
+    local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
+    if shoulderSwitch == 3 then
+        if JoypadButton.LeftBump:isDown(joypadData.id) then
+            getPlayerInventory(self.player):selectNextContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+        if JoypadButton.RightBump:isDown(joypadData.id) then
+            getPlayerLoot(self.player):selectNextContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+    end
+    GridJoypad.handleDir(self.player, self, 1, 0)
 end

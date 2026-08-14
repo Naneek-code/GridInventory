@@ -1504,9 +1504,73 @@ function GridRender:render()
         self:drawRectBorder(0, 0, self.width, self.height, 0.9, 1.0, 0.85, 0.3)
         self:drawTextCentre(getText("IGUI_LockedNestedBag") or "Locked", self.width/2, self.height/2 - 10, 1.0, 0.9, 0.6, 1, UIFont.Large)
     end
+
+    -- Cursor de joypad + prompts de botão (só quando este grid é o dono do
+    -- cursor e o painel tem foco do controle). Desenhado por ÚLTIMO: por cima
+    -- dos itens, do overlay de peso e do cadeado, pra nunca ficar escondido.
+    self:renderJoypadCursor()
 end
 
--- ============================================================================
+-- Cursor virtual do joypad: destaca o footprint do item sob o cursor e
+-- desenha uma moldura na célula do cursor (HUD contextual de controle).
+function GridRender:renderJoypadCursor()
+    local GridJoypad = require("System/GridJoypad")
+    if not GridJoypad.isCursorOn(self) then return end
+    local cursor = GridJoypad.cursors[self.playerNum]
+    if not cursor or not cursor.col or not cursor.row then return end
+
+    local col, row = cursor.col, cursor.row
+    local x = self.gridPadding + ((col - 1) * self.cellSize)
+    local y = self.gridPadding + (self.headerH or 0) + ((row - 1) * self.cellSize)
+
+    -- Footprint inteiro do item sob o cursor (se houver) — destaque verde.
+    local id = self.gridCore.cells[col] and self.gridCore.cells[col][row]
+    if id then
+        local d = self.gridCore.items[id]
+        if d and d.itemObj and not d.stackMemberOf then
+            local w = d.w * self.cellSize
+            local h = d.h * self.cellSize
+            local ix = self.gridPadding + ((d.x - 1) * self.cellSize)
+            local iy = self.gridPadding + (self.headerH or 0) + ((d.y - 1) * self.cellSize)
+            self:drawRect(ix, iy, w, h, 0.25, 1.0, 0.95, 0.35)
+            self:drawRectBorder(ix, iy, w, h, 1.0, 1.0, 0.95, 0.35)
+        end
+    end
+
+    -- Moldura da célula do cursor (sempre visível).
+    self:drawRectBorder(x, y, self.cellSize, self.cellSize, 0.9, 1.0, 1.0, 1.0)
+
+    self:drawJoypadPrompts(x, y)
+end
+
+-- Ícones de botão (A/B/X/Y) logo abaixo da célula do cursor: o "o que cada
+-- botão faz" do grid. Usa as texturas nativas do jogo (Joypad.Texture.*).
+function GridRender:drawJoypadPrompts(cellX, cellY)
+    if not Joypad or not Joypad.Texture then return end
+    local buttons = {
+        Joypad.Texture.AButton,
+        Joypad.Texture.XButton,
+        Joypad.Texture.BButton,
+        Joypad.Texture.YButton,
+    }
+    local size = math.max(14, math.floor(self.cellSize * 0.5))
+    local gap = 3
+    local pad = 3
+    local n = #buttons
+    local totalW = n * size + (n - 1) * gap + pad * 2
+    local bx = cellX - pad
+    local by = cellY + self.cellSize + 3
+    -- Fundo escuro da "pill" (A/B/X/Y juntos, como o HUD do vanilla).
+    self:drawRect(bx, by, totalW, size + pad * 2, 0.7, 0, 0, 0)
+    self:drawRectBorder(bx, by, totalW, size + pad * 2, 0.8, 1, 1, 1)
+    for i, getter in ipairs(buttons) do
+        local tex = getter and getter.getTexture and getter:getTexture()
+        if tex then
+            local tx = bx + pad + (i - 1) * (size + gap)
+            self:drawTextureScaled(tex, tx, by + pad, size, size, 1, 1, 1, 1)
+        end
+    end
+end
 -- SISTEMA DE DRAG AND DROP E CONTEXT MENU
 -- ============================================================================
 
@@ -2800,9 +2864,13 @@ function GridRender:destroy()
 end
 
 function GridRender:updateTooltip()
+    -- Cursor de joypad: o tooltip segue o cursor virtual (não o mouse).
+    local GridJoypad = require("System/GridJoypad")
+    local joyCursor = GridJoypad.isCursorOn(self)
+
     -- Checa se o mouse está sobre esse grid E sobre o painel pai (para evitar tooltips quando scrollar o grid pra fora da view)
-    local isOver = self:isMouseOver()
-    if isOver and self.parent and not self.parent:isMouseOver() then
+    local isOver = joyCursor or self:isMouseOver()
+    if not joyCursor and isOver and self.parent and not self.parent:isMouseOver() then
         isOver = false
     end
     
@@ -2815,9 +2883,21 @@ function GridRender:updateTooltip()
         return
     end
     
-    local mx = self:getMouseX()
-    local my = self:getMouseY()
-    local col, row = self:getGridCellAtMouse(mx, my)
+    local col, row
+    local tx, ty
+    if joyCursor then
+        local cursor = GridJoypad.cursors[self.playerNum]
+        if cursor then
+            col, row = cursor.col, cursor.row
+            -- Posição do tooltip: junto à célula do cursor (coords de tela).
+            tx = self:getAbsoluteX() + self.gridPadding + ((col - 1) * self.cellSize)
+            ty = self:getAbsoluteY() + self.gridPadding + (self.headerH or 0) + ((row - 1) * self.cellSize)
+        end
+    else
+        local mx = self:getMouseX()
+        local my = self:getMouseY()
+        col, row = self:getGridCellAtMouse(mx, my)
+    end
     
     local hoveredItem = nil
     if col and row and self.gridCore and self.gridCore.cells then
@@ -2850,17 +2930,18 @@ function GridRender:updateTooltip()
         self.toolRender:setVisible(true)
         self.toolRender:bringToTop()
         
-        local gmx = getMouseX()
-        local gmy = getMouseY()
-        
-        local tx = gmx + 15
-        local ty = gmy + 15
+        if not joyCursor then
+            local gmx = getMouseX()
+            local gmy = getMouseY()
+            tx = gmx + 15
+            ty = gmy + 15
+        end
         
         if self.toolRender.width and (tx + self.toolRender.width > getCore():getScreenWidth()) then
-            tx = gmx - self.toolRender.width - 15
+            tx = tx - self.toolRender.width - 15
         end
         if self.toolRender.height and (ty + self.toolRender.height > getCore():getScreenHeight()) then
-            ty = gmy - self.toolRender.height - 15
+            ty = ty - self.toolRender.height - 15
         end
         
         self.toolRender:setX(tx)

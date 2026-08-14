@@ -63,6 +63,11 @@
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
     "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
     "IGUI_GridInv_OptionsGradientFast": "Быстрый градиент (ниже качество)",
-    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Рисует градиент отпечатка предмета с меньшим числом полос (6 вместо 12), вдвое сокращая draw calls градиента на предмет за кадр. Градиент выглядит грубее, но рендер быстрее.\n\nВыкл (по умолчанию): гладкий градиент из 12 полос.\n\nЭто визуальная настройка на машину; каждый игрок выбирает свою."
-
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Рисует градиент отпечатка предмета с меньшим числом полос (6 вместо 12), вдвое сокращая draw calls градиента на предмет за кадр. Градиент выглядит грубее, но рендер быстрее.\n\nВыкл (по умолчанию): гладкий градиент из 12 полос.\n\nЭто визуальная настройка на машину; каждый игрок выбирает свою.",
+    "IGUI_GridInv_OptionsJoypadCursorMode": "Gamepad cursor movement",
+    "IGUI_GridInv_OptionsJoypadCursorMode_Tooltip": "How the virtual cursor moves with the gamepad D-pad/analog stick in the grids. Snap to items (default) jumps directly from item to item (Tarkov style). Cell by cell moves one grid cell at a time, including empty cells.",
+    "IGUI_GridInv_OptionsJoypadCursorMode_Snap": "Snap to items (default)",
+    "IGUI_GridInv_OptionsJoypadCursorMode_Cell": "Cell by cell",
+    "IGUI_GridInv_OptionsJoypadAnalogSpeed": "Gamepad analog stick speed",
+    "IGUI_GridInv_OptionsJoypadAnalogSpeed_Tooltip": "Speed at which the virtual cursor moves when using the analog stick (0 to 100, 50 is the default). The harder you push the stick, the faster the cursor moves. Does not affect the D-pad."
 }

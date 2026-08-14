@@ -63,6 +63,11 @@
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
     "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
     "IGUI_GridInv_OptionsGradientFast": "快速漸變（畫質較低）",
-    "IGUI_GridInv_OptionsGradientFast_Tooltip": "用較少的色帶（6 個而不是 12 個）繪製物品足跡漸變，將每個物品每幀的漸變繪製呼叫減少一半。漸變看起來更粗糙，但渲染更快。\n\n關閉（預設）：平滑的 12 段漸變。\n\n這是按機器劃分的視覺設定；每個玩家選擇自己的。"
-
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "用較少的色帶（6 個而不是 12 個）繪製物品足跡漸變，將每個物品每幀的漸變繪製呼叫減少一半。漸變看起來更粗糙，但渲染更快。\n\n關閉（預設）：平滑的 12 段漸變。\n\n這是按機器劃分的視覺設定；每個玩家選擇自己的。",
+    "IGUI_GridInv_OptionsJoypadCursorMode": "Gamepad cursor movement",
+    "IGUI_GridInv_OptionsJoypadCursorMode_Tooltip": "How the virtual cursor moves with the gamepad D-pad/analog stick in the grids. Snap to items (default) jumps directly from item to item (Tarkov style). Cell by cell moves one grid cell at a time, including empty cells.",
+    "IGUI_GridInv_OptionsJoypadCursorMode_Snap": "Snap to items (default)",
+    "IGUI_GridInv_OptionsJoypadCursorMode_Cell": "Cell by cell",
+    "IGUI_GridInv_OptionsJoypadAnalogSpeed": "Gamepad analog stick speed",
+    "IGUI_GridInv_OptionsJoypadAnalogSpeed_Tooltip": "Speed at which the virtual cursor moves when using the analog stick (0 to 100, 50 is the default). The harder you push the stick, the faster the cursor moves. Does not affect the D-pad."
 }

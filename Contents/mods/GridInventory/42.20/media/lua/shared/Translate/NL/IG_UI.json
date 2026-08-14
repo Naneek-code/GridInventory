@@ -63,6 +63,11 @@
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
     "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
     "IGUI_GridInv_OptionsGradientFast": "Snelle overgang (lagere kwaliteit)",
-    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Tekent de voetafdrukovergang van voorwerpen met minder kleurbanden (6 in plaats van 12), waardoor het aantal draw calls van de overgang per voorwerp per frame halveert. De overgang ziet er grover uit, maar het renderen is sneller.\n\nUit (standaard): gladde overgang met 12 banden.\n\nDit is een visuele instelling per machine; elke speler kiest zijn eigen."
-
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Tekent de voetafdrukovergang van voorwerpen met minder kleurbanden (6 in plaats van 12), waardoor het aantal draw calls van de overgang per voorwerp per frame halveert. De overgang ziet er grover uit, maar het renderen is sneller.\n\nUit (standaard): gladde overgang met 12 banden.\n\nDit is een visuele instelling per machine; elke speler kiest zijn eigen.",
+    "IGUI_GridInv_OptionsJoypadCursorMode": "Gamepad cursor movement",
+    "IGUI_GridInv_OptionsJoypadCursorMode_Tooltip": "How the virtual cursor moves with the gamepad D-pad/analog stick in the grids. Snap to items (default) jumps directly from item to item (Tarkov style). Cell by cell moves one grid cell at a time, including empty cells.",
+    "IGUI_GridInv_OptionsJoypadCursorMode_Snap": "Snap to items (default)",
+    "IGUI_GridInv_OptionsJoypadCursorMode_Cell": "Cell by cell",
+    "IGUI_GridInv_OptionsJoypadAnalogSpeed": "Gamepad analog stick speed",
+    "IGUI_GridInv_OptionsJoypadAnalogSpeed_Tooltip": "Speed at which the virtual cursor moves when using the analog stick (0 to 100, 50 is the default). The harder you push the stick, the faster the cursor moves. Does not affect the D-pad."
 }

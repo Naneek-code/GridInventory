@@ -63,6 +63,11 @@
     "IGUI_GridInv_OptionsUiScale": "Escala da UI",
     "IGUI_GridInv_OptionsUiScale_Tooltip": "Escala o tamanho dos grids de inventário (células, itens, cabeçalhos). 100 é o padrão (tamanho original). Aumente em monitores de alta resolução (ex.: 4K) para deixar a interface maior e mais legível. Aplica nos painéis abertos imediatamente após clicar em OK.",
     "IGUI_GridInv_OptionsGradientFast": "Gradiente rápido (menor qualidade)",
-    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Desenha o gradiente do footprint dos itens com menos faixas de cor (6 em vez de 12), cortando pela metade os draw calls do gradiente por item por frame. O gradiente fica mais grosseiro, mas o render fica mais rápido.\n\nDesligado (padrão): gradiente suave com 12 faixas.\n\nÉ uma opção visual por máquina; cada jogador escolhe a própria."
-
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Desenha o gradiente do footprint dos itens com menos faixas de cor (6 em vez de 12), cortando pela metade os draw calls do gradiente por item por frame. O gradiente fica mais grosseiro, mas o render fica mais rápido.\n\nDesligado (padrão): gradiente suave com 12 faixas.\n\nÉ uma opção visual por máquina; cada jogador escolhe a própria.",
+    "IGUI_GridInv_OptionsJoypadCursorMode": "Movimento do cursor (controle)",
+    "IGUI_GridInv_OptionsJoypadCursorMode_Tooltip": "Como o cursor virtual se move com o D-pad/analógico do controle nas grids. 'Pular entre itens' (padrão) vai direto de item em item (estilo Tarkov). 'Célula a célula' move uma célula por vez, incluindo células vazias.",
+    "IGUI_GridInv_OptionsJoypadCursorMode_Snap": "Pular entre itens (padrão)",
+    "IGUI_GridInv_OptionsJoypadCursorMode_Cell": "Célula a célula",
+    "IGUI_GridInv_OptionsJoypadAnalogSpeed": "Velocidade do analógico (controle)",
+    "IGUI_GridInv_OptionsJoypadAnalogSpeed_Tooltip": "Velocidade com que o cursor virtual se move ao usar o analógico (0 a 100, 50 é o padrão). Quanto mais você empurra o analógico, mais rápido o cursor se move. Não afeta o direcional (D-pad)."
 }
