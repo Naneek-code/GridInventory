@@ -974,7 +974,14 @@ function GridRender:render()
                     -- O lookup é O(1) e só roda pra itens já visíveis (o hot path
                     -- dos ocultos continua intocado). A limpeza é lazy (expira
                     -- sozinha na consulta), sem custo por frame.
-                    local revealP = GridInventory_Search.getRevealProgress(data.itemObj:getID())
+                    -- SÓ renderiza quando este grid é de um container do mundo
+                    -- com busca habilitada (searchKey ~= nil = não é inv do
+                    -- jogador nem chão; e a option ligada). Usar "searchPending"
+                    -- aqui cortaria o wipe do ÚLTIMO item revelado (aí não há
+                    -- mais ocultos). Sem a guarda, um revealAnim residual faria
+                    -- o wipe aparecer no inventário do jogador mesmo com a
+                    -- opção de busca DESLIGADA.
+                    local revealP = searchKey and GridInventory_Search.getRevealProgress(data.itemObj:getID())
                     if revealP then
                         -- revealP 0→1: a borda do wipe sobe; abaixo dela, um
                         -- preenchimento branco translúcido "revela" o item.
