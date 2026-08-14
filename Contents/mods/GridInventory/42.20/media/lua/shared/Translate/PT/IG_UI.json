@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Mostrar todas as mochilas (Jogador)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Quando ativado (padrão), todas as mochilas abertas são renderizadas na grelha de inventário do jogador. Desative para renderizar apenas o recipiente selecionado (melhor desempenho).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Mostrar todos os recipientes de loot",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Quando ativado (padrão), todos os recipientes de loot no ecrã são renderizados. Desative para renderizar apenas o recipiente ativo (melhor desempenho)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Quando ativado (padrão), todos os recipientes de loot no ecrã são renderizados. Desative para renderizar apenas o recipiente ativo (melhor desempenho).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Fechar painéis de inventário com ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Quando ativado (padrão), premir ESC fecha os painéis de inventário, loot e PaperDoll em vez de abrir o menu principal. Desative para restaurar o comportamento original (o ESC abre sempre o menu principal).",
+    "IGUI_GridInv_OptionsUiScale": "Escala da UI",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Escala o tamanho dos grids de inventário (células, itens, cabeçalhos). 100 é o padrão (tamanho original). Aumente em monitores de alta resolução (ex.: 4K) para deixar a interface maior e mais legível. Aplica nos painéis abertos imediatamente após clicar em OK."
 }

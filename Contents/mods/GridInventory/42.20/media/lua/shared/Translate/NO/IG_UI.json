@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Vis alle ryggsekker (Spiller)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Når aktivert (standard) vises alle åpne ryggsekker i spillerens inventarrutenett. Deaktiver for kun å vise den valgte beholderen (bedre ytelse).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Vis alle loot-beholdere",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Når aktivert (standard) vises alle loot-beholdere på skjermen. Deaktiver for kun å vise den aktive beholderen (bedre ytelse)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Når aktivert (standard) vises alle loot-beholdere på skjermen. Deaktiver for kun å vise den aktive beholderen (bedre ytelse).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Lukk inventarpaneler med ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Når aktivert (standard), lukker trykk på ESC inventar-, loot- og PaperDoll-panelene i stedet for å åpne hovedmenyen. Deaktiver for å gjenopprette den opprinnelige oppførselen (ESC åpner alltid hovedmenyen).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Mostra tutti gli zaini (Giocatore)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Quando è attivato (predefinito), tutti gli zaini aperti vengono renderizzati nella griglia dell'inventario del giocatore. Disattivalo per renderizzare solo il contenitore selezionato (prestazioni migliori).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Mostra tutti i contenitori di bottino",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Quando è attivato (predefinito), tutti i contenitori di bottino sullo schermo vengono renderizzati. Disattivalo per renderizzare solo il contenitore attivo (prestazioni migliori)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Quando è attivato (predefinito), tutti i contenitori di bottino sullo schermo vengono renderizzati. Disattivalo per renderizzare solo il contenitore attivo (prestazioni migliori).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Chiudi i pannelli dell'inventario con ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Quando è attivato (predefinito), premere ESC chiude i pannelli dell'inventario, del bottino e PaperDoll invece di aprire il menu principale. Disattivalo per ripristinare il comportamento originale (ESC apre sempre il menu principale).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

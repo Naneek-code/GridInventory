@@ -8,7 +8,15 @@ local PaperDollWindow = ISCollapsableWindow:derive("PaperDollWindow")
 function PaperDollWindow:initialise()
     ISCollapsableWindow.initialise(self)
 
+    -- UI Scale (Mod Options): fator em % aplicado a todas as dimensões do
+    -- PaperDoll (avatar 3D, slots, hotbar). O global é sincronizado pelo
+    -- GridModOptions; default 100.
+    local uiScale = GridInventory_uiScale or 100
+    local scale = uiScale / 100
+
     self.title = getText("IGUI_PaperDoll_Title")
+    self.uiScale = scale
+    self.scale = scale
     
     self.scrollPanel = ISPanel:new(0, self:titleBarHeight(), self.width, self.height - self:titleBarHeight())
     self.scrollPanel.background = false
@@ -25,7 +33,7 @@ function PaperDollWindow:initialise()
     
     self.scrollPanel.onMouseWheel = function(this, del)
         if this:getScrollHeight() > 0 then
-            this:setYScroll(this:getYScroll() - (del * 40))
+            this:setYScroll(this:getYScroll() - (del * 40 * scale))
             return true
         end
         return false
@@ -40,10 +48,12 @@ function PaperDollWindow:initialise()
     self.scrollPanel:addScrollBars(true)
 
     -- Instancia o modelo 3D do personagem
-    self.avatarW = 200
-    self.avatarH = 400
+    self.avatarW = math.floor(200 * scale)
+    self.avatarH = math.floor(400 * scale)
     self.avatarX = (self.width - self.avatarW) / 2
-    self.avatarY = (self.height - self.avatarH) / 2 + 100 -- Desce o painel inteiro do personagem sem afetar a escala
+    -- Ancora o avatar logo abaixo da titlebar (sem centralizar): o conteúdo
+    -- fica colado no topo e o scrollPanel rola o que passar da altura.
+    self.avatarY = self:titleBarHeight() + math.floor(10 * scale)
 
     self.avatarPanel = ISCharacterScreenAvatar:new(self.avatarX, self.avatarY, self.avatarW, self.avatarH)
     self.avatarPanel:setVisible(true)
@@ -71,9 +81,9 @@ function PaperDollWindow:initialise()
     self.lastWornItemsHash = ""
     self.lastHotbarHash = ""
     
-    local slotW, slotH = 50, 50
-    local startY = self.avatarY + 50
-    local padding = 10
+    local slotW, slotH = math.floor(50 * scale), math.floor(50 * scale)
+    local startY = self.avatarY + math.floor(50 * scale)
+    local padding = math.floor(10 * scale)
     
     -- Slots da Esquerda (Cabeça, Rosto, Tronco, Jaqueta, Calças, Costas)
     local leftX = self.avatarX - slotW - padding
@@ -89,6 +99,8 @@ function PaperDollWindow:initialise()
         local slot = PaperDollSlot:new(leftX, startY + (i-1)*(slotH + padding), slotW, slotH, self.playerNum, sData.locations, sData.name)
         slot:initialise()
         self.scrollPanel:addChild(slot)
+        slot._pdCol = "left"
+        slot._pdIndex = i
         table.insert(self.slots, slot)
     end
     
@@ -106,6 +118,8 @@ function PaperDollWindow:initialise()
         local slot = PaperDollSlot:new(rightX, startY + (i-1)*(slotH + padding), slotW, slotH, self.playerNum, sData.locations, sData.name)
         slot:initialise()
         self.scrollPanel:addChild(slot)
+        slot._pdCol = "right"
+        slot._pdIndex = i
         table.insert(self.slots, slot)
     end
 
@@ -114,6 +128,7 @@ function PaperDollWindow:initialise()
     local bagSlot = PaperDollSlot:new(bagX, bagY, slotW, slotH, self.playerNum, {"Back", "LowerBack", "TorsoExtra", "Satchel"}, getText("IGUI_PaperDoll_Back"))
     bagSlot:initialise()
     self.scrollPanel:addChild(bagSlot)
+    bagSlot._pdCol = "bag"
     table.insert(self.slots, bagSlot)
 
     -- Custom Slot: Overflow (Espelhado à Bag, lado direito)
@@ -121,12 +136,13 @@ function PaperDollWindow:initialise()
     self.overflowSlot = PaperDollSlot:new(overflowX, bagY, slotW, slotH, self.playerNum, {"OVERFLOW"}, "Extra")
     self.overflowSlot:initialise()
     self.scrollPanel:addChild(self.overflowSlot)
+    self.overflowSlot._pdCol = "overflow"
 
     -- Controles de Tempo (Apenas Single Player)
     if not isClient() then
-        local btnW = 18
-        local btnH = 18
-        local spacing = 4
+        local btnW = math.floor(18 * scale)
+        local btnH = math.floor(18 * scale)
+        local spacing = math.floor(4 * scale)
         local totalW = (btnW * 5) + (spacing * 4)
         
         -- Centralizar entre a Bag e o Overflow
@@ -183,25 +199,28 @@ function PaperDollWindow:initialise()
     end
 
     -- Custom Slots: Primary and Secondary (1x2, lado a lado, abaixo da Bag)
-    local wepY = bagY + 50 + padding
-    local wepW, wepH = 155, 50
+    local wepY = bagY + math.floor(50 * scale) + padding
+    local wepW, wepH = math.floor(155 * scale), math.floor(50 * scale)
     local centerX = self.width / 2
 
-    local primarySlot = PaperDollSlot:new(centerX - wepW - 5, wepY, wepW, wepH, self.playerNum, {"PRIMARY"}, getText("IGUI_PaperDoll_Primary"))
+    local primarySlot = PaperDollSlot:new(centerX - wepW - math.floor(5 * scale), wepY, wepW, wepH, self.playerNum, {"PRIMARY"}, getText("IGUI_PaperDoll_Primary"))
     primarySlot:initialise()
     self.scrollPanel:addChild(primarySlot)
+    primarySlot._pdCol = "primary"
     table.insert(self.slots, primarySlot)
 
-    local secondarySlot = PaperDollSlot:new(centerX + 5, wepY, wepW, wepH, self.playerNum, {"SECONDARY"}, getText("IGUI_PaperDoll_Secondary"))
+    local secondarySlot = PaperDollSlot:new(centerX + math.floor(5 * scale), wepY, wepW, wepH, self.playerNum, {"SECONDARY"}, getText("IGUI_PaperDoll_Secondary"))
     secondarySlot:initialise()
     self.scrollPanel:addChild(secondarySlot)
+    secondarySlot._pdCol = "secondary"
     table.insert(self.slots, secondarySlot)
 
-    local thW, thH = 40, 40
+    local thW, thH = math.floor(40 * scale), math.floor(40 * scale)
     local twoHandSlot = PaperDollSlot:new(centerX - (thW / 2), wepY + (wepH / 2) - (thH / 2), thW, thH, self.playerNum, {"TWOHANDED"}, "")
     twoHandSlot:initialise()
     twoHandSlot:setVisible(false)
     self.scrollPanel:addChild(twoHandSlot)
+    twoHandSlot._pdCol = "twohand"
     table.insert(self.slots, twoHandSlot)
 
     -- Destrói a capacidade de arrastar, redimensionar ou fechar o PaperDoll
@@ -243,6 +262,125 @@ function PaperDollWindow:initialise()
             btn:bringToTop()
         end
     end
+
+    self._pdScale = scale
+end
+
+-- Recalcula o layout (avatar + slots + hotbar) quando o UI Scale global muda,
+-- SEM recriar a janela. Reposiciona avatar e slots pelas colunas/índices
+-- marcados no initialise. A hotbar é recriada pelo refreshHotbarUIs (que usa
+-- self.scale no cálculo).
+function PaperDollWindow:relayout()
+    local uiScale = GridInventory_uiScale or 100
+    local scale = uiScale / 100
+    self.uiScale = scale
+    self.scale = scale
+
+    -- Avatar (ancorado abaixo da titlebar)
+    self.avatarW = math.floor(200 * scale)
+    self.avatarH = math.floor(400 * scale)
+    self.avatarX = (self.width - self.avatarW) / 2
+    self.avatarY = self:titleBarHeight() + math.floor(10 * scale)
+    if self.avatarPanel then
+        self.avatarPanel:setX(self.avatarX)
+        self.avatarPanel:setY(self.avatarY)
+        self.avatarPanel:setWidth(self.avatarW)
+        self.avatarPanel:setHeight(self.avatarH)
+    end
+    if self.avatarDropZone then
+        self.avatarDropZone:setX(self.avatarX)
+        self.avatarDropZone:setY(self.avatarY)
+        self.avatarDropZone:setWidth(self.avatarW)
+        self.avatarDropZone:setHeight(self.avatarH)
+    end
+
+    local slotW, slotH = math.floor(50 * scale), math.floor(50 * scale)
+    local padding = math.floor(10 * scale)
+    local startY = self.avatarY + math.floor(50 * scale)
+    local leftX = self.avatarX - slotW - padding
+    local rightX = self.avatarX + self.avatarW + padding
+    local centerX = self.width / 2
+    local bagY = startY + 5*(slotH + padding)
+    local wepY = bagY + math.floor(50 * scale) + padding
+    local wepW, wepH = math.floor(155 * scale), math.floor(50 * scale)
+    local thW, thH = math.floor(40 * scale), math.floor(40 * scale)
+
+    -- Reposiciona slots comuns (left/right/bag/overflow)
+    for _, slot in ipairs(self.slots) do
+        local col = slot._pdCol
+        local i = slot._pdIndex or 1
+        local x, y, w, h = slot:getX(), slot:getY(), slot:getWidth(), slot:getHeight()
+        if col == "left" then
+            x = leftX
+            y = startY + (i-1)*(slotH + padding)
+            w, h = slotW, slotH
+        elseif col == "right" then
+            x = rightX
+            y = startY + (i-1)*(slotH + padding)
+            w, h = slotW, slotH
+        elseif col == "bag" then
+            x = leftX
+            y = bagY
+            w, h = slotW, slotH
+        elseif col == "overflow" then
+            x = rightX
+            y = bagY
+            w, h = slotW, slotH
+        elseif col == "primary" then
+            x = centerX - wepW - math.floor(5 * scale)
+            y = wepY
+            w, h = wepW, wepH
+        elseif col == "secondary" then
+            x = centerX + math.floor(5 * scale)
+            y = wepY
+            w, h = wepW, wepH
+        elseif col == "twohand" then
+            x = centerX - (thW / 2)
+            y = wepY + (wepH / 2) - (thH / 2)
+            w, h = thW, thH
+        end
+        if slot.setX then slot:setX(x) end
+        if slot.setY then slot:setY(y) end
+        if slot.setWidth then slot:setWidth(w) end
+        if slot.setHeight then slot:setHeight(h) end
+    end
+
+    -- Botões de tempo (SP)
+    if self.timeButtons then
+        local btnW = math.floor(18 * scale)
+        local btnH = math.floor(18 * scale)
+        local spacing = math.floor(4 * scale)
+        local totalW = (btnW * 5) + (spacing * 4)
+        local areaX = bagY and (leftX + slotW) or centerX
+        local areaW = rightX - areaX
+        local startX = areaX + (areaW / 2) - (totalW / 2)
+        local btnY = bagY + (slotH / 2) - (btnH / 2)
+        for i, btn in ipairs(self.timeButtons) do
+            btn:setX(startX + (i-1)*(btnW + spacing))
+            btn:setY(btnY)
+            btn:setWidth(btnW)
+            btn:setHeight(btnH)
+        end
+    end
+
+    -- Scroll do mouse usa o novo scale
+    self.scrollPanel.onMouseWheel = function(this, del)
+        if this:getScrollHeight() > 0 then
+            this:setYScroll(this:getYScroll() - (del * 40 * scale))
+            return true
+        end
+        return false
+    end
+
+    -- Hotbar: reposiciona (recalcula com o novo scale)
+    if self.lastHotbarHash ~= nil then
+        local hotbar = getPlayerHotbar and getPlayerHotbar(self.playerNum)
+        if hotbar then
+            self:refreshHotbarUIs(hotbar)
+        end
+    end
+
+    self._pdScale = scale
 end
 
 -- O PaperDoll NÃO expande por conta própria: o estado de collapse é controlado
@@ -255,6 +393,12 @@ end
 
 function PaperDollWindow:prerender()
     ISCollapsableWindow.prerender(self)
+
+    -- Recalcula o layout se o UI Scale global mudou (Mod Options aplicada).
+    local curScale = (GridInventory_uiScale or 100) / 100
+    if self._pdScale == nil or self._pdScale ~= curScale then
+        self:relayout()
+    end
 
     -- Cola o PaperDoll no lado DIREITO do inventário do jogador (Modo Seguro)
     local invPage = getPlayerInventory(self.playerNum)
@@ -398,11 +542,12 @@ function PaperDollWindow:render()
             if action.getJobDelta then
                 local progress = action:getJobDelta()
                 if progress > 0 and progress <= 1 then
-                    local barW = self.avatarW - 20
-                    local barH = 15
-                    local barX = self.avatarX + 10
+                    local barScale = self.uiScale or 1
+                    local barW = self.avatarW - math.floor(20 * barScale)
+                    local barH = math.floor(15 * barScale)
+                    local barX = self.avatarX + math.floor(10 * barScale)
                     local scrollOffset = self.scrollPanel and self.scrollPanel:getYScroll() or 0
-                    local barY = self.avatarY - 20 + scrollOffset + self:titleBarHeight()
+                    local barY = self.avatarY - math.floor(20 * barScale) + scrollOffset + self:titleBarHeight()
 
                     local actionName = getText("IGUI_ActionBar_Generic")
                     if action.Type then
@@ -465,14 +610,14 @@ function PaperDollWindow:refreshHotbarUIs(hotbar)
     local numSlots = 0
     for _ in pairs(hotbar.availableSlot) do numSlots = numSlots + 1 end
     if numSlots == 0 then 
-        self.hotbarBottomY = self.avatarY + 484
-        self.scrollPanel:setScrollHeight(self.hotbarBottomY + 40)
+        self.hotbarBottomY = self.avatarY + math.floor(484 * self.scale)
+        self.scrollPanel:setScrollHeight(self.hotbarBottomY + math.floor(40 * self.scale))
         return 
     end
     
-    local padding = 10
+    local padding = math.floor(10 * self.scale)
     local centerX = self.width / 2
-    local startY = self.avatarY + 470 -- Abaixo das mãos (wepY + wepH + padding)
+    local startY = self.avatarY + math.floor(470 * self.scale) -- Abaixo das mãos (wepY + wepH + padding)
     
     local function createHotbarSlot(x, y, w, h, slotObj)
         if not slotObj then return end
@@ -523,9 +668,9 @@ function PaperDollWindow:refreshHotbarUIs(hotbar)
     
     -- Custom Row: Back (grande), Belts
     if backSlot or beltLeft or beltRight then
-        local rowH = 64
-        local backW, backH = 128, 64
-        local beltSize = 64
+        local rowH = math.floor(64 * self.scale)
+        local backW, backH = math.floor(128 * self.scale), math.floor(64 * self.scale)
+        local beltSize = math.floor(64 * self.scale)
         
         local totalW = 0
         if backSlot then totalW = totalW + backW end
@@ -555,7 +700,7 @@ function PaperDollWindow:refreshHotbarUIs(hotbar)
     for _, texStr in ipairs(groupOrder) do
         local slotsInGroup = groups[texStr]
         local numInGroup = #slotsInGroup
-        local slotSize = 64
+        local slotSize = math.floor(64 * self.scale)
         
         local totalW = (numInGroup * slotSize) + ((numInGroup - 1) * padding)
         local startX = centerX - (totalW / 2)
@@ -571,7 +716,7 @@ function PaperDollWindow:refreshHotbarUIs(hotbar)
     end
     
     self.hotbarBottomY = curY
-    self.scrollPanel:setScrollHeight(curY + 40)
+    self.scrollPanel:setScrollHeight(curY + math.floor(40 * self.scale))
     self.lastWornItemsHash = "" -- Força o overflow a reposicionar abaixo da hotbar no próximo frame
 end
 

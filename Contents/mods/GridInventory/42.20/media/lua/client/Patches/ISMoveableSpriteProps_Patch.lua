@@ -27,29 +27,50 @@ end
 
     function ISMoveableSpriteProps:findInInventory( _character, _spriteName )
         if not _character or not _spriteName then return end
-        
+
+        local function spriteMatches( item )
+            if not item or not item.getWorldSprite then return false end
+            local ws = item:getWorldSprite();
+            if not ws then return false end
+            if ws == _spriteName then return true end
+            local worldSprite = getSprite(ws);
+            if worldSprite and worldSprite.getSpriteGrid and worldSprite:getSpriteGrid() and worldSprite:getSpriteGrid():getAnchorSprite() and worldSprite:getSpriteGrid():getAnchorSprite():getName() == _spriteName then
+                return true;
+            end
+            return false;
+        end
+
+        -- 1) Mãos: móveis grandes segurados pelo jogador (GridInventory).
         local allItems = {}
         getAllMoveables(_character, allItems)
-        
         for _, item in ipairs(allItems) do
-            if item:getWorldSprite() then
-                -- Removido o check de item nas mãos!
-                if (item:getWorldSprite() == _spriteName) then
-                    return item;
-                else
-                    local worldSprite = getSprite(item:getWorldSprite());
-                    if worldSprite and worldSprite:getSpriteGrid() and worldSprite:getSpriteGrid():getAnchorSprite() and worldSprite:getSpriteGrid():getAnchorSprite():getName() == _spriteName then
+            if spriteMatches(item) then
+                return item;
+            end
+        end
+
+        -- 2) Inventário COMPLETO (inclui mãos/vestidos): quando o place exige
+        --    ferramenta (ex: martelo), o vanilla walkToAndEquip equipa a
+        --    ferramenta na mão primária, DESEQUIPANDO o móvel que estava lá —
+        --    o móvel volta pro inventário. Sem essa busca o servidor não
+        --    encontra o móvel (mãos agora têm o martelo).
+        if _character.getInventory then
+            local items = _character:getInventory():getItems();
+            if items then
+                for i=0,items:size()-1 do
+                    local item = items:get(i);
+                    if item and instanceof(item, "Moveable") and spriteMatches(item) then
                         return item;
                     end
                 end
             end
         end
 
-        -- Floor search: necessário pra multi-sprite -- a outra peça (ex: "armario 2/2")
-        -- pode estar no chão enquanto o jogador segura só a primeira na mão.
-        -- Também previne o crash vanilla quando o item já está no chão.
+        -- 3) Floor search: necessário pra multi-sprite -- a outra peça (ex: "armario 2/2")
+        --    pode estar no chão enquanto o jogador segura só a primeira na mão.
+        --    Também previne o crash vanilla quando o item já está no chão.
         local radius = ISMoveableSpriteProps.multiSpriteFloorRadius or 2;
-        local square = _character:getSquare();
+        local square = _character.getSquare and _character:getSquare();
         if square then
             local sx,sy,sz = square:getX(), square:getY(), square:getZ();
             for x = sx-radius,sx+radius do
@@ -60,16 +81,9 @@ end
                         for i=0,items:size()-1 do
                             local wo = items:get(i)
                             if instanceof(wo, "IsoWorldInventoryObject") then
-                                local item = wo:getItem();
-                                if item and instanceof(item, "Moveable") and item:getWorldSprite() then
-                                    if (item:getWorldSprite() == _spriteName) then
-                                        return item;
-                                    else
-                                        local worldSprite = getSprite(item:getWorldSprite());
-                                        if worldSprite and worldSprite:getSpriteGrid() and worldSprite:getSpriteGrid():getAnchorSprite() and worldSprite:getSpriteGrid():getAnchorSprite():getName() == _spriteName then
-                                            return item;
-                                        end
-                                    end
+                                local item = wo.getItem and wo:getItem();
+                                if item and instanceof(item, "Moveable") and spriteMatches(item) then
+                                    return item;
                                 end
                             end
                         end
@@ -82,24 +96,44 @@ end
     function ISMoveableSpriteProps:findInInventoryMultiSprite( _character, _spriteName )
         if not _character or not _spriteName then return end
         
+        local function itemMatches( item )
+            if not item then return false end
+            if self.customItem and item.getFullType and (item:getFullType() == self.customItem) and item.getName and (item:getName() == self.name) then
+                return true
+            end
+            if item.getCustomNameFull and item:getCustomNameFull() == _spriteName then
+                return true
+            end
+            return false
+        end
+
         local allItems = {}
         getAllMoveables(_character, allItems)
         
         for _, item in ipairs(allItems) do
-            if self.customItem and (item:getFullType() == self.customItem) and (item:getName() == self.name) then
+            if itemMatches(item) then
                 return item, item:getContainer() or _character:getInventory()
             end
-            if item:getCustomNameFull() then
-                -- Removido o check de item nas mãos!
-                if item:getCustomNameFull() == _spriteName then
-                    return item, item:getContainer() or _character:getInventory()
+        end
+
+        -- Inventário completo (inclui mãos/vestidos): o walkToAndEquip pode ter
+        -- desequipado o móvel pra equipar a ferramenta — o móvel volta pro
+        -- inventário. Sem essa busca o servidor não encontra a peça.
+        if _character.getInventory then
+            local items = _character:getInventory():getItems();
+            if items then
+                for i=0,items:size()-1 do
+                    local item = items:get(i);
+                    if item and instanceof(item, "Moveable") and itemMatches(item) then
+                        return item, item.getContainer and item:getContainer() or _character:getInventory()
+                    end
                 end
             end
         end
 
         -- Vanilla logic for searching the floor around the player
         local radius = ISMoveableSpriteProps.multiSpriteFloorRadius;
-        local square = _character:getSquare();
+        local square = _character.getSquare and _character:getSquare();
         if square then
             local sx,sy,sz = square:getX(), square:getY(), square:getZ();
             for x = sx-radius,sx+radius do
@@ -110,14 +144,9 @@ end
                         for i=0,items:size()-1 do
                             local wo = items:get(i)
                             if instanceof(wo, "IsoWorldInventoryObject") then
-                                local item = wo:getItem();
-                                if item and instanceof(item, "Moveable") then
-                                    if self.customItem and (item:getFullType() == self.customItem) and (item:getName() == self.name) then
-                                        return item, "floor";
-                                    end
-                                    if item:getCustomNameFull() == _spriteName then
-                                        return item, "floor";
-                                    end
+                                local item = wo.getItem and wo:getItem();
+                                if item and instanceof(item, "Moveable") and itemMatches(item) then
+                                    return item, "floor";
                                 end
                             end
                         end

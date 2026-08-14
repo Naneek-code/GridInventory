@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Alle rugzakken tonen (Speler)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Wanneer ingeschakeld (standaard) worden alle geopende rugzakken weergegeven in het inventarisraster van de speler. Schakel uit om alleen de geselecteerde container weer te geven (betere prestaties).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Alle loot-containers tonen",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Wanneer ingeschakeld (standaard) worden alle loot-containers op het scherm weergegeven. Schakel uit om alleen de actieve container weer te geven (betere prestaties)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Wanneer ingeschakeld (standaard) worden alle loot-containers op het scherm weergegeven. Schakel uit om alleen de actieve container weer te geven (betere prestaties).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Inventarispaneels sluiten met ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Wanneer ingeschakeld (standaard), sluit het indrukken van ESC de inventaris-, loot- en PaperDoll-panelen in plaats van het hoofdmenu te openen. Schakel uit om het oorspronkelijke gedrag te herstellen (ESC opent altijd het hoofdmenu).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

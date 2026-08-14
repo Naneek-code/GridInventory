@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Tampilkan semua ransel (Pemain)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Saat diaktifkan (default), semua ransel yang terbuka dirender di grid inventaris pemain. Nonaktifkan untuk hanya merender wadah yang dipilih (performa lebih baik).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Tampilkan semua wadah loot",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Saat diaktifkan (default), semua wadah loot di layar dirender. Nonaktifkan untuk hanya merender wadah aktif (performa lebih baik)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Saat diaktifkan (default), semua wadah loot di layar dirender. Nonaktifkan untuk hanya merender wadah aktif (performa lebih baik).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Tutup panel inventaris dengan ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Saat diaktifkan (default), menekan ESC menutup panel inventaris, loot, dan PaperDoll alih-alih membuka menu utama. Nonaktifkan untuk mengembalikan perilaku vanilla (ESC selalu membuka menu utama).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

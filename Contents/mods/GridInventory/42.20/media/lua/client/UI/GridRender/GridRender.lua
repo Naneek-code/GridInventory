@@ -26,7 +26,6 @@ GridRender = ISPanel:derive("GridRender")
 GridInventory_InTransit = GridInventory_InTransit or {}
 
 local GridRender = ISPanel:derive("GridRender")
-local GRID_PADDING = 10
 
 local ITEM_BG_COLOR = {r=0.4, g=0.4, b=0.4, a=0.5}
 local ITEM_BG_FROZEN = {r=0.2, g=0.6, b=0.9, a=0.5}
@@ -130,10 +129,16 @@ local function gridCapacity(container, playerObj)
 end
 
 function GridRender:new(x, y, gridCore, playerNum, inventoryContainer, gridIndex, containerItem, fallbackIcon, noHeader)
-    local headerH = 28
+    -- UI Scale (Mod Options): fator em % aplicado ao tamanho da célula, padding
+    -- e header. Default 1.0. O global é sincronizado pelo GridModOptions.
+    local uiScale = GridInventory_uiScale or 100
+    local scale = uiScale / 100
+    local headerH = math.floor(28 * scale)
     if noHeader then headerH = 0 end
-    local width = (gridCore.width * 40) + (GRID_PADDING * 2)
-    local height = (gridCore.height * 40) + (GRID_PADDING * 2) + headerH
+    local cellSize = math.floor(40 * scale)
+    local gridPadding = math.floor(10 * scale)
+    local width = (gridCore.width * cellSize) + (gridPadding * 2)
+    local height = (gridCore.height * cellSize) + (gridPadding * 2) + headerH
     local o = ISPanel:new(x, y, width, height)
     setmetatable(o, self)
     self.__index = self
@@ -143,7 +148,9 @@ function GridRender:new(x, y, gridCore, playerNum, inventoryContainer, gridIndex
     o.gridIndex = gridIndex or 1
     o.fallbackIcon = fallbackIcon
     o.headerH = headerH
-    o.cellSize = 40
+    o.cellSize = cellSize
+    o.gridPadding = gridPadding
+    o.uiScale = scale
     o.playerNum = playerNum or 0
     o.draggedItem = nil
     o.selectedItems = {}
@@ -656,7 +663,7 @@ function GridRender:render()
     local mouseY = self:getMouseY()
     
     if self.headerH and self.headerH > 0 then
-        self:drawRect(GRID_PADDING, GRID_PADDING, self.width - (GRID_PADDING*2), self.headerH - 4, 0.5, 0.1, 0.1, 0.1)
+        self:drawRect(self.gridPadding, self.gridPadding, self.width - (self.gridPadding*2), self.headerH - 4, 0.5, 0.1, 0.1, 0.1)
         
         local isActive = false
         local pInv = getPlayerInventory(self.playerNum)
@@ -671,9 +678,9 @@ function GridRender:render()
         end
         
         if isActive then
-            self:drawRectBorder(GRID_PADDING, GRID_PADDING, self.width - (GRID_PADDING*2), self.headerH - 4, 0.9, 1.0, 0.9, 0.3)
+            self:drawRectBorder(self.gridPadding, self.gridPadding, self.width - (self.gridPadding*2), self.headerH - 4, 0.9, 1.0, 0.9, 0.3)
         else
-            self:drawRectBorder(GRID_PADDING, GRID_PADDING, self.width - (GRID_PADDING*2), self.headerH - 4, 0.8, 0.3, 0.3, 0.3)
+            self:drawRectBorder(self.gridPadding, self.gridPadding, self.width - (self.gridPadding*2), self.headerH - 4, 0.8, 0.3, 0.3, 0.3)
         end
         
         local text = ""
@@ -707,9 +714,9 @@ function GridRender:render()
             text = text .. " (Overflow)"
         end
         
-        local textX = GRID_PADDING + 5
+        local textX = self.gridPadding + 5
         if tex then
-            self:drawTextureScaledAspect(tex, textX, GRID_PADDING + 2, 20, 20, 1, 1, 1, 1)
+            self:drawTextureScaledAspect(tex, textX, self.gridPadding + 2, 20, 20, 1, 1, 1, 1)
             textX = textX + 25
         end
 
@@ -755,14 +762,14 @@ function GridRender:render()
         end
 
         -- ── NOME: agora que já sabemos quanto espaço sobra, trunca e desenha.
-        local titleMaxWidth = (self.width - GRID_PADDING - 5) - textX - weightReservedWidth
+        local titleMaxWidth = (self.width - self.gridPadding - 5) - textX - weightReservedWidth
         local displayText = truncateText(text, titleMaxWidth, UIFont.Small)
-        self:drawText(displayText, textX, GRID_PADDING + 4, 0.9, 0.9, 0.9, 1, UIFont.Small)
+        self:drawText(displayText, textX, self.gridPadding + 4, 0.9, 0.9, 0.9, 1, UIFont.Small)
 
         -- ── PESO: desenha por último, já com texto e cor prontos de antes.
         if weightStr then
-            local rightX = self.width - GRID_PADDING - 5
-            self:drawTextRight(weightStr, rightX, GRID_PADDING + 4, weightR, weightG, weightB, 1, UIFont.Small)
+            local rightX = self.width - self.gridPadding - 5
+            self:drawTextRight(weightStr, rightX, self.gridPadding + 4, weightR, weightG, weightB, 1, UIFont.Small)
         end
 
         -- ── BUSCA (Tarkov): aviso "Vasculhar (X)" no header enquanto houver
@@ -774,19 +781,19 @@ function GridRender:render()
                 searchText = searchText .. " (" .. tostring(hidden) .. ")"
             end
             local sw = getTextManager():MeasureStringX(UIFont.Small, searchText)
-            local rightX = self.width - GRID_PADDING - 5
+            local rightX = self.width - self.gridPadding - 5
             if weightStr then
                 rightX = rightX - (getTextManager():MeasureStringX(UIFont.Small, weightStr) + 10)
             end
-            self:drawTextRight(searchText, rightX, GRID_PADDING + 4, 1.0, 0.75, 0.3, 1, UIFont.Small)
+            self:drawTextRight(searchText, rightX, self.gridPadding + 4, 1.0, 0.75, 0.3, 1, UIFont.Small)
         end
     end
 
     -- Desenha a malha do grid (os quadrados de cada slot)
     for col = 1, self.gridCore.width do
         for row = 1, self.gridCore.height do
-            local cellX = GRID_PADDING + ((col - 1) * self.cellSize)
-            local cellY = GRID_PADDING + (self.headerH or 0) + ((row - 1) * self.cellSize)
+            local cellX = self.gridPadding + ((col - 1) * self.cellSize)
+            local cellY = self.gridPadding + (self.headerH or 0) + ((row - 1) * self.cellSize)
             
             -- Mantém a transparência natural preta, desenhando APENAS a borda
             self:drawRectBorder(cellX, cellY, self.cellSize, self.cellSize, 0.15, 0.5, 0.5, 0.5)
@@ -831,8 +838,8 @@ function GridRender:render()
         local isDragged = GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid == self and GridInventory_GlobalDrag.itemsMap[itemId]
         
         if not isDragged then
-            local drawX = GRID_PADDING + ((data.x - 1) * self.cellSize)
-            local drawY = GRID_PADDING + (self.headerH or 0) + ((data.y - 1) * self.cellSize)
+            local drawX = self.gridPadding + ((data.x - 1) * self.cellSize)
+            local drawY = self.gridPadding + (self.headerH or 0) + ((data.y - 1) * self.cellSize)
             
             local drawW = data.w * self.cellSize
             local drawH = data.h * self.cellSize
@@ -1033,8 +1040,8 @@ function GridRender:render()
 
     if self.gridCore.ghostItems then
         for gId, gData in pairs(self.gridCore.ghostItems) do
-            local drawX = GRID_PADDING + ((gData.x - 1) * self.cellSize)
-            local drawY = GRID_PADDING + (self.headerH or 0) + ((gData.y - 1) * self.cellSize)
+            local drawX = self.gridPadding + ((gData.x - 1) * self.cellSize)
+            local drawY = self.gridPadding + (self.headerH or 0) + ((gData.y - 1) * self.cellSize)
             local drawW = gData.w * self.cellSize
             local drawH = gData.h * self.cellSize
             
@@ -1227,8 +1234,8 @@ end
 -- ============================================================================
 
 function GridRender:getGridCellAtMouse(x, y)
-    local col = math.floor((x - GRID_PADDING) / self.cellSize) + 1
-    local row = math.floor((y - GRID_PADDING - (self.headerH or 0)) / self.cellSize) + 1
+    local col = math.floor((x - self.gridPadding) / self.cellSize) + 1
+    local row = math.floor((y - self.gridPadding - (self.headerH or 0)) / self.cellSize) + 1
     if col >= 1 and col <= self.gridCore.width and row >= 1 and row <= self.gridCore.height then
         return col, row
     end
@@ -1318,8 +1325,8 @@ function GridRender:drawDropPreview()
     -- então a GlobalDragRender não desenha fundo/borda por cima dele.
     GridInventory_DropPreview = { grid = self, dragRef = GridInventory_GlobalDrag }
 
-    local px = GRID_PADDING + ((targetX - 1) * self.cellSize)
-    local py = GRID_PADDING + (self.headerH or 0) + ((targetY - 1) * self.cellSize)
+    local px = self.gridPadding + ((targetX - 1) * self.cellSize)
+    local py = self.gridPadding + (self.headerH or 0) + ((targetY - 1) * self.cellSize)
     local pw = effectiveW * self.cellSize
     local ph = effectiveH * self.cellSize
 
@@ -1333,8 +1340,8 @@ function GridRender:drawDropPreview()
         self:drawRect(px, py, pw, ph, 0.3, 0.9, 0.2, 0.2)
         self:drawRectBorder(px, py, pw, ph, 0.85, 1.0, 0.3, 0.3)
         if snapX and snapY then
-            local sx = GRID_PADDING + ((snapX - 1) * self.cellSize)
-            local sy = GRID_PADDING + (self.headerH or 0) + ((snapY - 1) * self.cellSize)
+            local sx = self.gridPadding + ((snapX - 1) * self.cellSize)
+            local sy = self.gridPadding + (self.headerH or 0) + ((snapY - 1) * self.cellSize)
             self:drawRectBorder(sx, sy, pw, ph, 0.9, 0.3, 1.0, 0.45)
         end
     end
@@ -1363,7 +1370,7 @@ function GridRender:onMouseDown(x, y)
 
     -- Verifica se clicou no Header!
     if self.headerH and self.headerH > 0 then
-        if y >= GRID_PADDING and y <= GRID_PADDING + self.headerH then
+        if y >= self.gridPadding and y <= self.gridPadding + self.headerH then
             local pLoot = getPlayerLoot(self.playerNum)
             local pInv = getPlayerInventory(self.playerNum)
             local found = false
@@ -1943,8 +1950,8 @@ function GridRender:onMouseUp(x, y)
         local rh = math.abs(mY - self.marquisStartY)
         
         for itemId, data in pairs(self.gridCore.items) do
-            local itemX = GRID_PADDING + ((data.x - 1) * self.cellSize)
-            local itemY = GRID_PADDING + (self.headerH or 0) + ((data.y - 1) * self.cellSize)
+            local itemX = self.gridPadding + ((data.x - 1) * self.cellSize)
+            local itemY = self.gridPadding + (self.headerH or 0) + ((data.y - 1) * self.cellSize)
             local itemW = data.w * self.cellSize
             local itemH = data.h * self.cellSize
             
@@ -2398,7 +2405,7 @@ function GridRender:onRightMouseUp(x, y)
     -- menu de ITEM (a bolsa principal é um item), então usamos o container
     -- contendo (se existir) ou o próprio inventário como item falso.
     if self.headerH and self.headerH > 0 then
-        if y >= GRID_PADDING and y <= GRID_PADDING + self.headerH then
+        if y >= self.gridPadding and y <= self.gridPadding + self.headerH then
             local container = self.inventoryContainer
             if container then
                 -- Acha o BOTÃO REAL da coluna de containers que representa este

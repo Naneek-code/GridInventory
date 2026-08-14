@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Zobrazit všechny batohy (Hráč)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Když je zapnuto (výchozí), všechny otevřené batohy se zobrazí v mřížce hráčova inventáře. Vypnutím zobrazíte pouze vybraný kontejner (lepší výkon).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Zobrazit všechny loot kontejnery",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Když je zapnuto (výchozí), zobrazí se všechny loot kontejnery na obrazovce. Vypnutím zobrazíte pouze aktivní kontejner (lepší výkon)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Když je zapnuto (výchozí), zobrazí se všechny loot kontejnery na obrazovce. Vypnutím zobrazíte pouze aktivní kontejner (lepší výkon).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Zavírat panely inventáře klávesou ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Když je zapnuto (výchozí), stisknutí ESC zavře panely inventáře, lootu a PaperDoll místo otevření hlavní nabídky. Vypnutím obnovíte původní chování (ESC vždy otevře hlavní nabídku).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

@@ -43,7 +43,10 @@ function ISInventoryPage:createChildren()
     end
 
     if self.onCharacter then
-        local paperDollWidth = 350
+        -- Largura do PaperDoll acompanha o UI Scale (slots laterais maiores).
+        local uiScale = GridInventory_uiScale or 100
+        local scale = uiScale / 100
+        local paperDollWidth = math.floor(350 * scale)
         
         -- Cria a janela Sidecar do PaperDoll
         local paperDoll = PaperDollWindow:new(0, 0, paperDollWidth, self.height, self.player)
@@ -86,7 +89,10 @@ function ISInventoryPage:update()
     local core = getCore()
     local screenW = core:getScreenWidth()
     local screenH = core:getScreenHeight()
-    local paperDollW = 350
+    -- Largura do PaperDoll acompanha o UI Scale (senão os slots laterais
+    -- maiores estouram a largura reservada).
+    local uiScale = GridInventory_uiScale or 100
+    local paperDollW = math.floor(350 * (uiScale / 100))
 
     -- Mod Option "Fullscreen Panel": ligada (padrão) = o painel ocupa metade
     -- da tela e NÃO pode ser redimensionado. Desligada = o painel volta ao
@@ -95,7 +101,25 @@ function ISInventoryPage:update()
 
     local panelW
     if isFullscreen then
+        -- Base: metade da tela (descontando o PaperDoll). Com UI Scale alto, o
+        -- grid interno pode exigir MAIS largura que a metade — expandimos até
+        -- caber o grid ativo, limitado à largura máxima disponível na tela.
         panelW = (screenW - paperDollW) / 2
+        local maxW = screenW - paperDollW
+        local gridW = 0
+        if self.inventoryPane and self.inventoryPane.gridContainerUis then
+            for _, g in ipairs(self.inventoryPane.gridContainerUis) do
+                if not g.isOverflow then
+                    gridW = math.max(gridW, g:getWidth())
+                end
+            end
+        end
+        if gridW > 0 then
+            local needed = gridW + self.buttonSize
+            if needed > panelW then
+                panelW = math.min(needed, maxW)
+            end
+        end
     else
         panelW = self.width
     end

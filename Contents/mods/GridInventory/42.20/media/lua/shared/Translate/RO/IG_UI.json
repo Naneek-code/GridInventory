@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Arată toate rucsacurile (Jucător)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Când este activat (implicit), toate rucsacurile deschise sunt randate în grila de inventar a jucătorului. Dezactivați pentru a randa doar containerul selectat (performanță mai bună).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Arată toate containerele de loot",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Când este activat (implicit), toate containerele de loot de pe ecran sunt randate. Dezactivați pentru a randa doar containerul activ (performanță mai bună)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Când este activat (implicit), toate containerele de loot de pe ecran sunt randate. Dezactivați pentru a randa doar containerul activ (performanță mai bună).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Închide panourile de inventar cu ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Când este activat (implicit), apăsarea ESC închide panourile de inventar, loot și PaperDoll în loc să deschidă meniul principal. Dezactivați pentru a restaura comportamentul original (ESC deschide întotdeauna meniul principal).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

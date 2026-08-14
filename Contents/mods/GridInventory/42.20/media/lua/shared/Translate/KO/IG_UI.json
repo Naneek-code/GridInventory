@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "모든 배낭 표시 (플레이어)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "활성화(기본)되면 열려 있는 모든 배낭이 플레이어 인벤토리 그리드에 표시됩니다. 비활성화하면 선택한 컨테이너만 표시됩니다(성능 향상).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "모든 전리품 컨테이너 표시",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "활성화(기본)되면 화면의 모든 전리품 컨테이너가 표시됩니다. 비활성화하면 활성 컨테이너만 표시됩니다(성능 향상)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "활성화(기본)되면 화면의 모든 전리품 컨테이너가 표시됩니다. 비활성화하면 활성 컨테이너만 표시됩니다(성능 향상).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "ESC로 인벤토리 패널 닫기",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "활성화(기본)되면 ESC 키를 누르면 메인 메뉴를 여는 대신 인벤토리, 전리품, PaperDoll 패널을 닫습니다. 비활성화하면 기본 동작(ESC는 항상 메인 메뉴 열기)으로 복원됩니다.",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

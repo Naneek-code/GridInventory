@@ -1,12 +1,19 @@
 --- ISMoveableCursor_Patch.lua
 --- Continuação do patch para móveis: permite que o cursor de placement
---- encontre e acesse itens (Moveables) que estão equipados nas mãos.
+--- encontre e acesse itens (Moveables) que estão equipados nas mãos,
+--- e garante que o place não dependa do móvel estar nas mãos (MP).
 
 Events.OnGameStart.Add(function()
     if not ISMoveableCursor then
         print("[GridInventory] ERRO CRÍTICO: ISMoveableCursor não encontrado!")
         return
     end
+
+local GridClientNetwork = GridClientNetwork
+if not GridClientNetwork then
+    local ok, mod = pcall(require, "Network/GridClientNetwork")
+    if ok then GridClientNetwork = mod end
+end
 
 local function getAllMoveables(playerObj, resultList)
     local seen = {}
@@ -311,5 +318,33 @@ function ISMoveableCursor:isValid( _square )
     
     return false;
 end
+
+-- FIX (place em MP): o vanilla walkToAndEquip equipa a ferramenta (ex:
+-- martelo) na mão primária. Se o móvel a colocar estiver na mão, o martelo
+-- o desequipa e o place falha. Aqui DESEQUIPAMOS o móvel alvo da mão ANTES
+-- do vanilla equipar a ferramenta: o martelo vai para a mão livre, o móvel
+-- fica no inventário, e o placeMoveable (server) o encontra lá.
+    local og_walkToAndEquip = ISMoveableSpriteProps.walkToAndEquip
+    function ISMoveableSpriteProps:walkToAndEquip(_character, _square, _mode, _origSpriteName)
+        if _mode == "place" and _character and _origSpriteName then
+            local target = self:findInInventory(_character, _origSpriteName)
+            if target then
+                local primary = _character.getPrimaryHandItem and _character:getPrimaryHandItem()
+                local secondary = _character.getSecondaryHandItem and _character:getSecondaryHandItem()
+                if (primary == target) or (secondary == target) then
+                    -- Tira da mão → vai pro inventário principal (overflow).
+                    _character:removeFromHands(target)
+                    -- Sincroniza a mão vazia com o servidor (o vanilla não
+                    -- broadcasta a mão vazia no MP).
+                    if GridClientNetwork and GridClientNetwork.clearHandItem and target.getID then
+                        GridClientNetwork.clearHandItem(target:getID())
+                    end
+                    if sendEquip then sendEquip(_character) end
+                end
+            end
+        end
+
+        return og_walkToAndEquip(self, _character, _square, _mode, _origSpriteName)
+    end
 
 end)

@@ -19,9 +19,15 @@ local GridAdmin = require("System/GridAdmin")
 --- override seria aplicado LOCALMENTE (applyOverrides + clearCaches) antes do
 --- servidor rejeitar — o não-admin veria o item ajustado na própria grid mesmo
 --- sem broadcast. Então o menu nem aparece e o save não aplica pra não-admin.
---- SP (host): -debug ou sandbox option ligada. MP: SÓ admin.
+--- Regras:
+---   * SP (host): -debug OU sandbox option ligada.
+---   * MP: SÓ admin E sandbox option ligada — admin role sem o DevTools ligado
+---     no Sandbox Options NÃO vê o menu (a option é o gate global do recurso).
 local function canUseDevTools(player)
+    local GridSandboxOptions = require("GridSandboxOptions")
+    local enabled = GridSandboxOptions.isDevToolsEnabled()
     if isClient() then
+        if not enabled then return false end
         -- O hook OnFillInventoryObjectContextMenu passa o NÚMERO do jogador
         -- (não o IsoPlayer!). Resolve o IsoPlayer local antes de checar admin.
         local playerObj = player
@@ -33,8 +39,7 @@ local function canUseDevTools(player)
         end
         return GridAdmin.isAdmin(playerObj)
     end
-    local GridSandboxOptions = require("GridSandboxOptions")
-    return isDebugEnabled() or GridSandboxOptions.isDevToolsEnabled()
+    return isDebugEnabled() or enabled
 end
 
 -----------------------------------------------------------------------------------------
@@ -284,13 +289,33 @@ function GridDevToolUI:onSave()
     -- w/h (footprint) só fazem sentido quando o alvo TEM um item real. Container
     -- de mundo / inventário do jogador: só cols/rows (grid) + stackable/maxStack.
     local hasItem = (self.item ~= nil)
-    GridDevTool.applyOverrides(self.fullType,
-        hasItem and self.tempData.w or nil,
-        hasItem and self.tempData.h or nil,
-        self.isContainer and self.tempData.cols or nil,
-        self.isContainer and self.tempData.rows or nil,
-        self.tempData.stackable,
-        self.tempData.maxStackAuto and nil or self.tempData.maxStack)
+    -- CHAVES DE OVERRIDE: footprint do item usa o fullType PURO (ItemFootprint
+    -- procura por "Base.Knife"), enquanto o grid do container usa a chave de
+    -- grid (getOverrideKey: "item:Base.Bag", "worldobj:crate", "player").
+    -- Aplicamos em CADA chave separadamente — antes isso gravava tudo numa
+    -- chave só (o container), então W/H de itens e cols/rows de bags iam pro
+    -- lugar errado e o servidor "ignorava" (a chave não batia com o lookup).
+    local gridKey = self.fullType
+    local footprintKey = self.itemFullType or (self.item and self.item.getFullType and self.item:getFullType()) or nil
+
+    -- cols/rows (grid do container) → chave de grid.
+    if self.isContainer and gridKey and (self.tempData.cols or self.tempData.rows) then
+        GridDevTool.applyOverrides(gridKey,
+            nil, nil,
+            self.tempData.cols, self.tempData.rows,
+            nil, nil)
+    end
+
+    -- W/H/stackable/maxStack (footprint do item) → fullType puro. Só quando há
+    -- um item real de referência (bag/item). Para o inventário do jogador e
+    -- containers de mundo sem item, não há footprint pra gravar.
+    if hasItem and footprintKey then
+        GridDevTool.applyOverrides(footprintKey,
+            self.tempData.w, self.tempData.h,
+            nil, nil,
+            self.tempData.stackable,
+            self.tempData.maxStackAuto and nil or self.tempData.maxStack)
+    end
     -- MP server-mandatory: envia pro servidor aplicar (autoridade) + broadcast.
     GridClientNetwork.sendOverrides(GridDevTool.Overrides)
 

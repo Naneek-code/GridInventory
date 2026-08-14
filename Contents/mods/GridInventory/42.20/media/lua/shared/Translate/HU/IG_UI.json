@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Összes hátizsák megjelenítése (Játékos)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Amikor engedélyezve van (alapértelmezett), az összes nyitott hátizsák megjelenik a játékos inventár rácsában. Kapcsold ki, hogy csak a kiválasztott tároló jelenjen meg (jobb teljesítmény).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Összes loot tároló megjelenítése",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Amikor engedélyezve van (alapértelmezett), a képernyőn lévő összes loot tároló megjelenik. Kapcsold ki, hogy csak az aktív tároló jelenjen meg (jobb teljesítmény)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Amikor engedélyezve van (alapértelmezett), a képernyőn lévő összes loot tároló megjelenik. Kapcsold ki, hogy csak az aktív tároló jelenjen meg (jobb teljesítmény).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Inventárpanelek bezárása ESC-sel",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Amikor engedélyezve van (alapértelmezett), az ESC lenyomása bezárja az inventár-, loot- és PaperDoll-paneleket a főmenü megnyitása helyett. Kapcsold ki az eredeti viselkedés visszaállításához (az ESC mindig a főmenüt nyitja meg).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

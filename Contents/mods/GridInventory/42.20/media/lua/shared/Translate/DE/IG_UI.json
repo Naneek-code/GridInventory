@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Alle Rucksäcke anzeigen (Spieler)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Wenn aktiviert (Standard), werden alle geöffneten Rucksäcke im Inventar-Raster des Spielers dargestellt. Deaktivieren, um nur den ausgewählten Behälter darzustellen (bessere Leistung).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Alle Beute-Behälter anzeigen",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Wenn aktiviert (Standard), werden alle Beute-Behälter auf dem Bildschirm dargestellt. Deaktivieren, um nur den aktiven Behälter darzustellen (bessere Leistung)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Wenn aktiviert (Standard), werden alle Beute-Behälter auf dem Bildschirm dargestellt. Deaktivieren, um nur den aktiven Behälter darzustellen (bessere Leistung).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Inventarpanels mit ESC schließen",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Wenn aktiviert (Standard), schließt das Drücken von ESC die Inventar-, Beute- und PaperDoll-Panels, anstatt das Hauptmenü zu öffnen. Deaktivieren, um das ursprüngliche Verhalten wiederherzustellen (ESC öffnet immer das Hauptmenü).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

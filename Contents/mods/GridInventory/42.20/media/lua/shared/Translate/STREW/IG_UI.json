@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Strewberrie Strewberrie (Strewberrie)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie. Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie.",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Strewberrie Strewberrie Strewberrie",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie. Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie. Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie.",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Strewberrie Strewberrie Strewberrie",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Strewberrie (Strewberrie) Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie. Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie.",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

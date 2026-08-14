@@ -24,6 +24,8 @@ GridModOptions.cache = GridModOptions.cache or {
     fullscreenPanel = true,
     multiContainerInv = true,
     multiContainerLoot = true,
+    closeOnEsc = true,
+    uiScale = 100,
 }
 
 local cache = GridModOptions.cache
@@ -32,12 +34,21 @@ local DEFAULTS = {
     fullscreenPanel = true,
     multiContainerInv = true,
     multiContainerLoot = true,
+    closeOnEsc = true,
+    uiScale = 100,
 }
 
 local function toBool(value, default)
     if value == nil then return default end
     if type(value) == "boolean" then return value end
     return value == true or value == "true" or value == "1" or value == 1
+end
+
+local function toNumber(value, default)
+    if value == nil then return default end
+    local n = tonumber(value)
+    if n == nil then return default end
+    return n
 end
 
 local function split(line, sep)
@@ -63,7 +74,11 @@ local function applyIni()
             if parts[2] == "GridInventory" and parts[3] and parts[4] ~= nil then
                 -- O PZAPI grava o ini com \r\n; o readLine pode manter o \r.
                 local value = parts[4]:gsub("\r$", ""):gsub("%s+$", "")
-                cache[parts[3]] = toBool(value, cache[parts[3]])
+                if parts[3] == "uiScale" then
+                    cache[parts[3]] = toNumber(value, DEFAULTS[parts[3]])
+                else
+                    cache[parts[3]] = toBool(value, cache[parts[3]])
+                end
             end
         end
     end)
@@ -88,7 +103,11 @@ local function syncFromPZAPI()
         if option then
             local okv, value = pcall(function() return option:getValue() end)
             if okv then
-                cache[id] = toBool(value, default)
+                if id == "uiScale" then
+                    cache[id] = toNumber(value, default)
+                else
+                    cache[id] = toBool(value, default)
+                end
             end
         end
     end
@@ -107,6 +126,26 @@ local function refreshPanes()
                 pane.lastBackpackHash = nil
                 pcall(function() pane:refreshContainer() end)
             end
+        end
+    end
+end
+
+-- Atualiza a largura do PaperDoll quando o UI Scale muda. O conteúdo interno
+-- (avatar/slots/hotbar) é reposicionado pelo relayout() do próprio PaperDoll
+-- (detectado no prerender ao comparar o scale global). Aqui só ajustamos a
+-- largura da janela — sem destruir/recriar (que causava gap de altura).
+local function refreshPaperDoll()
+    local scale = GridInventory_uiScale or 100
+    for p = 0, getNumActivePlayers() - 1 do
+        local pdMap = GridInventory_PaperDollWindow
+        local pd = pdMap and pdMap[p]
+        if pd then
+            local s = scale / 100
+            local pdW = math.floor(350 * s)
+            pcall(function()
+                if pd.setWidth then pd:setWidth(pdW) end
+                if pd.relayout then pd:relayout() end
+            end)
         end
     end
 end
@@ -132,13 +171,25 @@ local function registerOptions()
     section:addTickBox("multiContainerLoot",
         getText("IGUI_GridInv_OptionsMultiContainerLoot"), true,
         getText("IGUI_GridInv_OptionsMultiContainerLoot_Tooltip"))
+    section:addSeparator()
+    section:addTickBox("closeOnEsc",
+        getText("IGUI_GridInv_OptionsCloseOnEsc"), true,
+        getText("IGUI_GridInv_OptionsCloseOnEsc_Tooltip"))
+    section:addSeparator()
+    section:addSlider("uiScale",
+        getText("IGUI_GridInv_OptionsUiScale"), 50, 150, 5, 100,
+        getText("IGUI_GridInv_OptionsUiScale_Tooltip"))
 
     -- Chamado pelo jogo (MainOptions:apply) quando o usuário clica em OK na
     -- aba MODS: a UI já gravou os valores; só re-sincronizamos o cache.
     section.apply = function()
         syncFromPZAPI()
-        -- Força rebuild imediato dos grids para a troca de multiContainer valer
-        -- na hora (sem esperar o próximo evento de container).
+        -- Mantém o global de scale em sincronia pro render usar na hora.
+        GridInventory_uiScale = GridModOptions.getUiScale()
+        -- Recria o PaperDoll se o scale mudou (dimensões são fixas no init).
+        refreshPaperDoll()
+        -- Força rebuild imediato dos grids para as options valerem na hora
+        -- (sem esperar o próximo evento de container).
         refreshPanes()
     end
     return true
@@ -163,10 +214,12 @@ applyIni()
 Events.OnMainMenuEnter.Add(function()
     tryRegister()
     applyIni()
+    GridInventory_uiScale = GridModOptions.getUiScale()
 end)
 Events.OnGameStart.Add(function()
     tryRegister()
     applyIni()
+    GridInventory_uiScale = GridModOptions.getUiScale()
 end)
 
 function GridModOptions.isFullscreenPanel()
@@ -180,5 +233,21 @@ end
 function GridModOptions.isMultiContainerLoot()
     return cache.multiContainerLoot
 end
+
+function GridModOptions.isCloseOnEsc()
+    return cache.closeOnEsc
+end
+
+-- Fator de escala da UI dos grids (%). 100 = tamanho original.
+function GridModOptions.getUiScale()
+    local s = toNumber(cache.uiScale, 100)
+    if s < 50 then s = 50 end
+    if s > 150 then s = 150 end
+    return s
+end
+
+-- Global leve usado pelos renders (GridRender/OverflowGridRender/GlobalDragRender)
+-- pra calcular o cellSize sem require circular. Mantido em sincronia com o cache.
+GridInventory_uiScale = GridModOptions.getUiScale()
 
 return GridModOptions

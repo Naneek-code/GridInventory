@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Mostrar totes les motxilles (Jugador)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Quan està activat (per defecte), totes les motxilles obertes es mostren a la quadrícula de l'inventari del jugador. Desactiva-ho per mostrar només el contenidor seleccionat (millor rendiment).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Mostrar tots els contenidors de botí",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Quan està activat (per defecte), tots els contenidors de botí en pantalla es mostren. Desactiva-ho per mostrar només el contenidor actiu (millor rendiment)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Quan està activat (per defecte), tots els contenidors de botí en pantalla es mostren. Desactiva-ho per mostrar només el contenidor actiu (millor rendiment).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Tanca els panells d'inventari amb ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Quan està activat (per defecte), prémer ESC tanca els panells d'inventari, botí i PaperDoll en lloc d'obrir el menú principal. Desactiva-ho per restaurar el comportament original (ESC sempre obre el menú principal).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Näytä kaikki reput (Pelaaja)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Kun käytössä (oletus), kaikki avoimet reput renderöidään pelaajan inventaariruudukkoon. Poista käytöstä renderöidäksesi vain valitun säiliön (parempi suorituskyky).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Näytä kaikki loot-säiliöt",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Kun käytössä (oletus), kaikki näytöllä olevat loot-säiliöt renderöidään. Poista käytöstä renderöidäksesi vain aktiivisen säiliön (parempi suorituskyky)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Kun käytössä (oletus), kaikki näytöllä olevat loot-säiliöt renderöidään. Poista käytöstä renderöidäksesi vain aktiivisen säiliön (parempi suorituskyky).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Sulje inventaaripaneelit ESC-näppäimellä",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Kun käytössä (oletus), ESC-näppäimen painaminen sulkee inventaario-, loot- ja PaperDoll-paneelit sen sijaan, että avaisi päävalikon. Poista käytöstä palauttaaksesi alkuperäisen toiminnan (ESC avaa aina päävalikon).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

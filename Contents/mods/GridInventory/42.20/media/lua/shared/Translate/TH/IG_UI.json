@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "แสดงกระเป๋าเป้ทั้งหมด (ผู้เล่น)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "เมื่อเปิด (ค่าเริ่มต้น) กระเป๋าเป้ที่เปิดอยู่ทั้งหมดจะแสดงในกริดอินเวนทอรีของผู้เล่น ปิดเพื่อแสดงเฉพาะภาชนะที่เลือก (ประสิทธิภาพดีขึ้น)",
     "IGUI_GridInv_OptionsMultiContainerLoot": "แสดงภาชนะเก็บของทั้งหมด",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "เมื่อเปิด (ค่าเริ่มต้น) ภาชนะเก็บของทั้งหมดบนหน้าจอจะแสดง ปิดเพื่อแสดงเฉพาะภาชนะที่ใช้งานอยู่ (ประสิทธิภาพดีขึ้น)"
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "เมื่อเปิด (ค่าเริ่มต้น) ภาชนะเก็บของทั้งหมดบนหน้าจอจะแสดง ปิดเพื่อแสดงเฉพาะภาชนะที่ใช้งานอยู่ (ประสิทธิภาพดีขึ้น)",
+    "IGUI_GridInv_OptionsCloseOnEsc": "ปิดแผงอินเวนทอรีด้วย ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "เมื่อเปิด (ค่าเริ่มต้น) การกด ESC จะปิดแผงอินเวนทอรี ลูต และ PaperDoll แทนที่จะเปิดเมนูหลัก ปิดเพื่อคืนพฤติกรรมดั้งเดิม (ESC เปิดเมนูหลักเสมอ)",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

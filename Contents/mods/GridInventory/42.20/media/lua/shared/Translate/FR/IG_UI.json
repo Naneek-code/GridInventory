@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Afficher tous les sacs à dos (Joueur)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Lorsqu'il est activé (par défaut), tous les sacs à dos ouverts sont affichés dans la grille d'inventaire du joueur. Désactivez-le pour n'afficher que le conteneur sélectionné (meilleures performances).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Afficher tous les conteneurs de loot",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Lorsqu'il est activé (par défaut), tous les conteneurs de loot à l'écran sont affichés. Désactivez-le pour n'afficher que le conteneur actif (meilleures performances)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Lorsqu'il est activé (par défaut), tous les conteneurs de loot à l'écran sont affichés. Désactivez-le pour n'afficher que le conteneur actif (meilleures performances).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Fermer les panneaux d'inventaire avec ÉCHAP",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Lorsqu'il est activé (par défaut), appuyer sur ÉCHAP ferme les panneaux d'inventaire, de loot et PaperDoll au lieu d'ouvrir le menu principal. Désactivez-le pour restaurer le comportement d'origine (ÉCHAP ouvre toujours le menu principal).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Mostrar todas las mochilas (Jugador)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Cuando está activado (por defecto), todas las mochilas abiertas se muestran en la cuadrícula del inventario del jugador. Desactívalo para mostrar solo el contenedor seleccionado (mejor rendimiento).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Mostrar todos los contenedores de botín",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Cuando está activado (por defecto), todos los contenedores de botín en pantalla se muestran. Desactívalo para mostrar solo el contenedor activo (mejor rendimiento)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Cuando está activado (por defecto), todos los contenedores de botín en pantalla se muestran. Desactívalo para mostrar solo el contenedor activo (mejor rendimiento).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Cerrar los paneles de inventario con ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Cuando está activado (por defecto), presionar ESC cierra los paneles de inventario, botín y PaperDoll en lugar de abrir el menú principal. Desactívalo para restaurar el comportamiento original (ESC siempre abre el menú principal).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

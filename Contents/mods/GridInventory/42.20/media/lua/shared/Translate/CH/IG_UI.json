@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "顯示所有背包（玩家）",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "啟用（預設）時，所有已打開的背包都會顯示在玩家背包網格中。停用以僅顯示選定的容器（更高效能）。",
     "IGUI_GridInv_OptionsMultiContainerLoot": "顯示所有戰利品容器",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "啟用（預設）時，螢幕上所有戰利品容器都會顯示。停用以僅顯示作用中的容器（更高效能）。"
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "啟用（預設）時，螢幕上所有戰利品容器都會顯示。停用以僅顯示作用中的容器（更高效能）。",
+    "IGUI_GridInv_OptionsCloseOnEsc": "用 ESC 關閉背包面板",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "啟用（預設）時，按 ESC 會關閉背包、戰利品和 PaperDoll 面板，而不是開啟主選單。停用以恢復原版行為（ESC 一律開啟主選單）。",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

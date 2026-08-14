@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Show all backpacks (Player)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "When enabled (default), all open backpacks are rendered in the player inventory grid. Disable to render only the selected container (better performance).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Show all loot containers",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "When enabled (default), all loot containers on screen are rendered. Disable to render only the active container (better performance)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "When enabled (default), all loot containers on screen are rendered. Disable to render only the active container (better performance).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Close inventory panels with ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "When enabled (default), pressing ESC closes the inventory, loot and PaperDoll panels instead of opening the main menu. Disable to restore the vanilla behavior (ESC always opens the main menu).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Показувати всі рюкзаки (Гравець)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Під час увімкнення (за замовчуванням) усі відкриті рюкзаки відображаються в сітці інвентаря гравця. Вимкніть, щоб відображати лише вибраний контейнер (краща продуктивність).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Показувати всі контейнери з здобиччю",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Під час увімкнення (за замовчуванням) усі контейнери з здобиччю на екрані відображаються. Вимкніть, щоб відображати лише активний контейнер (краща продуктивність)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Під час увімкнення (за замовчуванням) усі контейнери з здобиччю на екрані відображаються. Вимкніть, щоб відображати лише активний контейнер (краща продуктивність).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Закривати панелі інвентаря клавішею ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Під час увімкнення (за замовчуванням) натискання ESC закриває панелі інвентаря, здобичі та PaperDoll замість відкриття головного меню. Вимкніть, щоб відновити початкову поведінку (ESC завжди відкриває головне меню).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "すべてのバックパックを表示（プレイヤー）",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "有効（デフォルト）の場合、開いているすべてのバックパックがプレイヤーのインベントリグリッドに表示されます。無効にすると選択中のコンテナのみ表示されます（パフォーマンス向上）。",
     "IGUI_GridInv_OptionsMultiContainerLoot": "すべてのルートコンテナを表示",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "有効（デフォルト）の場合、画面上のすべてのルートコンテナが表示されます。無効にするとアクティブなコンテナのみ表示されます（パフォーマンス向上）。"
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "有効（デフォルト）の場合、画面上のすべてのルートコンテナが表示されます。無効にするとアクティブなコンテナのみ表示されます（パフォーマンス向上）。",
+    "IGUI_GridInv_OptionsCloseOnEsc": "ESCでインベントリパネルを閉じる",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "有効（デフォルト）の場合、ESCキーを押すとメインメニューを開く代わりに、インベントリ・ルート・PaperDollパネルを閉じます。無効にすると元の動作（ESCは常にメインメニューを開く）に戻ります。",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

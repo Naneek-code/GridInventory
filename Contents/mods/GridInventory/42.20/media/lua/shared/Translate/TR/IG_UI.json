@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Tüm sırt çantalarını göster (Oyuncu)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Etkinleştirildiğinde (varsayılan) açık tüm sırt çantaları oyuncu envanter ızgarasında gösterilir. Kapatarak yalnızca seçili konteyneri gösterin (daha iyi performans).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Tüm ganimet konteynerlerini göster",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Etkinleştirildiğinde (varsayılan) ekrandaki tüm ganimet konteynerleri gösterilir. Kapatarak yalnızca aktif konteyneri gösterin (daha iyi performans)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Etkinleştirildiğinde (varsayılan) ekrandaki tüm ganimet konteynerleri gösterilir. Kapatarak yalnızca aktif konteyneri gösterin (daha iyi performans).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "ESC ile envanter panellerini kapat",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Etkinleştirildiğinde (varsayılan), ESC tuşuna basmak ana menüyü açmak yerine envanter, ganimet ve PaperDoll panellerini kapatır. Orijinal davranışı geri getirmek için kapatın (ESC her zaman ana menüyü açar).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }

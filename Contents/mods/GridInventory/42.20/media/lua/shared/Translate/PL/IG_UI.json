@@ -57,5 +57,9 @@
     "IGUI_GridInv_OptionsMultiContainerInv": "Pokaż wszystkie plecaki (Gracz)",
     "IGUI_GridInv_OptionsMultiContainerInv_Tooltip": "Gdy włączone (domyślnie), wszystkie otwarte plecaki są renderowane w siatce ekwipunku gracza. Wyłącz, aby renderować tylko wybrany pojemnik (lepsza wydajność).",
     "IGUI_GridInv_OptionsMultiContainerLoot": "Pokaż wszystkie pojemniki z łupami",
-    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Gdy włączone (domyślnie), wszystkie pojemniki z łupami na ekranie są renderowane. Wyłącz, aby renderować tylko aktywny pojemnik (lepsza wydajność)."
+    "IGUI_GridInv_OptionsMultiContainerLoot_Tooltip": "Gdy włączone (domyślnie), wszystkie pojemniki z łupami na ekranie są renderowane. Wyłącz, aby renderować tylko aktywny pojemnik (lepsza wydajność).",
+    "IGUI_GridInv_OptionsCloseOnEsc": "Zamykaj panele ekwipunku klawiszem ESC",
+    "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Gdy włączone (domyślnie), naciśnięcie ESC zamyka panele ekwipunku, łupów i PaperDoll zamiast otwierania menu głównego. Wyłącz, aby przywrócić oryginalne zachowanie (ESC zawsze otwiera menu główne).",
+    "IGUI_GridInv_OptionsUiScale": "UI Scale",
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
 }
