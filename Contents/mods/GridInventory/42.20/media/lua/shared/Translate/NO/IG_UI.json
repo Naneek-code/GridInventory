@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Lukk inventarpaneler med ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Når aktivert (standard), lukker trykk på ESC inventar-, loot- og PaperDoll-panelene i stedet for å åpne hovedmenyen. Deaktiver for å gjenopprette den opprinnelige oppførselen (ESC åpner alltid hovedmenyen).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Rask overgang (lavere kvalitet)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Tegner gjenstandens fotavtrykksovergang med færre fargebånd (6 i stedet for 12), noe som halverer overgangens draw calls per gjenstand per frame. Overgangen ser grovere ut, men gjengivelsen er raskere.\n\nAv (standard): glatt overgang med 12 bånd.\n\nDette er en visuell innstilling per maskin; hver spiller velger sin egen."
+
 }

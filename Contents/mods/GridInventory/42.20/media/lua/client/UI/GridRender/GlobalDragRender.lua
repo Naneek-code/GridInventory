@@ -2,6 +2,7 @@ require "ISUI/ISUIElement"
 local GridRender = require "UI/GridRender/GridRender"
 local GridInventory_BagDrop = require "System/GridInventory_BagDrop"
 local ItemCategory = require "Algorithm/ItemCategory"
+local GridIconRotation = require "Algorithm/GridIconRotation"
 
 GridInventory_GlobalDrag = nil
 
@@ -132,7 +133,7 @@ function GlobalDragRender:render()
     end
 
     if anchorData.itemObj then
-        GridRender.drawItemIconRotated(self, anchorData.itemObj, drawX, drawY, drawW, drawH, anchorData.rotated, 1, 1, 1, 1)
+        GridRender.drawItemIconRotated(self, anchorData.itemObj, drawX, drawY, drawW, drawH, anchorData.rotated, 1, 1, 1, 1, GridIconRotation.getAngle(anchorData.itemObj))
     end
 
     -- Badge de contagem: total de itens arrastados (pilha ou multi-drag)

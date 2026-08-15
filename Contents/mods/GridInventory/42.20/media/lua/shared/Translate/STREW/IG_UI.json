@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Strewberrie Strewberrie Strewberrie",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Strewberrie (Strewberrie) Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie. Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie.",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Strewberrie Strewberrie",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie (6 Strewberrie 12).\n\nStrewberrie Strewberrie: Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie.\n\nStrewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie Strewberrie."
+
 }

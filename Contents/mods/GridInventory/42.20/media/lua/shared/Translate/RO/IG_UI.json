@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Închide panourile de inventar cu ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Când este activat (implicit), apăsarea ESC închide panourile de inventar, loot și PaperDoll în loc să deschidă meniul principal. Dezactivați pentru a restaura comportamentul original (ESC deschide întotdeauna meniul principal).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Gradient rapid (calitate mai mică)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Desenează gradientul amprentei obiectului cu mai puține benzi de culoare (6 în loc de 12), înjumătățind draw calls-urile gradientului per obiect per cadru. Gradientul arată mai grosier, dar randarea este mai rapidă.\n\nOprit (implicit): gradient neted cu 12 benzi.\n\nEste o setare vizuală per mașină; fiecare jucător o alege pe a sa."
+
 }

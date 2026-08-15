@@ -6,6 +6,7 @@ require "ISUI/ISPanel"
 require "TimedActions/ISUnequipAction"
 local ItemFootprint = require("Algorithm/ItemFootprint")
 local ItemCategory = require("Algorithm/ItemCategory")
+local GridIconRotation = require("Algorithm/GridIconRotation")
 local GridContainer = require("DataModel/GridContainer")
 local GridClientNetwork = require("Network/GridClientNetwork")
 local GridReorder = require("Algorithm/GridReorder")
@@ -291,11 +292,26 @@ function GridRender:drawItemStatusIcons(item, drawX, drawY, playerObj, hotbar)
     end
 end
 
-function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
+function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a, deg)
     if not item then return end
     local texture = item:getTex() or item:getTexture()
     if not texture then return end
-    
+
+    -- OVERFLOW: os itens do overflow são forçados 1x1 — desliga rotação (angle)
+    -- e escala (scale) pra sprite não estourar as bordas da célula única.
+    -- Antes da rotação livre os overrides de angle/scale eram ignorados no
+    -- overflow (não existiam); com eles ativos o sprite crescia pra fora.
+    if self.isOverflow then
+        deg = nil
+    end
+
+    -- Rotação LIVRE (ângulo que não é múltiplo de 90°): caminho separado pra
+    -- sprites que nascem tortos no arquivo. O caminho de 90° (isRotated) fica
+    -- intacto e é o hot path — deg nil/0 nem passa por aqui.
+    if deg and deg ~= 0 then
+        return GridRender.drawItemIconRotatedFree(self, item, x, y, w, h, isRotated, deg, r, g, b, a)
+    end
+
     r = r or 1
     g = g or 1
     b = b or 1
@@ -328,16 +344,37 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
     -- usavam este caminho e sempre ficaram certos; agora unifica tudo num só.
     local visualTexW = isRotated and texH or texW
     local visualTexH = isRotated and texW or texH
-    local scale = math.min(scaleW / visualTexW, scaleH / visualTexH)
+    -- Multiplicador de escala do "Icon Scale" (GridDevTool/tabela fixa), MESMO
+    -- padrão do caminho livre (drawItemIconRotatedFree). Sem isso, o override
+    -- de escala era IGNORADO em ângulo 0 (só valia na rotação livre).
+    -- OVERFLOW: ignora o multiplicador (scale=1) — célula única 1x1 não pode
+    -- estourar a sprite pra fora.
+    local scale = math.min(scaleW / visualTexW, scaleH / visualTexH) * (self.isOverflow and 1 or GridIconRotation.getScale(item))
     
     local drawW = (isRotated and texH or texW) * scale
     local drawH = (isRotated and texW or texH) * scale
     
     local offsetX = (w - drawW) / 2
     local offsetY = (h - drawH) / 2
+
+    -- Anchor do sprite dentro do footprint (deslocamento em px, positivo =
+    -- pra direita/baixo), no espaço da SPRITE. Compensa itens cuja massa
+    -- visual (lâmina/cabo) nasce fora do centro do PNG. Quando a sprite gira
+    -- (isRotated), o anchor gira JUNTO — senão a compensação "inverte" de lado
+    -- (a direita do PNG passa a apontar pra outra direção, e o ajuste que
+    -- empurrava pra direita vira esquerda).
+    -- OVERFLOW: ignora o anchor também — célula única 1x1 não comporta sprite
+    -- deslocada sem estourar a borda (mesmo critério do scale/deg acima).
+    local anchorX, anchorY = 0, 0
+    if not self.isOverflow then
+        anchorX, anchorY = GridIconRotation.getAnchor(item)
+        if isRotated then
+            anchorX, anchorY = anchorY, -anchorX
+        end
+    end
     
-    local absX = self:getAbsoluteX() + x + offsetX
-    local absY = self:getAbsoluteY() + y + offsetY
+    local absX = self:getAbsoluteX() + x + offsetX + anchorX
+    local absY = self:getAbsoluteY() + y + offsetY + anchorY
         
     local hasColorMask = item.getTextureColorMask and item:getTextureColorMask()
     
@@ -489,6 +526,232 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a)
             SpriteRenderer.instance:render(cmTex, rx, ry, rw, rh, mR, mG, mB, a,
                 tx2, ty1, tx2, ty2, tx1, ty2, tx1, ty1)
         end
+    end
+end
+
+--- Rotação LIVRE do sprite do item (qualquer ângulo, não só múltiplos de 90°).
+--- Usado pra sprites que nascem TORTOS no arquivo vanilla: em vez de editar o
+--- PNG, o GridRender gira o quad em runtime. É um paralelogramo (retângulo
+--- rotacionado em volta do centro), desenhado via DrawTexture nos 4 cantos —
+--- o mapeamento UV fica exato porque o quad continua sendo um retângulo girado.
+--- A escala é MIN-FIT do RETÂNGULO GIRO (preserva o aspecto da textura, não
+--- deforma): o bbox do quad rotacionado é acomodado no footprint, então a
+--- sprite gira NO LUGAR (centro fixo) e nunca invade células vizinhas — o
+--- resultado é igual ao do caminho isRotated e ao vanilla. O "Icon Scale" do
+--- DevTool é um multiplicador sobre o min-fit pra crescer até tocar a borda
+--- sem esticar (fill deformava quando o aspecto do footprint != do PNG).
+--- isRotated (giro de 90° da tecla R) é composto no ângulo (soma −90°), então
+--- girar o footprint também gira o sprite torto — antes, o caminho livre
+--- ignorava o isRotated e a sprite ficava no ângulo fixo ao rotacionar.
+--- O footprint (w/h da célula) NÃO muda: só o sprite dentro dela gira.
+--- Fluid/color masks também giram (mesmo centro/ângulo) pra manter o item íntegro.
+function GridRender:drawItemIconRotatedFree(item, x, y, w, h, isRotated, deg, r, g, b, a)
+    if not item then return end
+    local texture = item:getTex() or item:getTexture()
+    if not texture then return end
+
+    deg = deg or 0
+    -- OVERFLOW: desliga a rotação (volta pro caminho normal, já com scale=1
+    -- forçado lá). Célula 1x1 não comporta sprite girada sem estourar a borda.
+    if self.isOverflow then
+        deg = 0
+    end
+    if deg == 0 then
+        GridRender.drawItemIconRotated(self, item, x, y, w, h, isRotated, r, g, b, a)
+        return
+    end
+
+    r = r or 1
+    g = g or 1
+    b = b or 1
+    a = a or 1
+
+    local texW = texture:getWidth()
+    local texH = texture:getHeight()
+
+    local isCustomTint = (r ~= 1 or g ~= 1 or b ~= 1)
+
+    -- Padding do ícone DENTRO do footprint (mesmo PAD do caminho normal).
+    local PAD = 2
+    local scaleW = math.max(1, w - PAD)
+    local scaleH = math.max(1, h - PAD)
+
+    -- Ângulo EFETIVO: o isRotated (tecla R) compõe −90° no ângulo fixo. O quad
+    -- é SEMPRE girado fisicamente por esse ângulo — não há swap de texW/H aqui
+    -- (diferente do caminho normal), porque a rotação real cuida da orientação.
+    local effDeg = deg + (isRotated and -90 or 0)
+    local rad = effDeg * math.pi / 180
+    local cosT = math.cos(rad)
+    local sinT = math.sin(rad)
+
+    -- Min-fit do RETÂNGULO GIRO: o bbox do quad rotacionado é
+    --   bboxW = |texW·cosθ| + |texH·sinθ|
+    --   bboxH = |texW·sinθ| + |texH·cosθ|
+    -- e esse bbox é acomodado no footprint. Assim a sprite gira NO LUGAR (o
+    -- centro nunca se move) e fica sempre dentro da célula — girar nunca a faz
+    -- "deslizar" para as células vizinhas. * multiplicador de escala.
+    local bboxW = math.abs(texW * cosT) + math.abs(texH * sinT)
+    local bboxH = math.abs(texW * sinT) + math.abs(texH * cosT)
+    -- OVERFLOW: escala 1 (o guard acima já zera deg, mas por robustez).
+    local iconScale = self.isOverflow and 1 or GridIconRotation.getScale(item)
+    local scale = math.min(scaleW / bboxW, scaleH / bboxH) * iconScale
+    local drawW = texW * scale
+    local drawH = texH * scale
+
+    local offsetX = (w - drawW) / 2
+    local offsetY = (h - drawH) / 2
+
+    local absX = self:getAbsoluteX() + x + offsetX
+    local absY = self:getAbsoluteY() + y + offsetY
+
+    -- Centro do quad (o retângulo é girado em volta DELE, não do canto).
+    local centerX = absX + drawW / 2
+    local centerY = absY + drawH / 2
+
+    -- Anchor (espaço da SPRITE): deslocamento do quad DENTRO da célula, girado
+    -- junto com a sprite pelo mesmo ângulo efetivo. Somado ao CENTRO (não a
+    -- absX/absY): girar a sprite 90° faz o anchor que compensava "direita do
+    -- PNG" passar a compensar a direção nova da sprite — nunca "inverte" de
+    -- lado como o deslocamento em espaço de tela faria.
+    -- OVERFLOW: ignora o anchor (célula 1x1 não comporta deslocamento).
+    local anchorX, anchorY = 0, 0
+    if not self.isOverflow then
+        anchorX, anchorY = GridIconRotation.getAnchor(item)
+        centerX = centerX + anchorX * cosT - anchorY * sinT
+        centerY = centerY + anchorX * sinT + anchorY * cosT
+    end
+
+    -- 4 cantos do retângulo NÃO girado (semi-lados em px), depois gira.
+    local hw = drawW / 2
+    local hh = drawH / 2
+    local corners = {
+        {-hw, -hh},
+        { hw, -hh},
+        { hw,  hh},
+        {-hw,  hh},
+    }
+    for i = 1, 4 do
+        local px, py = corners[i][1], corners[i][2]
+        local rx = px * cosT - py * sinT
+        local ry = px * sinT + py * cosT
+        corners[i][1] = centerX + rx
+        corners[i][2] = centerY + ry
+    end
+
+    -- Rotação em volta do centro com canto: x' = x·cos − y·sin; y' = x·sin + y·cos.
+    -- Como giramos ao redor do centro do próprio quad, esse é o caminho direto.
+
+    local hasColorMask = item.getTextureColorMask and item:getTextureColorMask()
+
+    local baseR, baseG, baseB = 1, 1, 1
+    if not hasColorMask and item.getColor and item:getColor() then
+        baseR = item:getColor():getR()
+        baseG = item:getColor():getG()
+        baseB = item:getColor():getB()
+    end
+
+    local finalR = isCustomTint and r or baseR
+    local finalG = isCustomTint and g or baseG
+    local finalB = isCustomTint and b or baseB
+
+    -- Textura Base (mesma DrawTexture dos 4 cantos; quad rotacionado é exato).
+    self.javaObject:DrawTexture(texture,
+        corners[1][1], corners[1][2],
+        corners[2][1], corners[2][2],
+        corners[3][1], corners[3][2],
+        corners[4][1], corners[4][2],
+        finalR, finalG, finalB, a)
+
+    -- Fluid Mask (Sangue/Água Suja): gira com o mesmo centro/ângulo.
+    if item.getTextureFluidMask and item:getTextureFluidMask() then
+        local fTex = item:getTextureFluidMask()
+        local fluidColor = {r=1, g=1, b=1}
+        local fc = getItemFluidContainer(item)
+        local fluidPercent = 1.0
+        if fc then
+            fluidColor.r = fc:getColor():getR()
+            fluidColor.g = fc:getColor():getG()
+            fluidColor.b = fc:getColor():getB()
+            local cap = fc:getCapacity()
+            if cap > 0 then fluidPercent = fc:getAmount() / cap end
+        elseif instanceof(item, "DrainableComboItem") then
+            local maxUses = item:getMaxUses()
+            if maxUses > 0 then fluidPercent = item:getCurrentUses() / maxUses end
+        end
+        if fluidPercent < 0.15 then fluidPercent = 0.15 end
+        if fluidPercent > 1.0 then fluidPercent = 1.0 end
+
+        local fmR = isCustomTint and finalR or fluidColor.r
+        local fmG = isCustomTint and finalG or fluidColor.g
+        local fmB = isCustomTint and finalB or fluidColor.b
+
+        -- Geometria da máscara relativa à base (offsets próprios do fTex).
+        local fW = fTex:getWidth()
+        local fH = fTex:getHeight()
+        local offX = (fTex:getOffsetX() - texture:getOffsetX())
+        local offY = (fTex:getOffsetY() - texture:getOffsetY())
+
+        -- Quad da máscara no MESMO espaço da base (pré-rotação), centrado no
+        -- centro da base: canto TL da base = centerX − drawW/2.
+        local maskCorners = {
+            { centerX - drawW / 2 + offX * scale, centerY - drawH / 2 + offY * scale },
+            { centerX - drawW / 2 + (offX + fW) * scale, centerY - drawH / 2 + offY * scale },
+            { centerX - drawW / 2 + (offX + fW) * scale, centerY - drawH / 2 + (offY + fH) * scale },
+            { centerX - drawW / 2 + offX * scale, centerY - drawH / 2 + (offY + fH) * scale },
+        }
+        for i = 1, 4 do
+            local px, py = maskCorners[i][1] - centerX, maskCorners[i][2] - centerY
+            maskCorners[i][1] = centerX + px * cosT - py * sinT
+            maskCorners[i][2] = centerY + px * sinT + py * cosT
+        end
+
+        -- Corte de nível (porcentagem de fluido): mantém a máscara inteira como
+        -- fallback simples — nível com rotação livre é raro e este caminho já
+        -- preserva posição/tamanho da máscara girada em relação à base.
+        self.javaObject:DrawTexture(fTex,
+            maskCorners[1][1], maskCorners[1][2],
+            maskCorners[2][1], maskCorners[2][2],
+            maskCorners[3][1], maskCorners[3][2],
+            maskCorners[4][1], maskCorners[4][2],
+            fmR, fmG, fmB, a)
+    end
+
+    -- Color Mask (Tintas de Cabelo, etc.)
+    if hasColorMask then
+        local cmTex = hasColorMask
+        local maskR, maskG, maskB = 1, 1, 1
+        if item.getColor and item:getColor() then
+            maskR = item:getColor():getR()
+            maskG = item:getColor():getG()
+            maskB = item:getColor():getB()
+        end
+        local mR = isCustomTint and finalR or maskR
+        local mG = isCustomTint and finalG or maskG
+        local mB = isCustomTint and finalB or maskB
+
+        local cmW = cmTex:getWidth()
+        local cmH = cmTex:getHeight()
+        local cmOffX = (cmTex:getOffsetX() - texture:getOffsetX())
+        local cmOffY = (cmTex:getOffsetY() - texture:getOffsetY())
+
+        local cmCorners = {
+            { centerX - drawW / 2 + cmOffX * scale, centerY - drawH / 2 + cmOffY * scale },
+            { centerX - drawW / 2 + (cmOffX + cmW) * scale, centerY - drawH / 2 + cmOffY * scale },
+            { centerX - drawW / 2 + (cmOffX + cmW) * scale, centerY - drawH / 2 + (cmOffY + cmH) * scale },
+            { centerX - drawW / 2 + cmOffX * scale, centerY - drawH / 2 + (cmOffY + cmH) * scale },
+        }
+        for i = 1, 4 do
+            local px, py = cmCorners[i][1] - centerX, cmCorners[i][2] - centerY
+            cmCorners[i][1] = centerX + px * cosT - py * sinT
+            cmCorners[i][2] = centerY + px * sinT + py * cosT
+        end
+
+        self.javaObject:DrawTexture(cmTex,
+            cmCorners[1][1], cmCorners[1][2],
+            cmCorners[2][1], cmCorners[2][2],
+            cmCorners[3][1], cmCorners[3][2],
+            cmCorners[4][1], cmCorners[4][2],
+            mR, mG, mB, a)
     end
 end
 
@@ -958,7 +1221,7 @@ function GridRender:render()
                 elseif playerObj and data.itemObj.isUnwanted and data.itemObj:isUnwanted(playerObj) then
                     iconR, iconG, iconB, iconA = 0.55, 0.55, 0.55, 0.85
                 end
-                self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, iconR, iconG, iconB, iconA)
+                self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, iconR, iconG, iconB, iconA, GridIconRotation.getAngle(data.itemObj))
                 
                 -- ── Ícones de status (sistema flex) ─────────────────────────────────
                 if not itemHidden then
@@ -1065,7 +1328,7 @@ function GridRender:render()
             
             if gData.itemObj then
                 -- Desenha o item com 50% de opacidade
-                self:drawItemIconRotated(gData.itemObj, drawX, drawY, drawW, drawH, gData.rotated, 1, 1, 1, 0.5)
+                self:drawItemIconRotated(gData.itemObj, drawX, drawY, drawW, drawH, gData.rotated, 1, 1, 1, 0.5, GridIconRotation.getAngle(gData.itemObj))
             end
         end
     end

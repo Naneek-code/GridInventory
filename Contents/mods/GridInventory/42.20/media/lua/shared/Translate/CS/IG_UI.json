@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Zavírat panely inventáře klávesou ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Když je zapnuto (výchozí), stisknutí ESC zavře panely inventáře, lootu a PaperDoll místo otevření hlavní nabídky. Vypnutím obnovíte původní chování (ESC vždy otevře hlavní nabídku).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Rychlý přechod (nižší kvalita)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Vykresluje přechod stopy předmětu s méně barevnými pruhy (6 místo 12), čímž poloviční počet draw calls přechodu na předmět a snímek. Přechod vypadá hruběji, ale vykreslování je rychlejší.\n\nVypnuto (výchozí): hladký přechod s 12 pruhy.\n\nJe to vizuální nastavení na stroj; každý hráč si zvolí své."
+
 }

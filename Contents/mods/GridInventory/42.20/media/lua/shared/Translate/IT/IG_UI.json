@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Chiudi i pannelli dell'inventario con ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Quando è attivato (predefinito), premere ESC chiude i pannelli dell'inventario, del bottino e PaperDoll invece di aprire il menu principale. Disattivalo per ripristinare il comportamento originale (ESC apre sempre il menu principale).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Gradiente veloce (qualità inferiore)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Disegna il gradiente del footprint degli oggetti con meno fasce di colore (6 invece di 12), dimezzando le draw call del gradiente per oggetto per frame. Il gradiente appare più grossolano, ma il render è più veloce.\n\nDisattivato (predefinito): gradiente morbido a 12 fasce.\n\nÈ un'impostazione visiva per macchina; ogni giocatore sceglie la propria."
+
 }

@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Cerrar los paneles de inventario con ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Cuando está activado (por defecto), presionar ESC cierra los paneles de inventario, botín y PaperDoll en lugar de abrir el menú principal. Desactívalo para restaurar el comportamiento original (ESC siempre abre el menú principal).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "تدرج سريع (جودة أقل)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "يرسم تدرج بصمة العنصر بعدد أقل من شرائط الألوان (6 بدلاً من 12)، مما يخفض استدعاءات رسم التدرج لكل عنصر في كل إطار إلى النصف. يبدو التدرج أكثر خشونة لكن العرض أسرع.\n\nإيقاف (افتراضي): تدرج ناعم بـ 12 شريطًا.\n\nهذا إعداد بصري لكل جهاز؛ كل لاعب يختار ما يناسبه."
+
 }

@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Inventarpanels mit ESC schließen",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Wenn aktiviert (Standard), schließt das Drücken von ESC die Inventar-, Beute- und PaperDoll-Panels, anstatt das Hauptmenü zu öffnen. Deaktivieren, um das ursprüngliche Verhalten wiederherzustellen (ESC öffnet immer das Hauptmenü).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Schneller Verlauf (geringere Qualität)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Zeichnet den Farbverlauf der Gegenstands-Grundfläche mit weniger Farbbändern (6 statt 12) und halbiert damit die Draw-Calls des Verlaufs pro Gegenstand pro Frame. Der Verlauf wirkt gröber, aber das Rendern ist schneller.\n\nAus (Standard): glatter Verlauf mit 12 Bändern.\n\nDas ist eine visuelle Einstellung pro Rechner; jeder Spieler wählt seine eigene."
+
 }

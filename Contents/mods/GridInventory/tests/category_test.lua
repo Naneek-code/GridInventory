@@ -288,4 +288,28 @@ do
     H.ok(continuous and prevEnd == HGT, "sutil: faixas contíguas cobrindo a altura")
 end
 
+-- ─── Degrade segue a Mod Option "Fast gradient" (global) + cache ────────────
+do
+    local gun = makeItem({ IsWeapon = function() return true end, getAmmoType = function() return "12g" end })
+    local HGT = 120 -- múltiplo de 12 e de 6 → nº de faixas = steps
+
+    _G.GridInventory_gradientSteps = 12
+    ItemCategory.clearCache()
+    local smooth = ItemCategory.getGradient(gun, HGT)
+    H.ok(#smooth == 12, "gradiente suave (global 12) -> 12 faixas [n=" .. #smooth .. "]")
+
+    _G.GridInventory_gradientSteps = 6
+    ItemCategory.clearCache()
+    local fast = ItemCategory.getGradient(gun, HGT)
+    H.ok(#fast == 6, "gradiente rápido (global 6) -> 6 faixas [n=" .. #fast .. "]")
+
+    -- Cache por (tipo, altura, steps): mesma chamada não realoca nem muda o nº
+    local cachedAgain = ItemCategory.getGradient(gun, HGT)
+    H.ok(cachedAgain == fast, "cache reutiliza a MESMA lista (mesmo steps)")
+
+    local subtleFast = ItemCategory.getSubtleGradient(HGT)
+    H.ok(#subtleFast == 6, "degrade sutil também usa 6 faixas no rápido [n=" .. #subtleFast .. "]")
+    H.ok(subtleFast[#subtleFast].y + subtleFast[#subtleFast].h == HGT, "sutil rápido: cobre a altura toda")
+end
+
 H.finish()

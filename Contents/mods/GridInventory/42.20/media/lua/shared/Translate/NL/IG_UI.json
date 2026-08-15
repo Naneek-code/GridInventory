@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Inventarispaneels sluiten met ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Wanneer ingeschakeld (standaard), sluit het indrukken van ESC de inventaris-, loot- en PaperDoll-panelen in plaats van het hoofdmenu te openen. Schakel uit om het oorspronkelijke gedrag te herstellen (ESC opent altijd het hoofdmenu).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Snelle overgang (lagere kwaliteit)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Tekent de voetafdrukovergang van voorwerpen met minder kleurbanden (6 in plaats van 12), waardoor het aantal draw calls van de overgang per voorwerp per frame halveert. De overgang ziet er grover uit, maar het renderen is sneller.\n\nUit (standaard): gladde overgang met 12 banden.\n\nDit is een visuele instelling per machine; elke speler kiest zijn eigen."
+
 }

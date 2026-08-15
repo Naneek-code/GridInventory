@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Fechar painéis de inventário com ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Quando ativado (padrão), premir ESC fecha os painéis de inventário, loot e PaperDoll em vez de abrir o menu principal. Desative para restaurar o comportamento original (o ESC abre sempre o menu principal).",
     "IGUI_GridInv_OptionsUiScale": "Escala da UI",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Escala o tamanho dos grids de inventário (células, itens, cabeçalhos). 100 é o padrão (tamanho original). Aumente em monitores de alta resolução (ex.: 4K) para deixar a interface maior e mais legível. Aplica nos painéis abertos imediatamente após clicar em OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Escala o tamanho dos grids de inventário (células, itens, cabeçalhos). 100 é o padrão (tamanho original). Aumente em monitores de alta resolução (ex.: 4K) para deixar a interface maior e mais legível. Aplica nos painéis abertos imediatamente após clicar em OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Gradiente rápido (menor qualidade)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Desenha o gradiente do footprint dos itens com menos faixas de cor (6 em vez de 12), cortando pela metade os draw calls do gradiente por item por frame. O gradiente fica mais grosseiro, mas o render fica mais rápido.\n\nDesligado (padrão): gradiente suave com 12 faixas.\n\nÉ uma opção visual por máquina; cada jogador escolhe a própria."
+
 }

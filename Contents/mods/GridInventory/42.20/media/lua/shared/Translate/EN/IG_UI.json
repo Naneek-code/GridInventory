@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Close inventory panels with ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "When enabled (default), pressing ESC closes the inventory, loot and PaperDoll panels instead of opening the main menu. Disable to restore the vanilla behavior (ESC always opens the main menu).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Fast gradient (lower quality)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Draws the item footprint gradient with fewer color bands (6 instead of 12), halving the gradient draw calls per item per frame. The gradient looks chunkier but the render is faster.\n\nOff (default): smooth 12-band gradient.\n\nThis is a per-machine visual setting; each player chooses their own."
+
 }

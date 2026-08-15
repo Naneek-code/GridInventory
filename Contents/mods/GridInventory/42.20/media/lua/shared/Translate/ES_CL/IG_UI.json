@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Cerrar los paneles de inventario con ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Cuando está activado (por defecto), presionar ESC cierra los paneles de inventario, botín y PaperDoll en lugar de abrir el menú principal. Desactívalo para restaurar el comportamiento original (ESC siempre abre el menú principal).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Degradado rápido (menor calidad)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Dibuja el degradado del footprint de los objetos con menos bandas de color (6 en lugar de 12), reduciendo a la mitad los draw calls del degradado por objeto por frame. El degradado se ve más basto, pero el render es más rápido.\n\nApagado (predeterminado): degradado suave de 12 bandas.\n\nEs un ajuste visual por máquina; cada jugador elige el suyo."
+
 }

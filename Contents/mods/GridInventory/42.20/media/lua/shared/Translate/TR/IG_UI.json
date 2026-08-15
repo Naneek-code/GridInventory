@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "ESC ile envanter panellerini kapat",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Etkinleştirildiğinde (varsayılan), ESC tuşuna basmak ana menüyü açmak yerine envanter, ganimet ve PaperDoll panellerini kapatır. Orijinal davranışı geri getirmek için kapatın (ESC her zaman ana menüyü açar).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Hızlı gradyan (düşük kalite)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Öğe iz gradyanını daha az renk bandıyla (12 yerine 6) çizer ve gradyanın draw call sayısını öğe başına kare başına yarıya indirir. Gradyan daha kaba görünür ancak render daha hızlıdır.\n\nKapalı (varsayılan): 12 bantlı pürüzsüz gradyan.\n\nBu makineye özel görsel bir ayardır; her oyuncu kendininkini seçer."
+
 }

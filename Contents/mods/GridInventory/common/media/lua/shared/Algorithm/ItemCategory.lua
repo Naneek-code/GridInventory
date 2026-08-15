@@ -175,8 +175,9 @@ end
 
 -- Faixas do degrade: a cor NEUTRA (cinza escuro) no TOPO desvanece até a cor de
 -- BASE de cada item. A base é a cor da categoria (MISC = prata, então itens sem
--- categoria rastreada têm degrade cinza→prata). Quantidade de faixas (12) =
--- equilíbrio entre visual suave e performance.
+-- categoria rastreada têm degrade cinza→prata). O nº de faixas vem da Mod Option
+-- "Fast gradient" do GridModOptions, que sincroniza o global
+-- GridInventory_gradientSteps (12 = suave/padrão, 6 = rápido/performance).
 ItemCategory.gradientSteps = 12
 
 -- Cor neutra (topo do degrade) = cinza escuro FIXO (não aponta pro MISC, que é
@@ -200,18 +201,19 @@ end
 --- Cada faixa é { y, h, r, g, b }: o caller desenha com
 --- drawRect(x, drawY + y, w, h, alpha, r, g, b).
 --- NEUTRO no topo → CATEGORIA na base (invertido a pedido do usuário).
+--- O steps entra na chave do cache: mudar a Mod Option regenera o visual.
 ---@param item InventoryItem
 ---@param heightPx number altura total do footprint em pixels
 ---@return table lista de faixas
 function ItemCategory.getGradient(item, heightPx)
     local fullType = item and item.getFullType and item:getFullType() or ""
-    local cacheKey = fullType .. "|" .. tostring(heightPx)
+    local steps = GridInventory_gradientSteps or ItemCategory.gradientSteps
+    local cacheKey = fullType .. "|" .. tostring(heightPx) .. "|" .. tostring(steps)
     local cached = _gradientCache[cacheKey]
     if cached then return cached end
 
     local catColor = ItemCategory.getColor(item)
     local neutral = ItemCategory.neutralColor
-    local steps = ItemCategory.gradientSteps
     local bands = {}
     for i = 0, steps - 1 do
         local yTop = math.floor(heightPx * i / steps)
@@ -236,13 +238,13 @@ ItemCategory.subtleNeutralColor = { r = 0.45, g = 0.45, b = 0.45 }
 ---@param heightPx number altura total do footprint em pixels
 ---@return table lista de faixas
 function ItemCategory.getSubtleGradient(heightPx)
-    local cacheKey = "s|" .. tostring(heightPx)
+    local steps = GridInventory_gradientSteps or ItemCategory.gradientSteps
+    local cacheKey = "s|" .. tostring(heightPx) .. "|" .. tostring(steps)
     local cached = _subtleGradientCache[cacheKey]
     if cached then return cached end
 
     local neutral = ItemCategory.neutralColor
     local target = ItemCategory.subtleNeutralColor
-    local steps = ItemCategory.gradientSteps
     local bands = {}
     for i = 0, steps - 1 do
         local yTop = math.floor(heightPx * i / steps)

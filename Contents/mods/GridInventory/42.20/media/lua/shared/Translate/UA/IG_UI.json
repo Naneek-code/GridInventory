@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Закривати панелі інвентаря клавішею ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Під час увімкнення (за замовчуванням) натискання ESC закриває панелі інвентаря, здобичі та PaperDoll замість відкриття головного меню. Вимкніть, щоб відновити початкову поведінку (ESC завжди відкриває головне меню).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Швидкий градієнт (нижча якість)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Малює градієнт відбитка предмета з меншою кількістю смуг (6 замість 12), удвічі скорочуючи draw calls градієнта на предмет за кадр. Градієнт виглядає грубіше, але рендер швидший.\n\nВимк (за замовчуванням): гладкий градієнт з 12 смуг.\n\nЦе візуальне налаштування на машину; кожен гравець обирає своє."
+
 }

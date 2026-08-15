@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Tanca els panells d'inventari amb ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Quan està activat (per defecte), prémer ESC tanca els panells d'inventari, botí i PaperDoll en lloc d'obrir el menú principal. Desactiva-ho per restaurar el comportament original (ESC sempre obre el menú principal).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Gradient ràpid (qualitat inferior)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Dibuixa el gradient de la petjada dels objectes amb menys franges de color (6 en lloc de 12), reduint a la meitat els draw calls del gradient per objecte per frame. El gradient es veu més groller, però el render és més ràpid.\n\nDesactivat (per defecte): gradient suau de 12 franges.\n\nÉs un ajust visual per màquina; cada jugador tria el seu."
+
 }

@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "ปิดแผงอินเวนทอรีด้วย ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "เมื่อเปิด (ค่าเริ่มต้น) การกด ESC จะปิดแผงอินเวนทอรี ลูต และ PaperDoll แทนที่จะเปิดเมนูหลัก ปิดเพื่อคืนพฤติกรรมดั้งเดิม (ESC เปิดเมนูหลักเสมอ)",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "เกรเดียนต์เร็ว (คุณภาพต่ำ)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "วาดเกรเดียนต์รอยเท้าของสิ่งของด้วยแถบสีน้อยลง (6 แทนที่จะเป็น 12) ทำให้จำนวนการเรียก draw ของเกรเดียนต์ต่อสิ่งของต่อเฟรมลดลงครึ่งหนึ่ง เกรเดียนต์ดูหยาบขึ้นแต่การเรนเดอร์เร็วขึ้น\n\nปิด (ค่าเริ่มต้น): เกรเดียนต์เรียบ 12 แถบ\n\nเป็นการตั้งค่าภาพต่อเครื่อง แต่ละผู้เล่นเลือกของตัวเอง"
+
 }

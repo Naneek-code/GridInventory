@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "用 ESC 关闭背包面板",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "启用（默认）时，按 ESC 会关闭背包、战利品和 PaperDoll 面板，而不是打开主菜单。停用以恢复原版行为（ESC 总是打开主菜单）。",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "快速渐变（画质较低）",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "用较少的色带（6 个而不是 12 个）绘制物品足迹渐变，将每个物品每帧的渐变绘制调用减少一半。渐变看起来更粗糙，但渲染更快。\n\n关闭（默认）：平滑的 12 段渐变。\n\n这是按机器划分的视觉设置；每个玩家选择自己的。"
+
 }

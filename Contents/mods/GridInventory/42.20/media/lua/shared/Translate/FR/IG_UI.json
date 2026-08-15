@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Fermer les panneaux d'inventaire avec ÉCHAP",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Lorsqu'il est activé (par défaut), appuyer sur ÉCHAP ferme les panneaux d'inventaire, de loot et PaperDoll au lieu d'ouvrir le menu principal. Désactivez-le pour restaurer le comportement d'origine (ÉCHAP ouvre toujours le menu principal).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Dégradé rapide (qualité inférieure)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Dessine le dégradé de l'empreinte des objets avec moins de bandes de couleur (6 au lieu de 12), réduisant de moitié les draw calls du dégradé par objet par frame. Le dégradé paraît plus grossier, mais le rendu est plus rapide.\n\nDésactivé (par défaut) : dégradé lisse à 12 bandes.\n\nC'est un réglage visuel par machine ; chaque joueur choisit le sien."
+
 }

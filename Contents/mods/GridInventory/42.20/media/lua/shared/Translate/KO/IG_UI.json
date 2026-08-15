@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "ESC로 인벤토리 패널 닫기",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "활성화(기본)되면 ESC 키를 누르면 메인 메뉴를 여는 대신 인벤토리, 전리품, PaperDoll 패널을 닫습니다. 비활성화하면 기본 동작(ESC는 항상 메인 메뉴 열기)으로 복원됩니다.",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "빠른 그라디언트 (낮은 품질)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "아이템 발자국 그라디언트를 더 적은 색상 밴드(12 대신 6)로 그려 아이템당 프레임당 그라디언트 드로우 콜을 절반으로 줄입니다. 그라디언트는 거칠어 보이지만 렌더링이 더 빠릅니다.\n\n끔(기본): 12밴드의 부드러운 그라디언트.\n\n이것은 기기별 시각 설정이며 각 플레이어가 자신의 것을 선택합니다."
+
 }

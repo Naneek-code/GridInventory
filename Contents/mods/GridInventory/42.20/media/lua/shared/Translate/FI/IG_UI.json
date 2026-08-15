@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Sulje inventaaripaneelit ESC-näppäimellä",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Kun käytössä (oletus), ESC-näppäimen painaminen sulkee inventaario-, loot- ja PaperDoll-paneelit sen sijaan, että avaisi päävalikon. Poista käytöstä palauttaaksesi alkuperäisen toiminnan (ESC avaa aina päävalikon).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Nopea liukuväri (alhaisempi laatu)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Piirtää esineen jalanjälkisiirtymän vähemmillä väriraidoilla (6 12 sijaan), puolittaen liukuvärin draw callit esinettä ja ruutua kohden. Liukuväri näyttää karkeammalta, mutta renderöinti on nopeampaa.\n\nPois (oletus): sileä 12 raidan liukuväri.\n\nTämä on laitekohtainen visuaalinen asetus; jokainen pelaaja valitsee oman."
+
 }

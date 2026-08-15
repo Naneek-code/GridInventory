@@ -26,6 +26,7 @@ GridModOptions.cache = GridModOptions.cache or {
     multiContainerLoot = true,
     closeOnEsc = true,
     uiScale = 100,
+    gradientFast = false,
 }
 
 local cache = GridModOptions.cache
@@ -36,6 +37,7 @@ local DEFAULTS = {
     multiContainerLoot = true,
     closeOnEsc = true,
     uiScale = 100,
+    gradientFast = false,
 }
 
 local function toBool(value, default)
@@ -179,6 +181,10 @@ local function registerOptions()
     section:addSlider("uiScale",
         getText("IGUI_GridInv_OptionsUiScale"), 50, 150, 5, 100,
         getText("IGUI_GridInv_OptionsUiScale_Tooltip"))
+    section:addSeparator()
+    section:addTickBox("gradientFast",
+        getText("IGUI_GridInv_OptionsGradientFast"), false,
+        getText("IGUI_GridInv_OptionsGradientFast_Tooltip"))
 
     -- Chamado pelo jogo (MainOptions:apply) quando o usuário clica em OK na
     -- aba MODS: a UI já gravou os valores; só re-sincronizamos o cache.
@@ -186,6 +192,9 @@ local function registerOptions()
         syncFromPZAPI()
         -- Mantém o global de scale em sincronia pro render usar na hora.
         GridInventory_uiScale = GridModOptions.getUiScale()
+        -- Mantém o global de faixas do degrade em sincronia pro ItemCategory
+        -- (shared, sem require circular) usar na hora.
+        GridInventory_gradientSteps = GridModOptions.getGradientSteps()
         -- Recria o PaperDoll se o scale mudou (dimensões são fixas no init).
         refreshPaperDoll()
         -- Força rebuild imediato dos grids para as options valerem na hora
@@ -215,11 +224,13 @@ Events.OnMainMenuEnter.Add(function()
     tryRegister()
     applyIni()
     GridInventory_uiScale = GridModOptions.getUiScale()
+    GridInventory_gradientSteps = GridModOptions.getGradientSteps()
 end)
 Events.OnGameStart.Add(function()
     tryRegister()
     applyIni()
     GridInventory_uiScale = GridModOptions.getUiScale()
+    GridInventory_gradientSteps = GridModOptions.getGradientSteps()
 end)
 
 function GridModOptions.isFullscreenPanel()
@@ -245,6 +256,23 @@ function GridModOptions.getUiScale()
     if s > 150 then s = 150 end
     return s
 end
+
+-- Se o degrade do footprint usa poucas faixas (6 = rápido) em vez de 12
+-- (suave, padrão). Cada jogador escolhe o da PRÓPRIA máquina — é preferência
+-- visual/perf do cliente, por isso é Mod Option e não Sandbox Option.
+function GridModOptions.isGradientFast()
+    return cache.gradientFast == true
+end
+
+-- Nº de faixas do degrade (12 ou 6) pro ItemCategory (shared) usar no render.
+function GridModOptions.getGradientSteps()
+    return GridModOptions.isGradientFast() and 6 or 12
+end
+
+-- Global leve usado pelo ItemCategory.getGradient/getSubtleGradient (módulo
+-- shared, sem require circular do GridModOptions que é client-only). Mantido
+-- em sincronia com o cache nos mesmos pontos do GridInventory_uiScale.
+GridInventory_gradientSteps = GridModOptions.getGradientSteps()
 
 -- Global leve usado pelos renders (GridRender/OverflowGridRender/GlobalDragRender)
 -- pra calcular o cellSize sem require circular. Mantido em sincronia com o cache.

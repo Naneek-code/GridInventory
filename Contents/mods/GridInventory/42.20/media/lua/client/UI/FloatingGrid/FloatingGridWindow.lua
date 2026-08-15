@@ -13,6 +13,7 @@ require "ISUI/ISPanel"
 require "ISUI/ISButton"
 local GridContainer = require("DataModel/GridContainer")
 local GridRender = require("UI/GridRender/GridRender")
+local GridIconRotation = require("Algorithm/GridIconRotation")
 
 FloatingGridWindow = ISPanel:derive("FloatingGridWindow")
 
@@ -634,7 +635,7 @@ function FloatingGridWindow:renderStackList()
             -- Ícone — usa o MESMO renderer do grid principal (color mask, fluid
             -- mask e tint são aplicados). drawTextureScaledAspect só desenharia
             -- a textura base, sem líquido/cor.
-            GridRender.drawItemIconRotated(self, row.item, pad + 2, ry + 3, 24, 24, false, 1, 1, 1, 1)
+            GridRender.drawItemIconRotated(self, row.item, pad + 2, ry + 3, 24, 24, false, 1, 1, 1, 1, GridIconRotation.getAngle(row.item))
             -- Nome
             local name = row.item:getName() or row.item:getDisplayName() or ""
             local tx = pad + 30

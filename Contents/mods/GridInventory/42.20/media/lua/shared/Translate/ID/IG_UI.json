@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Tutup panel inventaris dengan ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Saat diaktifkan (default), menekan ESC menutup panel inventaris, loot, dan PaperDoll alih-alih membuka menu utama. Nonaktifkan untuk mengembalikan perilaku vanilla (ESC selalu membuka menu utama).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Gradien cepat (kualitas lebih rendah)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Menggambar gradien jejak objek dengan lebih sedikit pita warna (6, bukan 12), memangkas setengah draw call gradien per objek per frame. Gradien terlihat lebih kasar, tetapi render lebih cepat.\n\nMati (default): gradien halus 12 pita.\n\nIni adalah pengaturan visual per perangkat; setiap pemain memilih miliknya."
+
 }

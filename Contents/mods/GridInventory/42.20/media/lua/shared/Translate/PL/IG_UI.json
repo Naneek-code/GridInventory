@@ -61,5 +61,8 @@
     "IGUI_GridInv_OptionsCloseOnEsc": "Zamykaj panele ekwipunku klawiszem ESC",
     "IGUI_GridInv_OptionsCloseOnEsc_Tooltip": "Gdy włączone (domyślnie), naciśnięcie ESC zamyka panele ekwipunku, łupów i PaperDoll zamiast otwierania menu głównego. Wyłącz, aby przywrócić oryginalne zachowanie (ESC zawsze otwiera menu główne).",
     "IGUI_GridInv_OptionsUiScale": "UI Scale",
-    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK."
+    "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
+    "IGUI_GridInv_OptionsGradientFast": "Szybki gradient (niższa jakość)",
+    "IGUI_GridInv_OptionsGradientFast_Tooltip": "Rysuje gradient odcisku przedmiotu z mniejszą liczbą pasów kolorów (6 zamiast 12), zmniejszając o połowę liczbę draw calls gradientu na przedmiot na klatkę. Gradient wygląda bardziej szorstko, ale renderowanie jest szybsze.\n\nWyłączone (domyślnie): gładki gradient z 12 pasami.\n\nTo ustawienie wizualne na maszynę; każdy gracz wybiera swoje."
+
 }
