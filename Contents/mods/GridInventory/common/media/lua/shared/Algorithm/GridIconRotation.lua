@@ -20,6 +20,25 @@
 
 local GridIconRotation = {}
 
+-- Sandbox option "GridInventory.IconRotation" (servidor decide): quando
+-- DESLIGADA (default), o render usa os valores PADRÃO (angle=0, scale=1,
+-- anchor=0) pra TODOS os jogadores, ignorando o hardcoded e os overrides salvos
+-- no ini — só o footprint w/h continua aplicado. Default OFF é POR
+-- COMPATIBILIDADE: saves/inis antigos (de antes de existir angle/scale/anchor)
+-- não podem ver a sprite mudar do nada. O DevTool (ferramenta de admin)
+-- continua lendo os valores reais via getAngle/getScale/getAnchor (sem gate) pra
+-- poder editar. O gate fica nas funções getRender* usadas apenas no caminho de
+-- render.
+local ok, GridSandboxOptions = pcall(require, "GridSandboxOptions")
+if not ok then GridSandboxOptions = nil end
+
+local function isIconRotationEnabled()
+    if not GridSandboxOptions or not GridSandboxOptions.isIconRotationEnabled then
+        return false -- opção não disponível (ex.: teste) = OFF conservador
+    end
+    return GridSandboxOptions.isIconRotationEnabled()
+end
+
 -- Overrides fixos (hardcoded no mod): fullType -> ângulo em graus.
 -- O tuning ao vivo é feito pelo GridDevTool (campo "Icon Angle"), que salva
 -- em GridDevTool.Overrides[fullType].angle.
@@ -211,6 +230,32 @@ function GridIconRotation.getPixelPerfectScales(texW, texH, footprintW, footprin
         end
     end
     return out
+end
+
+--- Versões de RENDER dos getters acima: aplicam o gate da Sandbox Option
+--- "GridInventory.IconRotation" (servidor decide). Quando desligada, TODOS os
+--- jogadores veem os sprites no padrão (angle=0, scale=1, anchor=0) mesmo com
+--- override salvo no DevTool — só o footprint w/h é aplicado. Usadas ÚNICAS e
+--- EXCLUSIVAMENTE no caminho de render (GridRender, GlobalDragRender,
+--- FloatingGridWindow). O DevTool continua usando getAngle/getScale/getAnchor
+--- (sem gate) pra poder ver e editar os valores reais.
+
+--- Ângulo para RENDER (graus): 0 quando a sandbox option desliga a rotação.
+function GridIconRotation.getRenderAngle(item)
+    if not isIconRotationEnabled() then return 0 end
+    return GridIconRotation.getAngle(item)
+end
+
+--- Escala para RENDER: 1 (min-fit puro) quando a sandbox option desliga.
+function GridIconRotation.getRenderScale(item)
+    if not isIconRotationEnabled() then return 1 end
+    return GridIconRotation.getScale(item)
+end
+
+--- Anchor para RENDER: (0,0) quando a sandbox option desliga.
+function GridIconRotation.getRenderAnchor(item)
+    if not isIconRotationEnabled() then return 0, 0 end
+    return GridIconRotation.getAnchor(item)
 end
 
 return GridIconRotation

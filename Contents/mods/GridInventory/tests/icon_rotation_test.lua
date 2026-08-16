@@ -253,4 +253,98 @@ do
     H.ok(#GridIconRotation.getPixelPerfectScales(0, 10, 40, 40, 0, false) == 0, "texW 0 -> vazio")
 end
 
+-- ── getRender*: gate da Sandbox Option "GridInventory.IconRotation" ───────────
+-- Quando a opção está LIGADA (servidor ativou), getRender* == getters puros.
+-- Quando está DESLIGADA (default) ou não pode ser lida (fallback conservador),
+-- o render volta pro padrão (0 / 1 / 0,0) mesmo com hardcoded/override salvo —
+-- só o footprint w/h continua valendo. Isso protege saves/inis ANTIGOS (de
+-- antes de existir angle/scale/anchor) de terem a sprite mudada do nada.
+do
+    -- Opção LIGADA: gate aberto, getRender* repassa os getters.
+    local GridSandboxOptions = require("GridSandboxOptions")
+    GridSandboxOptions.invalidateCache()
+    _G.getSandboxOptions = function() return {
+        getOptionByName = function(_, name)
+            if name == "GridInventory.IconRotation" then
+                return { getValue = function() return true end }
+            end
+            return nil
+        end
+    } end
+
+    GridIconRotation.Overrides["Base.GateKnife"] = 30
+    GridIconRotation.Scales["Base.GateKnife"] = 1.3
+    GridIconRotation.Anchors["Base.GateKnife"] = { x = 2, y = -2 }
+    local item = makeItem("Base.GateKnife")
+    H.ok(GridIconRotation.getRenderAngle(item) == 30, "opção ON -> getRenderAngle == override (30) [" .. tostring(GridIconRotation.getRenderAngle(item)) .. "]")
+    H.ok(GridIconRotation.getRenderScale(item) == 1.3, "opção ON -> getRenderScale == override (1.3) [" .. tostring(GridIconRotation.getRenderScale(item)) .. "]")
+    local gax, gay = GridIconRotation.getRenderAnchor(item)
+    H.ok(gax == 2 and gay == -2, "opção ON -> getRenderAnchor == override (2,-2) [" .. tostring(gax) .. "," .. tostring(gay) .. "]")
+end
+
+do
+    -- FALLBACK (opção não disponível, ex.: getSandboxOptions nil): OFF
+    -- conservador — jogador antigo cujo save não tem a opção registrada não vê
+    -- o sprite mudar (compatibilidade total com inis pré-angle/scale/anchor).
+    local GridSandboxOptions = require("GridSandboxOptions")
+    GridSandboxOptions.invalidateCache()
+    _G.getSandboxOptions = nil
+
+    GridIconRotation.Overrides["Base.GateFallback"] = 90
+    GridIconRotation.Scales["Base.GateFallback"] = 2.0
+    GridIconRotation.Anchors["Base.GateFallback"] = { x = 5, y = 5 }
+    local item = makeItem("Base.GateFallback")
+    H.ok(GridIconRotation.getRenderAngle(item) == 0, "fallback sem getSandboxOptions -> 0 (OFF) [" .. tostring(GridIconRotation.getRenderAngle(item)) .. "]")
+    H.ok(GridIconRotation.getRenderScale(item) == 1, "fallback sem getSandboxOptions -> 1 (OFF) [" .. tostring(GridIconRotation.getRenderScale(item)) .. "]")
+    local fax, fay = GridIconRotation.getRenderAnchor(item)
+    H.ok(fax == 0 and fay == 0, "fallback sem getSandboxOptions -> (0,0) (OFF) [" .. tostring(fax) .. "," .. tostring(fay) .. "]")
+    -- O getter puro continua vendo o hardcoded (DevTool usa isso pra editar).
+    H.ok(GridIconRotation.getAngle(item) == 90, "getAngle puro vê o hardcoded (90) mesmo no fallback OFF [" .. tostring(GridIconRotation.getAngle(item)) .. "]")
+end
+
+do
+    -- Opção DESLIGADA (servidor decide): o render ignora o override — volta pro
+    -- padrão (0 / 1 / 0,0). O DevTool continua vendo o valor real (getter puro).
+    local GridSandboxOptions = require("GridSandboxOptions")
+    GridSandboxOptions.invalidateCache()
+    _G.getSandboxOptions = function() return {
+        getOptionByName = function(_, name)
+            if name == "GridInventory.IconRotation" then
+                return { getValue = function() return false end }
+            end
+            return nil
+        end
+    } end
+
+    local item = makeItem("Base.GateKnife2")
+    H.ok(GridIconRotation.getRenderAngle(item) == 0, "opção OFF -> getRenderAngle força 0 [" .. tostring(GridIconRotation.getRenderAngle(item)) .. "]")
+    H.ok(GridIconRotation.getRenderScale(item) == 1, "opção OFF -> getRenderScale força 1 [" .. tostring(GridIconRotation.getRenderScale(item)) .. "]")
+    local gax, gay = GridIconRotation.getRenderAnchor(item)
+    H.ok(gax == 0 and gay == 0, "opção OFF -> getRenderAnchor força (0,0) [" .. tostring(gax) .. "," .. tostring(gay) .. "]")
+
+    -- Override do GridDevTool ao vivo também é ignorado na render quando OFF.
+    _G.GridDevTool = { Overrides = { ["Base.GateKnife2"] = { angle = -10, scale = 1.5, anchorX = 4, anchorY = 5 } } }
+    H.ok(GridIconRotation.getRenderAngle(item) == 0, "opção OFF ignora override ao vivo do GridDevTool (angle) [" .. tostring(GridIconRotation.getRenderAngle(item)) .. "]")
+    H.ok(GridIconRotation.getRenderScale(item) == 1, "opção OFF ignora override ao vivo do GridDevTool (scale) [" .. tostring(GridIconRotation.getRenderScale(item)) .. "]")
+    local gax2, gay2 = GridIconRotation.getRenderAnchor(item)
+    H.ok(gax2 == 0 and gay2 == 0, "opção OFF ignora override ao vivo do GridDevTool (anchor) [" .. tostring(gax2) .. "," .. tostring(gay2) .. "]")
+    H.ok(GridIconRotation.getAngle(item) == -10, "getAngle puro ainda lê o GridDevTool ao vivo (-10) [" .. tostring(GridIconRotation.getAngle(item)) .. "]")
+
+    _G.GridDevTool = nil
+
+    -- O getter PURO continua retornando o valor real (usado pelo DevTool pra
+    -- popular os campos de edição) mesmo com a opção OFF.
+    GridIconRotation.Overrides["Base.GateKnife2"] = 45
+    GridIconRotation.clearCache()
+    H.ok(GridIconRotation.getAngle(item) == 45, "opção OFF não afeta getAngle puro (DevTool) [" .. tostring(GridIconRotation.getAngle(item)) .. "]")
+end
+
+-- ── nil item → 0 / 1 / 0,0 nas versões de render ──────────────────────────────
+do
+    H.ok(GridIconRotation.getRenderAngle(nil) == 0, "getRenderAngle(nil) -> 0")
+    H.ok(GridIconRotation.getRenderScale(nil) == 1, "getRenderScale(nil) -> 1")
+    local ax, ay = GridIconRotation.getRenderAnchor(nil)
+    H.ok(ax == 0 and ay == 0, "getRenderAnchor(nil) -> 0,0")
+end
+
 H.finish()

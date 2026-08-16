@@ -349,7 +349,7 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a,
     -- de escala era IGNORADO em ângulo 0 (só valia na rotação livre).
     -- OVERFLOW: ignora o multiplicador (scale=1) — célula única 1x1 não pode
     -- estourar a sprite pra fora.
-    local scale = math.min(scaleW / visualTexW, scaleH / visualTexH) * (self.isOverflow and 1 or GridIconRotation.getScale(item))
+    local scale = math.min(scaleW / visualTexW, scaleH / visualTexH) * (self.isOverflow and 1 or GridIconRotation.getRenderScale(item))
     
     local drawW = (isRotated and texH or texW) * scale
     local drawH = (isRotated and texW or texH) * scale
@@ -367,7 +367,7 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a,
     -- deslocada sem estourar a borda (mesmo critério do scale/deg acima).
     local anchorX, anchorY = 0, 0
     if not self.isOverflow then
-        anchorX, anchorY = GridIconRotation.getAnchor(item)
+        anchorX, anchorY = GridIconRotation.getRenderAnchor(item)
         if isRotated then
             anchorX, anchorY = anchorY, -anchorX
         end
@@ -593,7 +593,7 @@ function GridRender:drawItemIconRotatedFree(item, x, y, w, h, isRotated, deg, r,
     local bboxW = math.abs(texW * cosT) + math.abs(texH * sinT)
     local bboxH = math.abs(texW * sinT) + math.abs(texH * cosT)
     -- OVERFLOW: escala 1 (o guard acima já zera deg, mas por robustez).
-    local iconScale = self.isOverflow and 1 or GridIconRotation.getScale(item)
+    local iconScale = self.isOverflow and 1 or GridIconRotation.getRenderScale(item)
     local scale = math.min(scaleW / bboxW, scaleH / bboxH) * iconScale
     local drawW = texW * scale
     local drawH = texH * scale
@@ -616,7 +616,7 @@ function GridRender:drawItemIconRotatedFree(item, x, y, w, h, isRotated, deg, r,
     -- OVERFLOW: ignora o anchor (célula 1x1 não comporta deslocamento).
     local anchorX, anchorY = 0, 0
     if not self.isOverflow then
-        anchorX, anchorY = GridIconRotation.getAnchor(item)
+        anchorX, anchorY = GridIconRotation.getRenderAnchor(item)
         centerX = centerX + anchorX * cosT - anchorY * sinT
         centerY = centerY + anchorX * sinT + anchorY * cosT
     end
@@ -1221,7 +1221,7 @@ function GridRender:render()
                 elseif playerObj and data.itemObj.isUnwanted and data.itemObj:isUnwanted(playerObj) then
                     iconR, iconG, iconB, iconA = 0.55, 0.55, 0.55, 0.85
                 end
-                self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, iconR, iconG, iconB, iconA, GridIconRotation.getAngle(data.itemObj))
+                self:drawItemIconRotated(data.itemObj, drawX, drawY, drawW, drawH, data.rotated, iconR, iconG, iconB, iconA, GridIconRotation.getRenderAngle(data.itemObj))
                 
                 -- ── Ícones de status (sistema flex) ─────────────────────────────────
                 if not itemHidden then
@@ -1328,7 +1328,7 @@ function GridRender:render()
             
             if gData.itemObj then
                 -- Desenha o item com 50% de opacidade
-                self:drawItemIconRotated(gData.itemObj, drawX, drawY, drawW, drawH, gData.rotated, 1, 1, 1, 0.5, GridIconRotation.getAngle(gData.itemObj))
+                self:drawItemIconRotated(gData.itemObj, drawX, drawY, drawW, drawH, gData.rotated, 1, 1, 1, 0.5, GridIconRotation.getRenderAngle(gData.itemObj))
             end
         end
     end

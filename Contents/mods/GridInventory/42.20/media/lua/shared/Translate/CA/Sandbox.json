@@ -17,6 +17,8 @@
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Temps en mil·lisegons per revelar cada pila en cercar un contenidor. Escala amb el nombre de piles: més objectes, cerca més llarga.\n\n0 = instantani (ho revela tot en fer clic).",
     "Sandbox_GridInventory_EnableDevTools": "Activa DevTools",
     "Sandbox_GridInventory_EnableDevTools_tooltip": "Afegeix l'opció \"[DevTool] Edita la mida de la quadrícula\" al menú contextual dels objectes, perquè puguis redimensionar les petjades dels objectes i les quadrícules dels contenidors sense iniciar el joc amb -debug.\n\nActivat: DevTools disponible en aquesta partida. En multijugador, els jugadors que no són administradors veuen l'opció, però el servidor rebutja aplicar els canvis.\n\nDesactivat: només disponible quan el joc s'inicia amb -debug.",
+    "Sandbox_GridInventory_IconRotation": "Rotate/Scale Item Sprites",
+    "Sandbox_GridInventory_IconRotation_tooltip": "Applies the saved sprite rotation, scale and anchor overrides (GridDevTool) for all players.\n\nOn: everyone sees item sprites rotated/scaled/anchored as configured.\n\nOff: the server forces the default sprite (only the footprint w/h is applied). Server-side decision for everyone.",
     "Sandbox_GridInventory_MaxContainerGridSize": "Mida màxima de la quadrícula del contenidor",
     "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Nombre màxim de files per a les quadrícules dels contenidors del món. Les quadrícules es dimensionen segons la capacitat fins a aquest límit. La sobreescriptura de quadrícula del DevTool pot superar aquest límit per a contenidors específics.\n\nEl 15 (per defecte) manté el comportament clàssic.",
     "Sandbox_GridInventory_InventoryPlayerWidth": "Amplada de l'inventari del jugador",

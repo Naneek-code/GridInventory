@@ -133,7 +133,7 @@ function GlobalDragRender:render()
     end
 
     if anchorData.itemObj then
-        GridRender.drawItemIconRotated(self, anchorData.itemObj, drawX, drawY, drawW, drawH, anchorData.rotated, 1, 1, 1, 1, GridIconRotation.getAngle(anchorData.itemObj))
+        GridRender.drawItemIconRotated(self, anchorData.itemObj, drawX, drawY, drawW, drawH, anchorData.rotated, 1, 1, 1, 1, GridIconRotation.getRenderAngle(anchorData.itemObj))
     end
 
     -- Badge de contagem: total de itens arrastados (pilha ou multi-drag)

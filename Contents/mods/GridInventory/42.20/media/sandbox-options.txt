@@ -44,6 +44,13 @@ option GridInventory.EnableDevTools
     translation = GridInventory_EnableDevTools,
 }
 
+option GridInventory.IconRotation
+{
+    type = boolean, default = false,
+    page = GridInventory,
+    translation = GridInventory_IconRotation,
+}
+
 option GridInventory.MaxContainerGridSize
 {
     type = integer, min = 3, max = 30, default = 15,

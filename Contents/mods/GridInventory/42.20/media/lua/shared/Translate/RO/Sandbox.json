@@ -17,6 +17,8 @@
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Timpul în milisecunde pentru a dezvălui fiecare grămadă la căutarea într-un container. Se scalează cu numărul de grămezi: mai multe obiecte, căutare mai lungă.\n\n0 = instantaneu (dezvăluie tot la clic).",
     "Sandbox_GridInventory_EnableDevTools": "Activează DevTools",
     "Sandbox_GridInventory_EnableDevTools_tooltip": "Adaugă opțiunea \"[DevTool] Editează dimensiunea grilei\" la meniul contextual al obiectelor, pentru a putea redimensiona amprenta obiectelor și grilele containerelor fără a porni jocul cu -debug.\n\nPornit: DevTools disponibile în acest save. În multiplayer, jucătorii care nu sunt admini văd opțiunea, dar serverul respinge aplicarea modificărilor.\n\nOprit: disponibil doar când jocul este pornit cu -debug.",
+    "Sandbox_GridInventory_IconRotation": "Rotate/Scale Item Sprites",
+    "Sandbox_GridInventory_IconRotation_tooltip": "Applies the saved sprite rotation, scale and anchor overrides (GridDevTool) for all players.\n\nOn: everyone sees item sprites rotated/scaled/anchored as configured.\n\nOff: the server forces the default sprite (only the footprint w/h is applied). Server-side decision for everyone.",
     "Sandbox_GridInventory_MaxContainerGridSize": "Dimensiunea maximă a grilei containerului",
     "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Numărul maxim de rânduri pentru grilele containerelor din lume. Grilele sunt dimensionate după capacitate până la această limită. Suprascrierea grilei prin DevTool poate depăși această limită pentru containere specifice.\n\nValoarea implicită 15 păstrează comportamentul clasic.",
     "Sandbox_GridInventory_InventoryPlayerWidth": "Lățimea inventarului jucătorului",

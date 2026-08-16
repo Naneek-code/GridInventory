@@ -47,6 +47,7 @@ local function registerInvalidation()
                 elseif name == OPTION_NAME_MIN_GRID_W then _cache.minGridW = nil
                 elseif name == OPTION_NAME_INV_W then _cache.invW = nil
                 elseif name == OPTION_NAME_INV_H then _cache.invH = nil
+                elseif name == OPTION_NAME_ICON_ROTATION then _cache.iconRotation = nil
                 else _cache = {} end
             else
                 _cache = {}
@@ -221,6 +222,26 @@ function GridSandboxOptions.getPlayerInventoryHeight()
         if n == nil or n <= 0 then return nil end
         return n
     end, 4)
+end
+
+-- Rotação/escala/anchor de sprites (override visual do DevTool): default
+-- DESLIGADO (false). Ligado só quando o servidor quer aplicar os ajustes
+-- visuais do hardcoded/ini. Default OFF é POR COMPATIBILIDADE: jogadores com
+-- save/ini antigos (criados antes de existir angle/scale/anchor) não podem ver
+-- o sprite deles mudar do nada — então a opção nasce desligada e o servidor
+-- liga se quiser o tuning visual.
+local OPTION_NAME_ICON_ROTATION = "GridInventory.IconRotation"
+
+--- Se os overrides de rotação/escala/anchor de sprite são aplicados na render.
+--- false (default) = todos os jogadores veem os sprites no padrão (angle=0,
+--- scale=1, anchor=0), independente do que o hardcoded/ini tem. true = aplica
+--- os overrides visuais. O servidor decide (a opção de sandbox é do mundo,
+--- sincronizada pra todos).
+--- @return boolean
+function GridSandboxOptions.isIconRotationEnabled()
+    return readOption("iconRotation", OPTION_NAME_ICON_ROTATION, function(v)
+        return v == true
+    end, false)
 end
 
 return GridSandboxOptions

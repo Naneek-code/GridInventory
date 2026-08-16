@@ -1103,6 +1103,19 @@ function GridDevToolUI:drawFootprintPreview()
         local anchorX = self.tempData.anchorX or 0
         local anchorY = self.tempData.anchorY or 0
 
+        -- Sandbox option "GridInventory.IconRotation" (o servidor decide): quando
+        -- DESLIGADA, TODOS os jogadores veem o sprite no padrão (angle=0,
+        -- scale=1, anchor=0) mesmo com override salvo. O preview acompanha pra
+        -- mostrar exatamente o que será renderizado no jogo.
+        local GridSandboxOptions = require("GridSandboxOptions")
+        if GridSandboxOptions and GridSandboxOptions.isIconRotationEnabled
+            and not GridSandboxOptions.isIconRotationEnabled() then
+            deg = 0
+            iconScale = 1
+            anchorX = 0
+            anchorY = 0
+        end
+
         -- PAD do render (1px cada lado).
         local PAD = 2
         local scaleW = math.max(1, fw - PAD)
@@ -1175,6 +1188,15 @@ function GridDevToolUI:drawFootprintPreview()
         end
     end
     self:drawText(legend, px + 8, py + 8, 1, 1, 1, 1, UIFont.Small)
+
+    -- Aviso quando a sandbox option "IconRotation" está desligada: o preview
+    -- mostra o sprite PADRÃO (o que os jogadores vão ver), mesmo que os campos
+    -- à esquerda tenham angle/scale/anchor preenchidos.
+    local GridSandboxOptions = require("GridSandboxOptions")
+    if GridSandboxOptions and GridSandboxOptions.isIconRotationEnabled
+        and not GridSandboxOptions.isIconRotationEnabled() then
+        self:drawText("IconRotation OFF (sandbox): sprites no padrao", px + 8, py + ph - 20, 1, 0.6, 0.2, 1, UIFont.Small)
+    end
 
     -- Hover/drag do ANCHOR: destaca o footprint e mostra o valor atual em px.
     -- Feedback de "arrastável" (borda amarela) + texto com o anchor atual pra

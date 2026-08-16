@@ -17,6 +17,8 @@
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Time in milliseconds to reveal each stack while searching a container. Scales with the number of stacks: more items, longer search.\n\n0 = instant (reveals everything on click).",
     "Sandbox_GridInventory_EnableDevTools": "Enable DevTools",
     "Sandbox_GridInventory_EnableDevTools_tooltip": "Adds the \"[DevTool] Edit Grid Size\" option to the item context menu, so you can resize item footprints and container grids without launching the game with -debug.\n\nOn: DevTools available in this save. In multiplayer, non-admin players can see the option but the server rejects applying changes.\n\nOff: only available when the game is started with -debug.",
+    "Sandbox_GridInventory_IconRotation": "Rotate/Scale Item Sprites",
+    "Sandbox_GridInventory_IconRotation_tooltip": "Applies the sprite rotation, scale and anchor overrides (hardcoded + GridDevTool) for all players.\n\nOn: everyone sees item sprites rotated/scaled/anchored as configured.\n\nOff (default): the server forces the default sprite (only the footprint w/h is applied) so old saves/overrides from before rotation/scale/anchor existed are never changed out of nowhere.\n\nRecommended: on for new saves where sprites were tuned. Server-side decision for everyone.",
     "Sandbox_GridInventory_MaxContainerGridSize": "Max container grid size",
     "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Maximum number of rows for world container grids. Grids are sized by capacity up to this cap. The DevTool grid override can exceed this cap for specific containers.\n\nDefault 15 keeps the classic behavior.",
     "Sandbox_GridInventory_InventoryPlayerWidth": "Player inventory width",
