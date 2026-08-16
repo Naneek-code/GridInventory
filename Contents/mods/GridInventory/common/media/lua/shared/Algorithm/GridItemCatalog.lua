@@ -75,6 +75,44 @@ function GridItemCatalog.filter(entries, query, category)
     return out
 end
 
+--- Constrói o índice de DERIVADOS a partir de pares de evolved recipes:
+--- base fullType -> array de fullTypes resultantes (dedup + ordenado).
+--- A fonte real no jogo é o global getEvolvedRecipes() (objetos EvolvedRecipe
+--- com getBaseItem/getResultItem retornando STRING fullType); o client converte
+--- pra pares { base, result } e passa aqui (lógica pura/testável).
+---@param pairs table array de { base = string, result = string }
+---@return table index: base -> { fullType, ... }
+function GridItemCatalog.buildDerivedIndex(pairsIn)
+    local index = {}
+    for _, p in ipairs(pairsIn or {}) do
+        if p and p.base and p.result then
+            local list = index[p.base]
+            if not list then list = {} index[p.base] = list end
+            list[#list + 1] = p.result
+        end
+    end
+    for base in pairs(index) do
+        local seen, out = {}, {}
+        table.sort(index[base])
+        for _, t in ipairs(index[base]) do
+            if not seen[t] then
+                seen[t] = true
+                out[#out + 1] = t
+            end
+        end
+        index[base] = out
+    end
+    return index
+end
+
+--- Itens derivados de um base (resultados de evolved recipes), ordenados.
+---@param index table índice de GridItemCatalog.buildDerivedIndex
+---@param base string fullType do item base (ex: "Base.Bowl")
+---@return table array de fullTypes derivados (pode ser vazio)
+function GridItemCatalog.getDerived(index, base)
+    return index and index[base] or {}
+end
+
 --- Pagina uma lista filtrada.
 ---@param filtered table
 ---@param page number 1-based

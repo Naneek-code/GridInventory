@@ -462,6 +462,15 @@ function GridDevToolUI:initialise()
     self.btnBrowse = ISButton:new(10, cy + 10, 80, 25, "Browse", self, self.onBrowse)
     self.btnBrowse:initialise()
     self:addChild(self.btnBrowse)
+
+    -- Derived Button (só item): abre o browser já filtrado pros itens que nascem
+    -- desse item via evolved recipes (ex: cumbuca -> saladas). Editar só o item
+    -- base não resolve os derivados — eles têm fullTypes próprios.
+    if self.isItem then
+        self.btnDerived = ISButton:new(95, cy + 10, 80, 25, "Derivados", self, self.onDerived)
+        self.btnDerived:initialise()
+        self:addChild(self.btnDerived)
+    end
     
     -- Close Button
     self.btnClose = ISButton:new(self.width - 25, 5, 20, 20, "X", self, self.close)
@@ -1263,6 +1272,19 @@ function GridDevToolUI:onBrowse()
     local browser = GridDevBrowser or (package.loaded and package.loaded["UI/GridDevBrowser"])
     if not browser then return end
     browser.open(self:getX(), self:getY() + self:getHeight() + 10, self.player)
+end
+
+--- Botão "Derivados" do DevTool: abre o browser já filtrado pros itens que
+--- nascem deste item via evolved recipes (ex: Base.Bowl vira Base.Salad,
+--- Base.FruitSalad...). Esses derivados têm fullTypes PRÓPRIOS — editar o item
+--- base não muda o footprint/sprite deles. Aqui o usuário vê a lista e pode
+--- abrir o DevTool de cada um pra aplicar o mesmo tuning.
+function GridDevToolUI:onDerived()
+    if not canUseDevTools(self.player) then return end
+    if not self.itemFullType then return end
+    local browser = GridDevBrowser or (package.loaded and package.loaded["UI/GridDevBrowser"])
+    if not browser then return end
+    browser.open(self:getX(), self:getY() + self:getHeight() + 10, self.player, self.itemFullType)
 end
 
 Events.OnFillInventoryObjectContextMenu.Add(OnFillInventoryObjectContextMenu)

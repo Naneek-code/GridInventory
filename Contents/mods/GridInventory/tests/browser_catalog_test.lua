@@ -134,4 +134,37 @@ do
     H.ok(not missing, "categoryOrder cobre todas as categorias com cor")
 end
 
+-- ── buildDerivedIndex / getDerived (evolved recipes: base -> resultados) ─────
+do
+    -- Simula os pares { base, result } do getEvolvedRecipes() (BaseItem/ResultItem).
+    local pairs = {
+        { base = "Base.Bowl", result = "Base.Salad" },
+        { base = "Base.Bowl", result = "Base.FruitSalad" },
+        { base = "Base.Bowl", result = "Base.Salad" },   -- duplicado: dedup
+        { base = "Base.ClayBowl", result = "Base.SaladClay" },
+        { base = "Base.Pot", result = "Base.PotOfSoup" },
+    }
+    local index = GridItemCatalog.buildDerivedIndex(pairs)
+
+    local bowl = GridItemCatalog.getDerived(index, "Base.Bowl")
+    H.ok(#bowl == 2, "Bowl -> 2 derivados (dedup) [" .. #bowl .. "]")
+    H.ok(bowl[1] == "Base.FruitSalad" and bowl[2] == "Base.Salad",
+        "derivados ordenados [" .. table.concat(bowl, ",") .. "]")
+
+    local clay = GridItemCatalog.getDerived(index, "Base.ClayBowl")
+    H.ok(#clay == 1 and clay[1] == "Base.SaladClay", "ClayBowl -> SaladClay [" .. (clay[1] or "nil") .. "]")
+
+    local pot = GridItemCatalog.getDerived(index, "Base.Pot")
+    H.ok(#pot == 1 and pot[1] == "Base.PotOfSoup", "Pot -> PotOfSoup [" .. (pot[1] or "nil") .. "]")
+
+    local none = GridItemCatalog.getDerived(index, "Base.Hammer")
+    H.ok(#none == 0, "item sem derivados -> 0 [" .. #none .. "]")
+
+    local noIndex = GridItemCatalog.getDerived(nil, "Base.Bowl")
+    H.ok(#noIndex == 0, "index nil -> 0 [" .. #noIndex .. "]")
+
+    local empty = GridItemCatalog.buildDerivedIndex(nil)
+    H.ok(type(empty) == "table" and next(empty) == nil, "pairs nil -> index vazio")
+end
+
 H.finish()

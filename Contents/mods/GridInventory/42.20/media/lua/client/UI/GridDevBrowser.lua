@@ -49,6 +49,7 @@ GridDevBrowser = {
     buildQueue = {},      -- fullTypes pendentes (já filtrados obsoleto/hidden)
     building = false,     -- true enquanto o build roda em chunks
     CHUNK_SIZE = 60,      -- itens processados por frame
+    derivedIndex = nil,   -- índice base -> { fullType derivados } (evolved recipes)
 }
 
 --- (Re)inicia o build do catálogo a partir do getAllItems().
@@ -138,13 +139,43 @@ function GridDevBrowser.advanceBuild()
     return progress, false
 end
 
+--- Índice de DERIVADOS: mapa fullType base -> lista de fullTypes que nascem
+--- dele via evolved recipes (ex: Base.Bowl vira Base.Salad, Base.FruitSalad...).
+--- O jogo expõe o global getEvolvedRecipes() (ArrayList Java de EvolvedRecipe,
+--- com getBaseItem()/getResultItem() retornando STRING fullType). Converte uma
+--- vez (lazy) pra pares { base, result } e delega a lógica pura ao
+--- GridItemCatalog.buildDerivedIndex (testável). Cacheado: build = 1 vez.
+--- @return table índice base -> { fullType, ... }
+function GridDevBrowser.getDerivedIndex()
+    if GridDevBrowser.derivedIndex then return GridDevBrowser.derivedIndex end
+
+    local pairs = {}
+    local evos = getEvolvedRecipes and getEvolvedRecipes()
+    if evos then
+        local n = evos:size()
+        for i = 0, n - 1 do
+            local evo = evos:get(i)
+            local base = evo.getBaseItem and evo:getBaseItem()
+            local result = evo.getResultItem and evo:getResultItem()
+            if base and result then
+                pairs[#pairs + 1] = { base = base, result = result }
+            end
+        end
+    end
+
+    GridDevBrowser.derivedIndex = GridItemCatalog.buildDerivedIndex(pairs)
+    return GridDevBrowser.derivedIndex
+end
+
 --- Abre o browser.
 --- @param x number
 --- @param y number
 --- @param player number|IsoPlayer|nil
-function GridDevBrowser.open(x, y, player)
+--- @param derivedOf string|nil fullType base: abre já filtrado pros DERIVADOS
+---        (itens que nascem desse base via evolved recipes, ex: cumbuca -> saladas)
+function GridDevBrowser.open(x, y, player, derivedOf)
     if not canUseDevTools() then return end
-    local ui = GridDevBrowserUI:new(x, y, player)
+    local ui = GridDevBrowserUI:new(x, y, player, derivedOf)
     ui:initialise()
     ui:addToUIManager()
     -- Z-order: o browser abre por cima do DevTool que o chamou (o clique no
@@ -155,7 +186,7 @@ end
 --- GridDevBrowserUI: painel do browser (ISPanel:derive, mesmo padrão do DevTool).
 GridDevBrowserUI = ISPanel:derive("GridDevBrowserUI")
 
-function GridDevBrowserUI:new(x, y, player)
+function GridDevBrowserUI:new(x, y, player, derivedOf)
     local o = ISPanel:new(x, y, 520, 640)
     setmetatable(o, self)
     self.__index = self
@@ -174,6 +205,13 @@ function GridDevBrowserUI:new(x, y, player)
     o.pageCount = 1
     o.pageSize = 20
     o.progress = GridDevBrowser.building and 0 or 1
+    -- Modo DERIVADOS: derivedOf = fullType base; filtro inicial = lista de
+    -- fullTypes que nascem dele (evolved recipes). nil = modo normal.
+    o.derivedOf = derivedOf or nil
+    o.derivedFilter = nil   -- lista de fullTypes derivados (cresce no build)
+    if o.derivedOf then
+        o.derivedFilter = GridDevBrowser.getDerivedIndex()[o.derivedOf] or {}
+    end
 
     -- Clamp: janela dentro da tela.
     local sw = getCore() and getCore():getScreenWidth() or 1280
@@ -217,7 +255,7 @@ function GridDevBrowserUI:initialise()
     end
     self:addChild(self.entrySearch)
 
-    -- Categoria
+    -- Categoria (escondida no modo DERIVADOS — o filtro de fullTypes manda)
     self:addChild(ISLabel:new(10, 58, 20, "Categoria:", 1, 1, 1, 1, UIFont.Small, true))
     self.comboCategory = ISComboBox:new(70, 56, self.width - 80, 22, self, function(target, combo)
         target:onCategoryChanged()
@@ -231,6 +269,19 @@ function GridDevBrowserUI:initialise()
         end
     end
     self:addChild(self.comboCategory)
+
+    -- Modo DERIVADOS: botão que volta ao catálogo completo (limpa o derivedOf).
+    if self.derivedOf then
+        self.comboCategory:setVisible(false)
+        self.btnAll = ISButton:new(self.width - 150, 56, 140, 22, "Ver todos", self, function(self)
+            self.derivedOf = nil
+            self.derivedFilter = nil
+            self.comboCategory:setVisible(true)
+            self:applyFilter()
+        end)
+        self.btnAll:initialise()
+        self:addChild(self.btnAll)
+    end
 
     -- Paginação
     self.btnPrev = ISButton:new(10, self:listBottom() + 12, 60, 22, "< Prev", self, function(self)
@@ -256,7 +307,23 @@ end
 
 --- Re-aplica o filtro (busca + categoria) e volta pra página 1.
 function GridDevBrowserUI:applyFilter()
-    self.filtered = GridItemCatalog.filter(self.allEntries, self.query, self.category)
+    local source = self.allEntries
+    -- Modo DERIVADOS: mostra só os fullTypes que nascem do base (o query/categoria
+    -- continuam valendo DENTRO desse subconjunto, pra refinar).
+    if self.derivedOf then
+        local want = {}
+        local wantSet = {}
+        for _, t in ipairs(self.derivedFilter or {}) do
+            wantSet[t] = true
+        end
+        for _, e in ipairs(self.allEntries) do
+            if wantSet[e.fullType] then
+                want[#want + 1] = e
+            end
+        end
+        source = want
+    end
+    self.filtered = GridItemCatalog.filter(source, self.query, self.category)
     self.page = 1
     self:refreshPage()
 end
@@ -308,6 +375,14 @@ function GridDevBrowserUI:prerender()
         self:drawText("Building catalog... " .. tostring(pct) .. "%", 10, BROWSER_LIST_TOP, 0.8, 0.8, 0.5, 1, UIFont.Small)
     end
 
+    -- Modo DERIVADOS: mostra de quem esses itens nascem (cumbuca -> saladas, etc)
+    -- na linha da categoria (que fica escondida nesse modo), à esquerda do botão
+    -- "Ver todos".
+    if self.derivedOf then
+        local n = self.derivedFilter and #self.derivedFilter or 0
+        self:drawText("Derivados de " .. self.derivedOf .. " (" .. tostring(n) .. ")", 10, 62, 0.7, 0.9, 1, 1, UIFont.Small)
+    end
+
     -- Linhas da página atual
     local y = BROWSER_LIST_TOP + (GridDevBrowser.building and 18 or 0)
     local tm = getTextManager()
@@ -346,8 +421,9 @@ function GridDevBrowserUI:prerender()
         y = y + BROWSER_ROW_H
     end
 
-    -- Rodapé: total + página
-    self:drawText("Itens: " .. tostring(#self.allEntries) .. " | Pagina " .. tostring(self.page)
+    -- Rodapé: total (filtrado no modo derivados) + página
+    local total = self.derivedOf and #self.filtered or #self.allEntries
+    self:drawText("Itens: " .. tostring(total) .. " | Pagina " .. tostring(self.page)
         .. "/" .. tostring(self.pageCount), 10, self:listBottom() + 16, 0.8, 0.8, 0.8, 1, UIFont.Small)
 end
 
