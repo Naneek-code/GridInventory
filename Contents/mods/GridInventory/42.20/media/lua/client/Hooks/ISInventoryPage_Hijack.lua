@@ -86,10 +86,10 @@ function ISInventoryPage:update()
     -- acontecia quando cada GridRender:update chamava beginFrame().
     GridInventory_Search.beginFrame()
 
-    -- Joypad: move o cursor com o analógico (só quando este painel tem foco
-    -- do controle e um jogador está usando gamepad).
+    -- Joypad: só o pollNav gerencia o modo navegação do bumper segurado (o
+    -- update do painel focado cuida do ciclo). O analógico NÃO move o cursor.
     if JoypadState and JoypadState.players and JoypadState.players[self.player + 1] then
-        GridJoypad.pollAnalog(self.player, self)
+        GridJoypad.pollNav(self.player, self)
     end
 
     -- Coalesce do onInventoryUpdate: o refreshContainer (remap de todos os
@@ -324,7 +324,13 @@ function ISInventoryPage:update()
                 end
             end
         end
+        -- No CONTROLE não dá pra clicar nos botões (Take All etc.) — não
+        -- reserva o rodapé e o grid mantém a altura de conteúdo (sem "crescer"
+        -- como se os botões existissem).
+        local usingJoypad = JoypadState and JoypadState.players
+            and JoypadState.players[self.player + 1] ~= nil
         local hasButtons = (gridUi and self.controlsUI.controls and #self.controlsUI.controls > 0)
+            and not usingJoypad
         local footerH = 0
         if hasButtons then
             footerH = math.max(24, (self.controlsUI:getHeight() or 0) + (CONTROLS_PAD * 2))
@@ -670,7 +676,13 @@ end
 local og_setVisible = ISInventoryPage.setVisible
 function ISInventoryPage:setVisible(visible)
     og_setVisible(self, visible)
-    
+
+    -- Fechou o inventário: cancela o drag de joypad (o item preso no cursor
+    -- volta pra origem — ele nunca saiu do container durante o drag).
+    if not visible and GridJoypad.isDragging(self.player) then
+        GridJoypad.cancelDrag(self.player)
+    end
+
     if visible then
         self:bringToTop()
     end
@@ -794,6 +806,10 @@ function ISInventoryPage:render()
         local rh = (BUTTON_HGT or 34) / 2 + 2
         self:drawTextureScaled(self.resizeimage, self:getWidth() - rh + 1, self:getHeight() - rh + 1, rh - 2, rh - 2, 1, 1, 1, 1)
     end
+    -- Overlay do modo navegação (RB segurado): o Lua render da página roda
+    -- DEPOIS dos filhos (verificamos no bytecode do UIElement.render), então
+    -- os ícones D-pad e o destaque ficam por cima dos grids/pane.
+    GridJoypad.renderNavOverlay(self)
 end
 
 -- Sobrescrevemos o sistema de destaque visual (highlight verde no chão) 
@@ -1132,55 +1148,79 @@ function ISInventoryPage:onJoypadDown(button, joypadData)
     ISContextMenu.globalPlayerContext = self.player
     local playerObj = getSpecificPlayer(self.player)
 
+    -- A = pegar/soltar item (drag); no modo PaperDoll, A equipa o item
+    -- arrastado no slot selecionado. B = contexto / cancelar drag, X =
+    -- rotacionar (enquanto arrasta). No PaperDoll o cursor das grids fica
+    -- oculto: os botões de grid ficam inertes (LB/RB saem do paperdoll; Y fecha
+    -- o inventário).
     if button == Joypad.AButton then
-        GridJoypad.openContext(self.player, self)
+        -- No PaperDoll, A equipa o item arrastado no slot (se arrastando).
+        if GridJoypad.isPaperdollActive(self.player) then
+            GridJoypad.pdActivate(self.player)
+        else
+            GridJoypad.grab(self.player, self)
+        end
     elseif button == Joypad.BButton then
         if isPlayerDoingActionThatCanBeCancelled(playerObj) then
             stopDoingActionThatCanBeCancelled(playerObj)
             return
         end
-        GridJoypad.activateB(self.player, self)
+        if GridJoypad.isPaperdollActive(self.player) then
+            -- No PaperDoll, B cancela o drag (se arrastando); senão abre o menu.
+            if GridJoypad.isDragging(self.player) then
+                GridJoypad.cancelDrag(self.player)
+            else
+                GridJoypad.pdContext(self.player, self)
+            end
+        else
+            GridJoypad.activateB(self.player, self)
+        end
     elseif button == Joypad.XButton and not JoypadState.disableGrab then
-        GridJoypad.grab(self.player, self)
+        if GridJoypad.isPaperdollActive(self.player) then
+            -- No PaperDoll, X roda o menu CÍCLICO do slot.
+            GridJoypad.pdCycle(self.player)
+        elseif GridJoypad.isDragging(self.player) then
+            -- Com drag: rotaciona o item segurado.
+            GridJoypad.rotate(self.player, self)
+        else
+            -- Sem drag: transferência RÁPIDA inv<->loot (comportamento vanilla).
+            GridJoypad.quickTransfer(self.player, self)
+        end
     elseif button == Joypad.YButton and not JoypadState.disableYInventory then
         setJoypadFocus(self.player, nil)
     end
 
-    -- Troca de container: 1 = LB no inv / RB no loot, 2 = ambos no painel
-    -- atual, 3 = LB/RB focam inv/loot. Mantido 100% igual ao vanilla.
-    local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
-    if getCore():getGameMode() == "Tutorial" then shoulderSwitch = 1 end
+    -- LB/RB: no modo PaperDoll a saída é decidida no RELEASE (pollNav) — aqui
+    -- não faz nada pro bumper. Fora dele, a ação (trocar painel / ciclar
+    -- container) NÃO roda no aperto — só no SOLTAR, se foi um tap curto
+    -- (<250ms). Segurar o bumper >=250ms ativa o modo NAVEGAÇÃO do painel dele
+    -- (pollNav no update). LB+RB juntos (pollNav) entra no PaperDoll.
     if button == Joypad.LBumper then
-        if shoulderSwitch == 1 then
-            getPlayerInventory(self.player):selectNextContainer()
-        elseif shoulderSwitch == 2 then
-            self:selectPrevContainer()
-        elseif shoulderSwitch == 3 then
-            setJoypadFocus(self.player, getPlayerInventory(self.player))
-        end
-        -- Modos 1 e 2: o foco continua NESTE painel, então o cursor acompanha
-        -- o container ativo dele. Modo 3: o setJoypadFocus troca o foco e o
-        -- onGainJoypadFocus do outro painel já ancora o cursor lá.
-        if shoulderSwitch ~= 3 then
-            GridJoypad.reanchorToActive(self.player, self)
+        if not GridJoypad.isPaperdollActive(self.player) then
+            GridJoypad.bumperDown(self.player, "LB")
         end
     end
     if button == Joypad.RBumper then
-        if shoulderSwitch == 1 then
-            getPlayerLoot(self.player):selectNextContainer()
-        elseif shoulderSwitch == 2 then
-            self:selectNextContainer()
-        elseif shoulderSwitch == 3 then
-            setJoypadFocus(self.player, getPlayerLoot(self.player))
-        end
-        if shoulderSwitch ~= 3 then
-            GridJoypad.reanchorToActive(self.player, self)
+        if not GridJoypad.isPaperdollActive(self.player) then
+            GridJoypad.bumperDown(self.player, "RB")
         end
     end
 end
 
 local og_pageJoypadDirUp = ISInventoryPage.onJoypadDirUp
 function ISInventoryPage:onJoypadDirUp(joypadData)
+    -- MODO PAPERDOLL (LB+RB): o D-pad navega os slots.
+    if GridJoypad.isPaperdollActive(self.player) then
+        GridJoypad.pdDir(self.player, 0, -1)
+        return
+    end
+    -- MODO NAVEGAÇÃO (bumper segurado): o D-pad pula de grid em grid / pro
+    -- painel oposto. Tem que vir ANTES do modo 3 (bumper segurado + D-pad cicla
+    -- container) — durante o nav o bumper está segurado e dispararia o ciclo.
+    if GridJoypad.isNavActive(self.player) then
+        GridJoypad.navDir(self.player, self, 0, -1)
+        return
+    end
     local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
     if shoulderSwitch == 3 then
         if JoypadButton.LeftBump:isDown(joypadData.id) then
@@ -1199,6 +1239,14 @@ end
 
 local og_pageJoypadDirDown = ISInventoryPage.onJoypadDirDown
 function ISInventoryPage:onJoypadDirDown(joypadData)
+    if GridJoypad.isPaperdollActive(self.player) then
+        GridJoypad.pdDir(self.player, 0, 1)
+        return
+    end
+    if GridJoypad.isNavActive(self.player) then
+        GridJoypad.navDir(self.player, self, 0, 1)
+        return
+    end
     local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
     if shoulderSwitch == 3 then
         if JoypadButton.LeftBump:isDown(joypadData.id) then
@@ -1217,6 +1265,14 @@ end
 
 local og_pageJoypadDirLeft = ISInventoryPage.onJoypadDirLeft
 function ISInventoryPage:onJoypadDirLeft(joypadData)
+    if GridJoypad.isPaperdollActive(self.player) then
+        GridJoypad.pdDir(self.player, -1, 0)
+        return
+    end
+    if GridJoypad.isNavActive(self.player) then
+        GridJoypad.navDir(self.player, self, -1, 0)
+        return
+    end
     local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
     if shoulderSwitch == 3 then
         if JoypadButton.LeftBump:isDown(joypadData.id) then
@@ -1235,6 +1291,14 @@ end
 
 local og_pageJoypadDirRight = ISInventoryPage.onJoypadDirRight
 function ISInventoryPage:onJoypadDirRight(joypadData)
+    if GridJoypad.isPaperdollActive(self.player) then
+        GridJoypad.pdDir(self.player, 1, 0)
+        return
+    end
+    if GridJoypad.isNavActive(self.player) then
+        GridJoypad.navDir(self.player, self, 1, 0)
+        return
+    end
     local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
     if shoulderSwitch == 3 then
         if JoypadButton.LeftBump:isDown(joypadData.id) then

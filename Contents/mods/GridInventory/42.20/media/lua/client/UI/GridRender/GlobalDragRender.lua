@@ -42,16 +42,21 @@ function GlobalDragRender:prerender()
     -- o fundo/borda — sem o "stale" do frame anterior deixando o ghost cru.
     GridInventory_DropPreview = nil
 
-    -- Descobre o alvo de put-in sob o cursor (páginas do jogador dono do
-    -- drag) — usado como fallback de drop no mouseUp (sem feedback visual).
-    local playerNum = GridInventory_GlobalDrag.sourceGrid
-        and GridInventory_GlobalDrag.sourceGrid.playerNum or 0
-    local bag = GridInventory_BagDrop.findBagUnderMouse(playerNum)
+    -- Put-in por MOUSE não se aplica ao drag de joypad (o cursor virtual guia;
+    -- se rodasse, um mouse parado sobre header/bolsa transferiria e encerraria
+    -- o drag na hora). O drop do joypad é cometido no place (botão A).
+    if not (GridInventory_GlobalDrag and GridInventory_GlobalDrag.joypad) then
+        -- Descobre o alvo de put-in sob o cursor (páginas do jogador dono do
+        -- drag) — usado como fallback de drop no mouseUp (sem feedback visual).
+        local playerNum = GridInventory_GlobalDrag.sourceGrid
+            and GridInventory_GlobalDrag.sourceGrid.playerNum or 0
+        local bag = GridInventory_BagDrop.findBagUnderMouse(playerNum)
 
-    -- Caminho próprio de drop: mouse solto sobre a bolsa → transfere. É
-    -- idempotente com o caminho vanilla (se o dropItemsInContainer já
-    -- transferiu, o GridInventory_GlobalDrag já foi zerado e isto é no-op).
-    GridInventory_BagDrop.tryHandleMouseUp(playerNum, bag)
+        -- Caminho próprio de drop: mouse solto sobre a bolsa → transfere. É
+        -- idempotente com o caminho vanilla (se o dropItemsInContainer já
+        -- transferiu, o GridInventory_GlobalDrag já foi zerado e isto é no-op).
+        GridInventory_BagDrop.tryHandleMouseUp(playerNum, bag)
+    end
 end
 
 function GlobalDragRender:render()
@@ -75,11 +80,46 @@ function GlobalDragRender:render()
     
     if not anchorData then return end
 
-    local drawW = (anchorData.rotated and anchorData.originalH or anchorData.originalW) * cellSize
-    local drawH = (anchorData.rotated and anchorData.originalW or anchorData.originalH) * cellSize
+    -- Rotação do ghost = anchorData.rotated (a rotação do grid, data.rotated).
+    -- `itemObj:isRotated()` NÃO reflete a rotação da grid — usar ele dessincroniza.
+    local rotated = anchorData.rotated or false
 
-    local drawX = mouseX - (anchorData.grabOffsetX * cellSize) - (cellSize / 2)
-    local drawY = mouseY - (anchorData.grabOffsetY * cellSize) - (cellSize / 2)
+    local drawW = (rotated and anchorData.originalH or anchorData.originalW) * cellSize
+    local drawH = (rotated and anchorData.originalW or anchorData.originalH) * cellSize
+
+    local drawX, drawY
+    if GridInventory_GlobalDrag.joypad then
+        -- Drag de joypad: o ghost acompanha o CURSOR virtual (topo-esquerda da
+        -- célula do cursor), não o mouse. O getAbsoluteX do grid NÃO inclui o
+        -- scroll do pane (setScrollChildren) — desconta o scroll pra achar a
+        -- posição de tela real da célula.
+        local GridJoypad = require("System/GridJoypad")
+        local playerNum = sourceGrid.playerNum or 0
+        -- O nav/switchFocus pode ter RECONSTRUÍDO as grids (container novo):
+        -- re-resolve o cursor pra pegar o grid VIVO (senão o ghost lê posição
+        -- de grid destruído e fica deslocado pra sempre).
+        local cursor = GridJoypad.cursors[playerNum]
+        if cursor and cursor.grid and cursor.grid.parent and cursor.grid.parent.inventoryPage then
+            GridJoypad.resolveCursor(playerNum, cursor.grid.parent.inventoryPage)
+            cursor = GridJoypad.cursors[playerNum]
+        end
+        if not cursor or not cursor.grid or not cursor.col or not cursor.row then return end
+        local g = cursor.grid
+        -- Posição de tela da célula do cursor: o getAbsoluteX/Y do grid JÁ
+        -- inclui o scroll do pane (setScrollChildren) — qualquer correção de
+        -- scroll adicional desloca o ghost (subtrair descia, somar subia).
+        drawX = g:getAbsoluteX() + g.gridPadding + ((cursor.col - 1) * g.cellSize)
+        drawY = g:getAbsoluteY() + g.gridPadding + (g.headerH or 0) + ((cursor.row - 1) * g.cellSize)
+        if GridInventory_joypadDebug then
+            print("[GridJoypad] ghost joypad: grid=", tostring(g.name or g.inventoryContainer),
+                " absX=", g:getAbsoluteX(), " absY=", g:getAbsoluteY(),
+                " cursor=", cursor.col, cursor.row,
+                " draw=", drawX, drawY)
+        end
+    else
+        drawX = mouseX - (anchorData.grabOffsetX * cellSize) - (cellSize / 2)
+        drawY = mouseY - (anchorData.grabOffsetY * cellSize) - (cellSize / 2)
+    end
 
     local extraCount = #itemsData - 1
 
@@ -133,7 +173,7 @@ function GlobalDragRender:render()
     end
 
     if anchorData.itemObj then
-        GridRender.drawItemIconRotated(self, anchorData.itemObj, drawX, drawY, drawW, drawH, anchorData.rotated, 1, 1, 1, 1, GridIconRotation.getRenderAngle(anchorData.itemObj))
+        GridRender.drawItemIconRotated(self, anchorData.itemObj, drawX, drawY, drawW, drawH, rotated, 1, 1, 1, 1, GridIconRotation.getRenderAngle(anchorData.itemObj))
     end
 
     -- Badge de contagem: total de itens arrastados (pilha ou multi-drag)

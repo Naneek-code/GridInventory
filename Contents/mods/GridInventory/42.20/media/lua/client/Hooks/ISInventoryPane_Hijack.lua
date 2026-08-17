@@ -310,7 +310,11 @@ Events.OnGameBoot.Add(function()
             end
         end
         local hasButtons = (gridUi and controlsUI.controls and #controlsUI.controls > 0)
-        if not hasButtons then
+        -- No CONTROLE não dá pra clicar nos botões (Take All etc. — também é
+        -- vanilla); esconde pra não enganar o usuário e não reserva o rodapé.
+        local usingJoypad = JoypadState and JoypadState.players
+            and JoypadState.players[page.player + 1] ~= nil
+        if not hasButtons or usingJoypad then
             controlsUI:setVisible(false)
             return
         end

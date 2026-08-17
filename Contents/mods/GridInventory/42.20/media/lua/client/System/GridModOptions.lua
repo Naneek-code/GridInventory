@@ -27,8 +27,6 @@ GridModOptions.cache = GridModOptions.cache or {
     closeOnEsc = true,
     uiScale = 100,
     gradientFast = false,
-    joypadCursorMode = 1,
-    joypadAnalogSpeed = 50,
 }
 
 local cache = GridModOptions.cache
@@ -40,8 +38,6 @@ local DEFAULTS = {
     closeOnEsc = true,
     uiScale = 100,
     gradientFast = false,
-    joypadCursorMode = 1,
-    joypadAnalogSpeed = 50,
 }
 
 local function toBool(value, default)
@@ -65,12 +61,6 @@ local function split(line, sep)
     return parts
 end
 
--- Sincroniza os globais de joypad usados pelo GridJoypad (leve, sem require).
-local function syncJoypadGlobals()
-    GridInventory_joypadCursorMode = GridModOptions.getJoypadCursorMode()
-    GridInventory_joypadAnalogSpeed = GridModOptions.getJoypadAnalogSpeed()
-end
-
 -- Lê o ModOptions.ini e aplica no cache. Formato de cada linha (save do
 -- PZAPI, ver PZAPI.ModOptions:save): "tickbox|GridInventory|fullscreenPanel|true".
 local function applyIni()
@@ -86,7 +76,7 @@ local function applyIni()
             if parts[2] == "GridInventory" and parts[3] and parts[4] ~= nil then
                 -- O PZAPI grava o ini com \r\n; o readLine pode manter o \r.
                 local value = parts[4]:gsub("\r$", ""):gsub("%s+$", "")
-                if parts[3] == "uiScale" or parts[3] == "joypadCursorMode" or parts[3] == "joypadAnalogSpeed" then
+                if parts[3] == "uiScale" then
                     cache[parts[3]] = toNumber(value, DEFAULTS[parts[3]])
                 else
                     cache[parts[3]] = toBool(value, cache[parts[3]])
@@ -115,7 +105,7 @@ local function syncFromPZAPI()
         if option then
             local okv, value = pcall(function() return option:getValue() end)
             if okv then
-                if id == "uiScale" or id == "joypadCursorMode" or id == "joypadAnalogSpeed" then
+                if id == "uiScale" then
                     cache[id] = toNumber(value, default)
                 else
                     cache[id] = toBool(value, default)
@@ -195,14 +185,6 @@ local function registerOptions()
     section:addTickBox("gradientFast",
         getText("IGUI_GridInv_OptionsGradientFast"), false,
         getText("IGUI_GridInv_OptionsGradientFast_Tooltip"))
-    local joypadMode = section:addComboBox("joypadCursorMode",
-        getText("IGUI_GridInv_OptionsJoypadCursorMode"),
-        getText("IGUI_GridInv_OptionsJoypadCursorMode_Tooltip"))
-    joypadMode:addItem(getText("IGUI_GridInv_OptionsJoypadCursorMode_Snap"), cache.joypadCursorMode == 1)
-    joypadMode:addItem(getText("IGUI_GridInv_OptionsJoypadCursorMode_Cell"), cache.joypadCursorMode == 2)
-    section:addSlider("joypadAnalogSpeed",
-        getText("IGUI_GridInv_OptionsJoypadAnalogSpeed"), 0, 100, 5, cache.joypadAnalogSpeed,
-        getText("IGUI_GridInv_OptionsJoypadAnalogSpeed_Tooltip"))
 
     -- Chamado pelo jogo (MainOptions:apply) quando o usuário clica em OK na
     -- aba MODS: a UI já gravou os valores; só re-sincronizamos o cache.
@@ -214,7 +196,6 @@ local function registerOptions()
         -- (shared, sem require circular) usar na hora.
         GridInventory_gradientSteps = GridModOptions.getGradientSteps()
         -- Globais de joypad (lidos pelo GridJoypad a cada movimento/polling).
-        syncJoypadGlobals()
         -- Recria o PaperDoll se o scale mudou (dimensões são fixas no init).
         refreshPaperDoll()
         -- Força rebuild imediato dos grids para as options valerem na hora
@@ -245,14 +226,12 @@ Events.OnMainMenuEnter.Add(function()
     applyIni()
     GridInventory_uiScale = GridModOptions.getUiScale()
     GridInventory_gradientSteps = GridModOptions.getGradientSteps()
-    syncJoypadGlobals()
 end)
 Events.OnGameStart.Add(function()
     tryRegister()
     applyIni()
     GridInventory_uiScale = GridModOptions.getUiScale()
     GridInventory_gradientSteps = GridModOptions.getGradientSteps()
-    syncJoypadGlobals()
 end)
 
 function GridModOptions.isFullscreenPanel()
@@ -299,24 +278,5 @@ GridInventory_gradientSteps = GridModOptions.getGradientSteps()
 -- Global leve usado pelos renders (GridRender/OverflowGridRender/GlobalDragRender)
 -- pra calcular o cellSize sem require circular. Mantido em sincronia com o cache.
 GridInventory_uiScale = GridModOptions.getUiScale()
-
--- Modo do cursor de joypad: 1 = snap entre itens (Tarkov), 2 = célula a célula.
-function GridModOptions.getJoypadCursorMode()
-    local m = toNumber(cache.joypadCursorMode, 1)
-    if m == 2 then return 2 end
-    return 1
-end
-
--- Velocidade do analógico no cursor (0..100, % do máximo).
-function GridModOptions.getJoypadAnalogSpeed()
-    local s = toNumber(cache.joypadAnalogSpeed, 50)
-    if s < 0 then s = 0 end
-    if s > 100 then s = 100 end
-    return s
-end
-
--- Globais leves lidos pelo GridJoypad (sem require circular).
-GridInventory_joypadCursorMode = GridModOptions.getJoypadCursorMode()
-GridInventory_joypadAnalogSpeed = GridModOptions.getJoypadAnalogSpeed()
 
 return GridModOptions

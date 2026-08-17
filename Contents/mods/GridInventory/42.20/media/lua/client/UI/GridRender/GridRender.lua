@@ -1524,34 +1524,47 @@ function GridRender:renderJoypadCursor()
     local y = self.gridPadding + (self.headerH or 0) + ((row - 1) * self.cellSize)
 
     -- Footprint inteiro do item sob o cursor (se houver) — destaque verde.
-    local id = self.gridCore.cells[col] and self.gridCore.cells[col][row]
-    if id then
-        local d = self.gridCore.items[id]
-        if d and d.itemObj and not d.stackMemberOf then
-            local w = d.w * self.cellSize
-            local h = d.h * self.cellSize
-            local ix = self.gridPadding + ((d.x - 1) * self.cellSize)
-            local iy = self.gridPadding + (self.headerH or 0) + ((d.y - 1) * self.cellSize)
-            self:drawRect(ix, iy, w, h, 0.25, 1.0, 0.95, 0.35)
-            self:drawRectBorder(ix, iy, w, h, 1.0, 1.0, 0.95, 0.35)
+    -- Durante um DRAG de joypad NÃO destaca o item sob o cursor (não é seleção;
+    -- só o preview verde/vermelho + o ghost mostram onde o item segurado cai).
+    local onFootprint = false
+    local fp = nil
+    local id = nil
+    if not GridJoypad.isDragging(self.playerNum) then
+        id = self.gridCore.cells[col] and self.gridCore.cells[col][row]
+        if id then
+            local d = self.gridCore.items[id]
+            if d and d.itemObj and not d.stackMemberOf then
+                onFootprint = true
+                fp = d
+                local w = d.w * self.cellSize
+                local h = d.h * self.cellSize
+                local ix = self.gridPadding + ((d.x - 1) * self.cellSize)
+                local iy = self.gridPadding + (self.headerH or 0) + ((d.y - 1) * self.cellSize)
+                self:drawRect(ix, iy, w, h, 0.25, 1.0, 0.95, 0.35)
+                self:drawRectBorder(ix, iy, w, h, 1.0, 1.0, 0.95, 0.35)
+            end
         end
     end
 
-    -- Moldura da célula do cursor (sempre visível).
-    self:drawRectBorder(x, y, self.cellSize, self.cellSize, 0.9, 1.0, 1.0, 1.0)
-
-    self:drawJoypadPrompts(x, y)
+    -- Moldura da célula do cursor: SÓ quando não está sobre um footprint — o
+    -- item já mostra o destaque verde com borda; a moldura branca de 1 célula
+    -- ficava "cortando" os slots do footprint. Durante um DRAG de joypad a
+    -- moldura 1x1 também some — o preview verde/vermelho + o ghost mostram o
+    -- tamanho REAL do footprint segurado no cursor.
+    if not onFootprint and not GridJoypad.isDragging(self.playerNum) then
+        self:drawRectBorder(x, y, self.cellSize, self.cellSize, 0.9, 1.0, 1.0, 1.0)
+    end
 end
 
--- Ícones de botão (A/B/X/Y) logo abaixo da célula do cursor: o "o que cada
--- botão faz" do grid. Usa as texturas nativas do jogo (Joypad.Texture.*).
+-- Ícones de botão (A/B/X) logo abaixo da célula do cursor: o "o que cada
+-- botão faz" do grid. Y não é renderizado (só fecha o inventário). Usa as
+-- texturas nativas do jogo (Joypad.Texture.*).
 function GridRender:drawJoypadPrompts(cellX, cellY)
     if not Joypad or not Joypad.Texture then return end
     local buttons = {
         Joypad.Texture.AButton,
-        Joypad.Texture.XButton,
         Joypad.Texture.BButton,
-        Joypad.Texture.YButton,
+        Joypad.Texture.XButton,
     }
     local size = math.max(14, math.floor(self.cellSize * 0.5))
     local gap = 3
@@ -1602,13 +1615,25 @@ function GridRender:drawDropPreview()
     -- de posicionamento (verde/vermelho do item) cede lugar ao destaque verde da
     -- bolsa (drawPutInFeedback) — dois verdes competindo confundiriam. Se a bolsa
     -- NÃO aceita, o preview normal continua (o drop é de grid, não de put-in).
-    local bagAtPoint = GridInventory_BagDrop.bagAtPoint(self)
-    if bagAtPoint and GridInventory_BagDrop.canTransfer(bagAtPoint) then
-        return
+    -- Só no drag de MOUSE (o joypad usa o cursor virtual).
+    if not (GridInventory_GlobalDrag and GridInventory_GlobalDrag.joypad) then
+        local bagAtPoint = GridInventory_BagDrop.bagAtPoint(self)
+        if bagAtPoint and GridInventory_BagDrop.canTransfer(bagAtPoint) then
+            return
+        end
     end
 
-    local dropCol, dropRow = self:getGridCellAtMouse(self:getMouseX(), self:getMouseY())
-    if not dropCol or not dropRow then return end
+    local dropCol, dropRow
+    if GridInventory_GlobalDrag.joypad then
+        -- Drag de joypad: o preview segue o CURSOR virtual (só no grid dele).
+        local GridJoypad = require("System/GridJoypad")
+        local cursor = GridJoypad.cursors[self.playerNum]
+        if not cursor or cursor.grid ~= self or not cursor.col or not cursor.row then return end
+        dropCol, dropRow = cursor.col, cursor.row
+    else
+        dropCol, dropRow = self:getGridCellAtMouse(self:getMouseX(), self:getMouseY())
+        if not dropCol or not dropRow then return end
+    end
 
     -- Multi-drag real (itens em células de origem diferentes): sem footprint
     -- único e sem preview por célula — o drop limpa posições e o auto-sort do
@@ -1636,6 +1661,8 @@ function GridRender:drawDropPreview()
     if not anchorData or not anchorData.itemObj then return end
 
     local fw, fh = ItemFootprint.getSize(anchorData.itemObj)
+    -- Rotação = anchorData.rotated (rotação do grid, data.rotated). NÃO usar
+    -- itemObj:isRotated() — a grid rotaciona visualmente via data.rotated.
     local rotated = anchorData.rotated or false
     local effectiveW = rotated and (anchorData.originalH or fh) or (anchorData.originalW or fw)
     local effectiveH = rotated and (anchorData.originalW or fw) or (anchorData.originalH or fh)
@@ -2207,6 +2234,10 @@ function GridRender:performGridReorder(targets)
 end
 
 function GridRender:onMouseUp(x, y)
+    if GridInventory_joypadDebug then
+        print("[GridJoypad] GridRender:onMouseUp x=", tostring(x), " y=", tostring(y),
+            " grid=", tostring(self.name or self.inventoryContainer))
+    end
     -- Painel colapsado: cancela QUALQUER drag em curso (evita item preso na
     -- mão) e não processa o drop.
     if self:isUnderCollapsedPage() then
@@ -2232,8 +2263,9 @@ function GridRender:onMouseUp(x, y)
 
     -- PUT-IN: se soltou sobre uma bolsa (footprint) ou sobre o header de um
     -- grid, transfere ANTES do posicionamento normal — idempotente com os
-    -- caminhos de update()/prerender (o drag é zerado se transferir).
-    if GridInventory_GlobalDrag then
+    -- caminhos de update()/prerender (o drag é zerado se transferir). Só no
+    -- drag de MOUSE: o joypad usa a posição do cursor, não a do mouse.
+    if GridInventory_GlobalDrag and not GridInventory_GlobalDrag.joypad then
         if GridInventory_BagDrop.tryHandleMouseUp(self.playerNum) then
             return
         end
@@ -2349,6 +2381,13 @@ function GridRender:onMouseUp(x, y)
             -- uma vez com o movedSet de TODOS os itens arrastados (pilhas podem
             -- sobrepor a própria origem sem colidir com os membros em movimento).
             local targets = GridReorder.computeTargets(self.gridCore, itemsData, dropCol, dropRow)
+
+            if GridInventory_joypadDebug then
+                print("[GridJoypad] same-grid drop: joypad=", tostring(GridInventory_GlobalDrag and GridInventory_GlobalDrag.joypad),
+                    " col=", tostring(dropCol), " row=", tostring(dropRow),
+                    " targets=", tostring(targets ~= nil),
+                    " noop=", tostring(targets ~= nil and GridReorder.isNoOp(self.gridCore, targets)))
+            end
 
             if targets then
                 -- Drop na própria posição (no-op): consome o drop sem animação,
@@ -2867,9 +2906,13 @@ function GridRender:updateTooltip()
     -- Cursor de joypad: o tooltip segue o cursor virtual (não o mouse).
     local GridJoypad = require("System/GridJoypad")
     local joyCursor = GridJoypad.isCursorOn(self)
+    -- Com o cursor virtual VISÍVEL, o tooltip do MOUSE é suprimido em todos os
+    -- grids — só o grid do cursor mostra tooltip (na posição da célula). Senão
+    -- o grid sob o mouse real criava/sobrepunha um tooltip na posição do mouse.
+    local joypadActive = GridJoypad.isCursorVisible(self.playerNum)
 
     -- Checa se o mouse está sobre esse grid E sobre o painel pai (para evitar tooltips quando scrollar o grid pra fora da view)
-    local isOver = joyCursor or self:isMouseOver()
+    local isOver = joyCursor or (not joypadActive and self:isMouseOver())
     if not joyCursor and isOver and self.parent and not self.parent:isMouseOver() then
         isOver = false
     end
@@ -2889,9 +2932,26 @@ function GridRender:updateTooltip()
         local cursor = GridJoypad.cursors[self.playerNum]
         if cursor then
             col, row = cursor.col, cursor.row
-            -- Posição do tooltip: junto à célula do cursor (coords de tela).
-            tx = self:getAbsoluteX() + self.gridPadding + ((col - 1) * self.cellSize)
-            ty = self:getAbsoluteY() + self.gridPadding + (self.headerH or 0) + ((row - 1) * self.cellSize)
+            -- Posição do tooltip: canto INFERIOR DIREITO do footprint do item
+            -- sob o cursor — longe dos botões A/B/X/Y (que ficam abaixo da
+            -- célula do cursor) e padronizada pro tamanho do item. Sem item,
+            -- usa a própria célula do cursor.
+            local d = nil
+            if self.gridCore and self.gridCore.cells and self.gridCore.cells[col] then
+                local fid = self.gridCore.cells[col][row]
+                if fid then d = self.gridCore.items[fid] end
+            end
+            if d and d.itemObj and not d.stackMemberOf and d.x and d.y and d.w and d.h then
+                -- Canto inferior DIREITO do footprint: a borda DIREITA do item é
+                -- (d.x+d.w-1)*cellSize e a borda inferior (d.y+d.h-1)*cellSize —
+                -- o tooltip encosta no canto, sem 1 slot de folga (antes usava
+                -- d.x+d.w, que fica uma célula além).
+                tx = self:getAbsoluteX() + self.gridPadding + ((d.x + d.w - 1) * self.cellSize)
+                ty = self:getAbsoluteY() + self.gridPadding + (self.headerH or 0) + ((d.y + d.h - 1) * self.cellSize)
+            else
+                tx = self:getAbsoluteX() + self.gridPadding + ((col - 1) * self.cellSize)
+                ty = self:getAbsoluteY() + self.gridPadding + (self.headerH or 0) + ((row - 1) * self.cellSize)
+            end
         end
     else
         local mx = self:getMouseX()
@@ -2931,10 +2991,17 @@ function GridRender:updateTooltip()
         self.toolRender:bringToTop()
         
         if not joyCursor then
+            -- Mouse: o tooltip segue o mouse (followMouse default).
+            self.toolRender.followMouse = true
             local gmx = getMouseX()
             local gmy = getMouseY()
             tx = gmx + 15
             ty = gmy + 15
+        else
+            -- Cursor virtual: desliga o followMouse — o ISToolTipInv:render
+            -- reposicionaria no mouse todo frame; com followMouse=false ele
+            -- respeita o setX/setY abaixo (posição da célula do cursor).
+            self.toolRender.followMouse = false
         end
         
         if self.toolRender.width and (tx + self.toolRender.width > getCore():getScreenWidth()) then
@@ -3068,8 +3135,12 @@ function GridRender:update()
         end
     end
 
-    -- Se o mouse foi solto (em qualquer lugar da tela)
-    if GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid == self and not isMouseButtonDown(0) then
+    -- Se o mouse foi solto (em qualquer lugar da tela) — SÓ pro drag de MOUSE.
+    -- O drag de JOYPAD não usa o mouse: `isMouseButtonDown(0)` é sempre falso,
+    -- então este bloco LIMPARIA o drag todo frame (o preview verde piscava 1
+    -- frame e o item "caía" — o drag de joypad tem o próprio ciclo A/B).
+    if GridInventory_GlobalDrag and not GridInventory_GlobalDrag.joypad
+        and GridInventory_GlobalDrag.sourceGrid == self and not isMouseButtonDown(0) then
         -- Drop em cima de uma bolsa (caminho próprio do mod): transfere pra
         -- dentro da bolsa e limpa. Idempotente com o vanilla: se o
         -- dropItemsInContainer já transferiu, o GridInventory_GlobalDrag já

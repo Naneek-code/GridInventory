@@ -257,6 +257,9 @@ function PaperDollWindow:initialise()
     self.avatarDropZone = AvatarUseDropZone:new(self.avatarX + dropInset, self.avatarY + dropInset,
         self.avatarW - dropInset * 2, self.avatarH - dropInset * 2, self.playerNum, self.avatarPanel)
     self.avatarDropZone:initialise()
+    -- Alvo navegável do joypad (modo PaperDoll): o retângulo de eat/read/drink/pill.
+    self.avatarDropZone._pdCol = "avatar"
+    self.avatarDropZone._pdIndex = 1
     self.scrollPanel:addChild(self.avatarDropZone)
 
     -- O drop zone cobre o avatar e ficaria por cima dos botões de tempo (z-order).
@@ -576,6 +579,68 @@ function PaperDollWindow:render()
             end
         end
     end
+
+    -- Overlay do modo joypad do PaperDoll (LB+RB segurados): moldura reforçada
+    -- no slot selecionado + ícones D-pad nas bordas apontando pros slots
+    -- alcançáveis (mesmo estilo do modo navegação das grids).
+    local GridJoypad = require("System/GridJoypad")
+    if GridJoypad.isPaperdollActive(self.playerNum) then
+        local slot = GridJoypad.pdSelectedSlot(self.playerNum)
+        if slot and slot:getIsVisible() then
+            local sx = slot:getAbsoluteX() - self:getAbsoluteX()
+            local sy = slot:getAbsoluteY() - self:getAbsoluteY()
+            local sw, sh = slot:getWidth(), slot:getHeight()
+            local pad = math.floor(6 * (self.uiScale or 1))
+            self:drawRectBorder(sx - 2, sy - 2, sw + 4, sh + 4, 0.5, 1.0, 1.0, 1.0)
+
+            -- Ghost do item ARRASTADO (drag de joypad): mostra o que será
+            -- equipado no slot selecionado — sem isso você não sabe o que está
+            -- colocando no paperdoll.
+            if GridJoypad.isDragging(self.playerNum) and GridInventory_GlobalDrag
+                and GridInventory_GlobalDrag.itemsData
+                and #GridInventory_GlobalDrag.itemsData > 0 then
+                local dd = GridInventory_GlobalDrag.itemsData[1]
+                if dd and dd.itemObj then
+                    local tex = dd.itemObj:getTex()
+                    if tex then
+                        self:drawTextureScaledAspect(tex, sx + 2, sy + 2, sw - 4, sh - 4, 0.85, 1, 1, 1)
+                        self:drawRectBorder(sx - 2, sy - 2, sw + 4, sh + 4, 1.0, 1.0, 0.95, 0.4)
+                    end
+                end
+            end
+            if Joypad and Joypad.Texture then
+                local dirs = {
+                    left  = { -1, 0, "DPadLeft" },
+                    right = {  1, 0, "DPadRight" },
+                    up    = {  0, -1, "DPadUp" },
+                    down  = {  0,  1, "DPadDown" },
+                }
+                -- Ícones menores que no nav das grids: os slots do PaperDoll são
+                -- bem menores que as células da grid (slots ~50px, hotbar ~64px).
+                local texW = math.floor(30 * (self.uiScale or 1))
+                local texH = math.floor(30 * (self.uiScale or 1))
+                for name, d in pairs(dirs) do
+                    local target = GridJoypad.pdTarget(self.playerNum, d[1], d[2])
+                    if target and target:getIsVisible() then
+                        local ix, iy
+                        if name == "left" then
+                            ix, iy = sx - pad - texW / 2, sy + sh / 2 - texH / 2
+                        elseif name == "right" then
+                            ix, iy = sx + sw + pad - texW / 2, sy + sh / 2 - texH / 2
+                        elseif name == "up" then
+                            ix, iy = sx + sw / 2 - texW / 2, sy - pad - texH / 2
+                        else
+                            ix, iy = sx + sw / 2 - texW / 2, sy + sh + pad - texH / 2
+                        end
+                        local tex = Joypad.Texture[d[3]]
+                        if tex then
+                            self:drawTextureScaledAspect(tex, ix, iy, texW, texH, 1.0, 1.0, 1.0, 1.0)
+                        end
+                    end
+                end
+            end
+        end
+    end
 end
 
 function PaperDollWindow:refreshOverflow(wornItems, prim, sec)
@@ -637,6 +702,7 @@ function PaperDollWindow:refreshHotbarUIs(hotbar)
         ui.hotbarSlotIndex = slotObj.idx
         ui.hotbarProviderTexture = slotObj.data.texture
         ui.hotbarSlotDef = slotObj.data.def
+        ui._pdCol = "hotbar" -- navegação do joypad (modo PaperDoll) alcança a hotbar
         
         ui:initialise()
         self.scrollPanel:addChild(ui)

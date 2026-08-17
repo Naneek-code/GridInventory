@@ -112,6 +112,12 @@ function PaperDollSlot:render()
         -- Draw provider icon in the corner, slightly larger (28x28 instead of 20x20)
         self:drawTextureScaledAspect(self.hotbarProviderTexture, self.width - 32, self.height - 32, 28, 28, 1, 1, 1, 1)
     end
+
+    -- Slot selecionado pelo joypad (modo PaperDoll: LB+RB segurados).
+    if self.joySelected then
+        self:drawRect(0, 0, self.width, self.height, 0.35, 1.0, 1.0, 0.45)
+        self:drawRectBorder(0, 0, self.width, self.height, 1.3, 1.0, 1.0, 1.0)
+    end
 end
 
 function PaperDollSlot:canAcceptDraggedItem()
@@ -305,6 +311,45 @@ function PaperDollSlot:onMouseUp(x, y)
     ISMouseDrag.draggingFocus = nil
 end
 
+--- Equipa um item neste slot (usado pelo joypad: drag de item + A no slot do
+--- PaperDoll). Mesma lógica do drop de mouse (onMouseUp), sem depender de
+--- ISMouseDrag. Retorna true se aceitou o item.
+function PaperDollSlot:joypadEquip(itemObj)
+    if not itemObj then return false end
+    local player = getSpecificPlayer(self.playerNum)
+    if not player then return false end
+
+    if self.hotbarRef and self.hotbarSlotIndex then
+        local slot = self.hotbarRef.availableSlot[self.hotbarSlotIndex]
+        if slot and self.hotbarRef:canBeAttached(slot, itemObj) then
+            self.hotbarRef:attachItem(itemObj, slot.def.attachments[itemObj:getAttachmentType()], self.hotbarSlotIndex, slot.def, true)
+            return true
+        end
+        return false
+    end
+
+    if type(self.locations) == "table" then
+        if self.locations[1] == "PRIMARY" then
+            ISInventoryPaneContextMenu.equipWeapon(itemObj, true, false, self.playerNum)
+            return true
+        elseif self.locations[1] == "SECONDARY" then
+            ISInventoryPaneContextMenu.equipWeapon(itemObj, false, false, self.playerNum)
+            return true
+        elseif self.locations[1] == "TWOHANDED" then
+            ISInventoryPaneContextMenu.equipWeapon(itemObj, true, true, self.playerNum)
+            return true
+        elseif self.locations[1] == "OVERFLOW" then
+            return false
+        end
+    end
+
+    if itemObj:IsClothing() or itemObj:IsInventoryContainer() then
+        ISInventoryPaneContextMenu.wearItem(itemObj, self.playerNum)
+        return true
+    end
+    return false
+end
+
 function PaperDollSlot:onRightMouseUp(x, y)
     local item = self:getEquippedItem()
     if item then
@@ -396,9 +441,14 @@ end
 
 function PaperDollSlot:updateTooltip()
     local item = self:getEquippedItem()
-    
+
+    -- Joypad (modo PaperDoll): tooltip segue o slot SELECIONADO (não o mouse).
+    local GridJoypad = require("System/GridJoypad")
+    local joypadSelected = GridJoypad.isPaperdollActive(self.playerNum)
+        and GridJoypad.pdSelectedSlot(self.playerNum) == self
+
     -- Não mostrar tooltip se estiver arrastando algum item
-    if self:isMouseOver() and item and not ISMouseDrag.dragging and not GridInventory_GlobalDrag then
+    if joypadSelected and item and not GridJoypad.isDragging(self.playerNum) then
         if not self.toolRender then
             self.toolRender = ISToolTipInv:new(item)
             self.toolRender:initialise()
@@ -409,20 +459,45 @@ function PaperDollSlot:updateTooltip()
         self.toolRender:setItem(item)
         self.toolRender:setVisible(true)
         self.toolRender:bringToTop()
-        
+        self.toolRender.followMouse = false
+
+        -- Posição junto ao slot selecionado (à direita dele), sem sair da tela.
+        local tx = self:getAbsoluteX() + self:getWidth() + 15
+        local ty = self:getAbsoluteY() - 15
+        if self.toolRender.width and (tx + self.toolRender.width > getCore():getScreenWidth()) then
+            tx = self:getAbsoluteX() - self.toolRender.width - 15
+        end
+        if self.toolRender.height and (ty + self.toolRender.height > getCore():getScreenHeight()) then
+            ty = getCore():getScreenHeight() - self.toolRender.height - 15
+        end
+        self.toolRender:setX(tx)
+        self.toolRender:setY(ty)
+    elseif self:isMouseOver() and item and not ISMouseDrag.dragging and not GridInventory_GlobalDrag
+        and not GridJoypad.isPaperdollActive(self.playerNum) then
+        if not self.toolRender then
+            self.toolRender = ISToolTipInv:new(item)
+            self.toolRender:initialise()
+            self.toolRender:addToUIManager()
+            self.toolRender:setOwner(self)
+            self.toolRender:setCharacter(getSpecificPlayer(self.playerNum))
+        end
+        self.toolRender:setItem(item)
+        self.toolRender:setVisible(true)
+        self.toolRender:bringToTop()
+
         local mx = getMouseX()
         local my = getMouseY()
-        
+
         local tx = mx + 15
         local ty = my + 15
-        
+
         if self.toolRender.width and (tx + self.toolRender.width > getCore():getScreenWidth()) then
             tx = mx - self.toolRender.width - 15
         end
         if self.toolRender.height and (ty + self.toolRender.height > getCore():getScreenHeight()) then
             ty = my - self.toolRender.height - 15
         end
-        
+
         self.toolRender:setX(tx)
         self.toolRender:setY(ty)
     else
