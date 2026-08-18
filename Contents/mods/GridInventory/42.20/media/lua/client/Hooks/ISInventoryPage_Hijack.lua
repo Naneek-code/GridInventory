@@ -783,11 +783,15 @@ end
 -- que o vanilla desenhava no rodapé (agora a controlsUI vive dentro do pane,
 -- no grid ativo). Redesenha apenas a borda externa do painel.
 local og_pageRender = ISInventoryPage.render
+-- Closure única compartilhada: não alocar uma nova closure a cada frame do
+-- render (mesmo padrão do ISInventoryPane:render). Suprime o drawRectBorder/
+-- drawTextureScaled do vanilla durante o og_pageRender.
+local function noop() end
 function ISInventoryPage:render()
     local ogDRB = self.drawRectBorder
     local ogDTS = self.drawTextureScaled
-    self.drawRectBorder = function() end
-    self.drawTextureScaled = function() end
+    self.drawRectBorder = noop
+    self.drawTextureScaled = noop
     og_pageRender(self)
     self.drawRectBorder = ogDRB
     self.drawTextureScaled = ogDTS

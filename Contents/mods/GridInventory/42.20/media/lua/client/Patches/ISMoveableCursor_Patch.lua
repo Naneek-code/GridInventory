@@ -15,7 +15,7 @@ if not GridClientNetwork then
     if ok then GridClientNetwork = mod end
 end
 
-local function getAllMoveables(playerObj, resultList)
+    local function getAllMoveables(playerObj, resultList)
     local seen = {}
 
     local primary = playerObj:getPrimaryHandItem()
@@ -29,6 +29,21 @@ local function getAllMoveables(playerObj, resultList)
         table.insert(resultList, secondary)
     end
 end
+
+    -- File-level (não closure por frame): verifica se o móvel está nas MÃOS do
+    -- jogador. Só mãos contam — sem containers, sem chão. Reusa getAllMoveables.
+    local function isItemOnPlayer(pObj, checkItem)
+        local all = {}
+        getAllMoveables(pObj, all)
+        for _, i in ipairs(all) do
+            if i == checkItem then return true end
+        end
+        return false
+    end
+
+    -- Buffer reutilizado pra cor de highlight do modo scrap (evita alocar uma
+    -- tabela nova por frame no isValid).
+    local scrapColorBuffer = { r = 1, g = 1, b = 1 }
 
     function ISMoveableCursor:getInventoryObjectList()
     local objects           = {};
@@ -102,7 +117,11 @@ function ISMoveableCursor:isValid( _square )
     self.colorMod           = ISMoveableSpriteProps.invalidColor;
     self.yOffset            = 0;
 
-    if ISMoveableCursor.mode[self.player] == "pickup" or ISMoveableCursor.mode[self.player] == "rotate" then
+    -- Hoist do modo atual: self.player não muda durante uma chamada; evita
+    -- resolver ISMoveableCursor.mode[self.player] várias vezes por frame.
+    local mode = ISMoveableCursor.mode[self.player];
+
+    if mode == "pickup" or mode == "rotate" then
         self.objectIndex    = self.currentSquare ~= _square and -1 or self.objectIndex;
     end
     if _square ~= self.currentSquare then
@@ -131,7 +150,7 @@ function ISMoveableCursor:isValid( _square )
 
     self.canSeeCurrentSquare = _square and _square:isCouldSee(self.player);
 
-    if ISMoveableCursor.mode[self.player] == "pickup" then
+    if mode == "pickup" then
         local objects = self.objectListCache or self:getObjectList();
         self.objectListCache = objects;
 
@@ -158,7 +177,7 @@ function ISMoveableCursor:isValid( _square )
                 end
             end
         end
-    elseif ISMoveableCursor.mode[self.player] == "place" then
+    elseif mode == "place" then
         local objects = self.objectListCache or self:getInventoryObjectList();
         self.objectListCache = objects;
 
@@ -167,15 +186,6 @@ function ISMoveableCursor:isValid( _square )
             if self.objectIndex >= 1 and self.objectIndex <= #objects then
                 local item = objects[self.objectIndex].object;
                 local playerObj = getSpecificPlayer(self.player)
-                local function isItemOnPlayer(pObj, checkItem)
-                    -- Só mãos contam. Sem containers, sem chão.
-                    local all = {}
-                    getAllMoveables(pObj, all)
-                    for _, i in ipairs(all) do
-                        if i == checkItem then return true end
-                    end
-                    return false
-                end
                 
                 if not isItemOnPlayer(playerObj, item) then
                     return false
@@ -214,7 +224,7 @@ function ISMoveableCursor:isValid( _square )
 
             end
         end
-    elseif ISMoveableCursor.mode[self.player] == "rotate" then
+    elseif mode == "rotate" then
         local rotateObject = self.objectListCache or self:getRotateableObject();
         self.objectListCache = rotateObject;
         if rotateObject then
@@ -265,7 +275,7 @@ function ISMoveableCursor:isValid( _square )
                 return true;
             end
         end
-    elseif ISMoveableCursor.mode[self.player] == "scrap" then
+    elseif mode == "scrap" then
         local objects = self.objectListCache or self:getScrapObjectList();
         self.objectListCache = objects;
         if #objects > 0 then
@@ -278,7 +288,10 @@ function ISMoveableCursor:isValid( _square )
                     self.origMoveProps      = moveProps;
                     self.canCreate          = moveProps:canScrapObject( self.character ).canScrap;
                     local colorInfo = getCore():getBadHighlitedColor() -- same color as the Disassemble context menu
-                    self.colorMod           = { r=colorInfo:getR(), g=colorInfo:getG(), b=colorInfo:getB() }-- ISMoveableCursor.normalColor;
+                    scrapColorBuffer.r = colorInfo:getR()
+                    scrapColorBuffer.g = colorInfo:getG()
+                    scrapColorBuffer.b = colorInfo:getB()
+                    self.colorMod = scrapColorBuffer
                     self.objectSprite       = moveProps.sprite;
                     self.origSpriteName     = moveProps.spriteName;
                     self.yOffset            = moveProps:getYOffsetCursor();
@@ -287,7 +300,7 @@ function ISMoveableCursor:isValid( _square )
                 end
             end
         end
-    elseif ISMoveableCursor.mode[self.player] == "repair" then
+    elseif mode == "repair" then
         local objects = self.objectListCache or self:getRepairObjectList();
         self.objectListCache = objects;
         if #objects > 0 then

@@ -15,13 +15,20 @@ local GridContainer = require("DataModel/GridContainer")
 local GridRender = require("UI/GridRender/GridRender")
 local GridIconRotation = require("Algorithm/GridIconRotation")
 
-FloatingGridWindow = ISPanel:derive("FloatingGridWindow")
+local FloatingGridWindow = ISPanel:derive("FloatingGridWindow")
 
 local TITLE_H = 26
 local PAD = 10
 local BTN_H = 22
 local BTN_W = 24
 local BTN_Y = (TITLE_H - BTN_H) / 2
+
+-- Tabelas de cor RECHEADAS (read-only) pra condição do item no stack picker:
+-- não alocar uma tabela nova por linha por frame no renderStackList.
+local COLOR_DEFAULT = { 0.9, 0.9, 0.9 }
+local COLOR_GOOD    = { 0.4, 0.9, 0.4 }
+local COLOR_WARN    = { 0.95, 0.8, 0.3 }
+local COLOR_BAD     = { 0.95, 0.4, 0.35 }
 
 -- Registry:
 --   GridInventory_FloatingGrid[playerNum] = LISTA de janelas de bolsa (várias)
@@ -655,11 +662,11 @@ function FloatingGridWindow:renderStackList()
                 info = "x" .. tostring(row.count)
             end
             if info ~= "" then
-                local color = { 0.9, 0.9, 0.9 }
+                local color = COLOR_DEFAULT
                 if row.cond then
-                    if row.cond >= 70 then color = { 0.4, 0.9, 0.4 }
-                    elseif row.cond >= 40 then color = { 0.95, 0.8, 0.3 }
-                    else color = { 0.95, 0.4, 0.35 } end
+                    if row.cond >= 70 then color = COLOR_GOOD
+                    elseif row.cond >= 40 then color = COLOR_WARN
+                    else color = COLOR_BAD end
                 end
                 self:drawTextRight(info, self.width - pad - 4 - (maxScroll > 0 and 10 or 0), ry + (ROW_H - 14) / 2, color[1], color[2], color[3], 1, UIFont.Small)
             end

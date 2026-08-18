@@ -107,6 +107,8 @@ function GridSearchAction:update()
         progress = self.action:getJobDelta() or 0
     end
     local target = math.floor(progress * self.total)
+    -- Cache do emitter fora do loop (evita re-resolver a cadeia Java por item).
+    local emitter = self.character and self.character.getEmitter and self.character:getEmitter()
     while self.revealed < target and self.revealed < self.total do
         local h = self.hiddenLeaders[self.revealed + 1]
         if h and h.itemObj then
@@ -116,8 +118,8 @@ function GridSearchAction:update()
         -- Som one-shot curto a cada item/pilha revelado (feedback "achou algo").
         -- StoreItemPlayerInventory é um clip curto (não loopa). Evita o último
         -- item (a barra já completou) e a revelação em massa (instantânea).
-        if self.character and self.character.getEmitter and self.revealed < self.total then
-            self.character:getEmitter():playSound("StoreItemPlayerInventory")
+        if emitter and self.revealed < self.total then
+            emitter:playSound("StoreItemPlayerInventory")
         end
     end
 end

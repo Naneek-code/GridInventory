@@ -115,7 +115,7 @@ function GridInventory_Search._containerKeyUncached(container, playerObj)
         and container:isInCharacterInventory(playerObj) then
         return nil
     end
-    local ref = GridProtocol.buildContainerRef(container)
+    local ref = GridProtocol.buildContainerRef(container, GridProtocol.MAX_REF_DEPTH)
     if not ref then return nil end
     if ref.type == "player" then return nil end -- inventário do jogador
     if ref.type == "floor" then return nil end
@@ -129,7 +129,7 @@ function GridInventory_Search._containerKeyUncached(container, playerObj)
     elseif ref.type == "worlditem" then
         key = "worlditem:" .. tostring(ref.itemId)
     elseif ref.type == "vehicle" then
-        key = "veh:" .. tostring(ref.keyId)
+        key = "veh:" .. tostring(ref.vehicleId or ref.keyId)
     else
         key = "other:" .. ref.type
     end

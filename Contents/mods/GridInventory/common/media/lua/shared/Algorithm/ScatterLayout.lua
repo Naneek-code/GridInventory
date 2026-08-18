@@ -134,15 +134,25 @@ function ScatterLayout.buildSeedKey(inventory)
     local key = "C:" .. tostring(inventory:getType())
     local parent = inventory:getParent()
     if parent then
-        local ok = pcall(function()
-            key = key .. ":P" .. tostring(parent:getType())
-            if parent.getSquare then
+        local ok = true
+        local err = nil
+        -- A única chamada que pode lançar legitimamente é o acesso a square de
+        -- um objeto que pode ter sido destruído entre frames; o resto do bloco
+        -- (getType) é vanilla determinístico e não precisa de proteção.
+        if parent.getType then
+            ok, err = pcall(function() key = key .. ":P" .. tostring(parent:getType()) end)
+        end
+        if ok and parent.getSquare then
+            ok, err = pcall(function()
                 local sq = parent:getSquare()
                 if sq and sq.getX then
                     key = key .. ":S" .. tostring(sq:getX()) .. "_" .. tostring(sq:getY()) .. "_" .. tostring(sq:getZ())
                 end
-            end
-        end)
+            end)
+        end
+        if not ok then
+            print("[GridInventory] buildSeedKey: " .. tostring(err))
+        end
     end
     return key
 end

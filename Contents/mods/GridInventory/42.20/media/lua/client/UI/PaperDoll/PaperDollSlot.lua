@@ -77,7 +77,18 @@ function PaperDollSlot:render()
     -- Borda sutil igual ao do Grid
     self:drawRectBorder(0, 0, self.width, self.height, 0.15, 0.5, 0.5, 0.5)
     
-    local item = self:getEquippedItem()
+    -- getEquippedItems() aloca uma tabela nova + varredura Java: chama UMA vez
+    -- por frame e deriva item + contagem do MESMO resultado (antes o getEquippedItem
+    -- chamava getEquippedItems internamente e depois chamávamos de novo no #items).
+    local items = self:getEquippedItems()
+    local item = nil
+    if #items > 0 then
+        if not self.activeIndex or self.activeIndex > #items or self.lastItemsCount ~= #items then
+            self.activeIndex = #items
+            self.lastItemsCount = #items
+        end
+        item = items[self.activeIndex]
+    end
     if item then
         local tex = item:getTex()
         if tex then
@@ -90,7 +101,6 @@ function PaperDollSlot:render()
             self:drawTextureScaledAspect(tex, 4, 4, self.width - 8, self.height - 8, 1, r, g, b)
         end
         
-        local items = self:getEquippedItems()
         if #items > 1 then
             local text = tostring(self.activeIndex or 1) .. "/" .. tostring(#items)
             local tw = getTextManager():MeasureStringX(UIFont.Small, text)

@@ -3,6 +3,17 @@ require "XpSystem/ISUI/ISCharacterScreen"
 local PaperDollSlot      = require "UI/PaperDoll/PaperDollSlot"
 local AvatarUseDropZone  = require "UI/PaperDoll/AvatarUseDropZone"
 
+-- Upvalue de global vanilla (sempre presente) usado no render.
+local JoypadRef = Joypad
+
+-- Tabela de direções fixa (read-only) do overlay joypad: não alocar a cada frame.
+local PD_DIRS = {
+    left  = { -1, 0, "DPadLeft" },
+    right = {  1, 0, "DPadRight" },
+    up    = {  0, -1, "DPadUp" },
+    down  = {  0,  1, "DPadDown" },
+}
+
 local PaperDollWindow = ISCollapsableWindow:derive("PaperDollWindow")
 
 function PaperDollWindow:initialise()
@@ -608,18 +619,12 @@ function PaperDollWindow:render()
                     end
                 end
             end
-            if Joypad and Joypad.Texture then
-                local dirs = {
-                    left  = { -1, 0, "DPadLeft" },
-                    right = {  1, 0, "DPadRight" },
-                    up    = {  0, -1, "DPadUp" },
-                    down  = {  0,  1, "DPadDown" },
-                }
+            if JoypadRef and JoypadRef.Texture then
                 -- Ícones menores que no nav das grids: os slots do PaperDoll são
                 -- bem menores que as células da grid (slots ~50px, hotbar ~64px).
                 local texW = math.floor(30 * (self.uiScale or 1))
                 local texH = math.floor(30 * (self.uiScale or 1))
-                for name, d in pairs(dirs) do
+                for name, d in pairs(PD_DIRS) do
                     local target = GridJoypad.pdTarget(self.playerNum, d[1], d[2])
                     if target and target:getIsVisible() then
                         local ix, iy

@@ -13,11 +13,10 @@ local GridReorder = require("Algorithm/GridReorder")
 local GridSandboxOptions = require("GridSandboxOptions")
 local GridInventory_BagDrop = require("System/GridInventory_BagDrop")
 local GridInventory_Search = require("System/GridInventory_Search")
+local GridJoypad = require("System/GridJoypad")
 
 -- Ícone de item não identificado (busca Tarkov): interrogação nativa do PZ.
 local GridInventory_QuestionTex = getTexture("media/ui/foraging/questionMark.png")
-
-GridRender = ISPanel:derive("GridRender")
 
 -- Configurações visuais do nosso estilo "Tarkov"
 
@@ -34,6 +33,10 @@ local ITEM_BG_HOT = {r=0.9, g=0.2, b=0.2, a=0.5}
 -- Clareamento de itens SELECIONADOS (multi-select): sutil, não estoura o
 -- contraste com o fundo escuro (antes era 0.3 e ficava claro demais).
 local SEL_BRIGHTEN = 0.15
+
+-- Buffer REUTILIZÁVEL dos ícones de status (drawItemStatusIcons): evita alocar
+-- uma tabela nova por item por frame. Reset com #active = 0 no início da função.
+local statusIconBuffer = {}
 
 -- A opção de "água tinta" é fixa por sessão: cacheia o valor para não buscar
 -- no SandboxOptions a cada item renderizado (getOptionByName é uma chamada Java).
@@ -200,7 +203,10 @@ function GridRender:drawItemStatusIcons(item, drawX, drawY, playerObj, hotbar)
     if not item then return end
 
     -- ── Coleta de condições ──────────────────────────────────────────────────
-    local active = {}
+    -- Buffer reutilizado (módulo) em vez de alocar {} por item por frame.
+    -- Lua 5.1 não permite #t = 0: limpa os elementos do array a cada chamada.
+    local active = statusIconBuffer
+    for i = #active, 1, -1 do active[i] = nil end
 
     -- Favorito
     if item.isFavorite and item:isFavorite() then
@@ -389,16 +395,14 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a,
     local finalG = isCustomTint and g or baseG
     local finalB = isCustomTint and b or baseB
     
-    local renderTex = function(texToDraw, red, green, blue)
-        if not isRotated then
-            self.javaObject:DrawTexture(texToDraw, absX, absY, absX+drawW, absY, absX+drawW, absY+drawH, absX, absY+drawH, red, green, blue, a)
-        else
-            self.javaObject:DrawTexture(texToDraw, absX, absY+drawH, absX, absY, absX+drawW, absY, absX+drawW, absY+drawH, red, green, blue, a)
-        end
+    -- Textura Base (já vem com a sprite de queimado/podre graças ao getTex()).
+    -- Chamada DIRETA (não uma closure por item por frame): o renderTex antigo era
+    -- alocado uma vez por item e usado UMA única vez abaixo.
+    if not isRotated then
+        self.javaObject:DrawTexture(texture, absX, absY, absX+drawW, absY, absX+drawW, absY+drawH, absX, absY+drawH, finalR, finalG, finalB, a)
+    else
+        self.javaObject:DrawTexture(texture, absX, absY+drawH, absX, absY, absX+drawW, absY, absX+drawW, absY+drawH, finalR, finalG, finalB, a)
     end
-    
-    -- Textura Base (já vem com a sprite de queimado/podre graças ao getTex())
-    renderTex(texture, finalR, finalG, finalB)
     
     -- Fluid Mask (Sangue/Água Suja)
     if item.getTextureFluidMask and item:getTextureFluidMask() then
@@ -758,8 +762,8 @@ end
 --- Badge de contagem no canto inferior-direito da célula: mostra o TOTAL DE
 --- UNIDADES da pilha (getPileUnits — soma de getCount() de líder + membros).
 --- É a "capa" real do item: 100 pregos, 50 munição 9mm, 12 twines.
-function GridRender:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH)
-    local total = self.gridCore and self.gridCore:getPileUnits(itemId) or 1
+function GridRender:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH, total)
+    local total = total or (self.gridCore and self.gridCore:getPileUnits(itemId) or 1)
     local text = tostring(total)
     local textW = getTextManager():MeasureStringX(UIFont.Small, text)
     local bx = drawX + drawW - textW - 5
@@ -961,13 +965,13 @@ function GridRender:render()
             text = invItem:getName()
             tex = invItem:getTexture()
         elseif self.inventoryContainer then
-            if self.inventoryContainer:getType() == "floor" then
+            local invType = self.inventoryContainer:getType()
+            if invType == "floor" then
                 text = getTextOrNull("IGUI_ContainerTitle_floor") or "Floor"
-            elseif self.inventoryContainer:getType() == "inventory" or self.inventoryContainer:getType() == "none" then
+            elseif invType == "inventory" or invType == "none" then
                 text = getTextOrNull("IGUI_InventoryTooltip") or "Inventory"
             else
-                local cType = self.inventoryContainer:getType()
-                text = getTextOrNull("IGUI_ContainerTitle_" .. tostring(cType)) or cType
+                text = getTextOrNull("IGUI_ContainerTitle_" .. tostring(invType)) or invType
             end
             tex = self.fallbackIcon
         end
@@ -975,7 +979,6 @@ function GridRender:render()
         -- No CHÃO as grids extras são janelas de chão REAIS (não overflow 1x1):
         -- o título continua "Floor" em todas, nunca "(Overflow)".
         local isFloorTitle = self.inventoryContainer
-            and self.inventoryContainer.getType
             and self.inventoryContainer:getType() == "floor"
         if self.gridIndex and self.gridIndex > 1 and not isFloorTitle then
             text = text .. " (Overflow)"
@@ -1290,8 +1293,9 @@ function GridRender:render()
                 -- empilhados: 100 pregos, 50 9mm, 12 twines). Cada objeto = 1
                 -- unidade (o B42 conta o objeto — o count do script é vestigial).
                 -- Mostra a partir de 2 unidades pra não poluir item solto.
-                if self.gridCore:getPileUnits(itemId) > 1 then
-                    self:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH)
+                local pileUnits = self.gridCore:getPileUnits(itemId)
+                if pileUnits > 1 then
+                    self:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH, pileUnits)
                 end
 
                 -- FLASH de autoSlot: item recém-entrado SEM posição (autoSort/
@@ -1514,7 +1518,6 @@ end
 -- Cursor virtual do joypad: destaca o footprint do item sob o cursor e
 -- desenha uma moldura na célula do cursor (HUD contextual de controle).
 function GridRender:renderJoypadCursor()
-    local GridJoypad = require("System/GridJoypad")
     if not GridJoypad.isCursorOn(self) then return end
     local cursor = GridJoypad.cursors[self.playerNum]
     if not cursor or not cursor.col or not cursor.row then return end
@@ -1626,7 +1629,6 @@ function GridRender:drawDropPreview()
     local dropCol, dropRow
     if GridInventory_GlobalDrag.joypad then
         -- Drag de joypad: o preview segue o CURSOR virtual (só no grid dele).
-        local GridJoypad = require("System/GridJoypad")
         local cursor = GridJoypad.cursors[self.playerNum]
         if not cursor or cursor.grid ~= self or not cursor.col or not cursor.row then return end
         dropCol, dropRow = cursor.col, cursor.row
@@ -2904,7 +2906,6 @@ end
 
 function GridRender:updateTooltip()
     -- Cursor de joypad: o tooltip segue o cursor virtual (não o mouse).
-    local GridJoypad = require("System/GridJoypad")
     local joyCursor = GridJoypad.isCursorOn(self)
     -- Com o cursor virtual VISÍVEL, o tooltip do MOUSE é suprimido em todos os
     -- grids — só o grid do cursor mostra tooltip (na posição da célula). Senão
@@ -3126,6 +3127,13 @@ function GridRender:update()
                     md.gridContainer = info.previousContainer
                     local sourceGrid = GridContainer.getOrCreate(item:getContainer(), self.playerNum)
                     sourceGrid:refresh()
+                end
+                -- Item ENTREGUE ao destino (saiu da origem): o grid do destino
+                -- precisa re-renderizar agora — senão o item recém-chegado (ex.:
+                -- de dentro de uma bolsa no porta-malas) só aparece no próximo
+                -- refresh forçado (re-selecionar o container).
+                if movedAway and item and item.getContainer and GridClientNetwork then
+                    GridClientNetwork.markGridChanged(item:getContainer(), self.playerNum)
                 end
                 if ghosts and ghosts[itemId] then
                     self.gridCore:removeGhostItem(itemId)

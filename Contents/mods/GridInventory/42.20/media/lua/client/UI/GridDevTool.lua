@@ -15,6 +15,7 @@ local GridClientNetwork = require("Network/GridClientNetwork")
 local GridAdmin = require("System/GridAdmin")
 local GridIconRotation = require("Algorithm/GridIconRotation")
 local ItemCategory = require("Algorithm/ItemCategory")
+local GridSandboxOptions = require("GridSandboxOptions")
 
 --- Gate do DevTool (fail-closed no CLIENTE).
 --- O servidor já rejeita REQ_OVERRIDES de não-admin, mas sem esse gate o
@@ -1001,7 +1002,6 @@ function GridDevToolUI:prerender()
     -- vigente e avisa que o override FIRME pode ultrapassá-lo. Só pra
     -- containers sem item (worldobj/player/floor).
     if self.maxGridNote and not self.isItem then
-        local GridSandboxOptions = require("GridSandboxOptions")
         local minW = GridSandboxOptions.getMinWorldGridWidth()
         local maxV = GridSandboxOptions.getMaxContainerGridSize()
         self:drawText("Grid (sandbox): W " .. tostring(minW) .. " / H " .. tostring(maxV),
@@ -1107,8 +1107,7 @@ function GridDevToolUI:drawFootprintPreview()
         -- DESLIGADA, TODOS os jogadores veem o sprite no padrão (angle=0,
         -- scale=1, anchor=0) mesmo com override salvo. O preview acompanha pra
         -- mostrar exatamente o que será renderizado no jogo.
-        local GridSandboxOptions = require("GridSandboxOptions")
-        if GridSandboxOptions and GridSandboxOptions.isIconRotationEnabled
+        if GridSandboxOptions.isIconRotationEnabled
             and not GridSandboxOptions.isIconRotationEnabled() then
             deg = 0
             iconScale = 1
@@ -1192,8 +1191,7 @@ function GridDevToolUI:drawFootprintPreview()
     -- Aviso quando a sandbox option "IconRotation" está desligada: o preview
     -- mostra o sprite PADRÃO (o que os jogadores vão ver), mesmo que os campos
     -- à esquerda tenham angle/scale/anchor preenchidos.
-    local GridSandboxOptions = require("GridSandboxOptions")
-    if GridSandboxOptions and GridSandboxOptions.isIconRotationEnabled
+    if GridSandboxOptions.isIconRotationEnabled
         and not GridSandboxOptions.isIconRotationEnabled() then
         self:drawText("IconRotation OFF (sandbox): sprites no padrao", px + 8, py + ph - 20, 1, 0.6, 0.2, 1, UIFont.Small)
     end

@@ -64,12 +64,18 @@ end
 -- roda a cada 300ms, nunca a cada tick. O OnTick continua sendo o gatilho,
 -- mas o trabalho caro fica limitado no tempo.
 local CHECK_INTERVAL_MS = 300
+local _lastCheck = 0
+
+-- Função compartilhada (sem closure): a transferência de auto-drop do chão é
+-- sempre válida. Evita alocar uma closure nova por item jogado no chão.
+local function floorTransferAlwaysValid()
+    return true
+end
 
 function GridAutoDropSystem.OnTick()
     local now = getTimestampMs()
-    GridAutoDropSystem._lastCheck = GridAutoDropSystem._lastCheck or 0
-    if now - GridAutoDropSystem._lastCheck < CHECK_INTERVAL_MS then return end
-    GridAutoDropSystem._lastCheck = now
+    if now - _lastCheck < CHECK_INTERVAL_MS then return end
+    _lastCheck = now
 
     local playerNum = 0 -- Suporte apenas local multiplayer 0 por enquanto
     local playerObj = getSpecificPlayer(playerNum)
@@ -142,9 +148,7 @@ function GridAutoDropSystem.OnTick()
                         -- não pra travar o AutoDrop. Se o item já não coube em nenhuma mochila, ele
                         -- TEM que ir pro chão -- então ignoramos a validação de capacidade só pra
                         -- essa transferência específica.
-                        function transfer:isValid()
-                            return true
-                        end
+                        transfer.isValid = floorTransferAlwaysValid
 
                         ISTimedActionQueue.add(transfer)
                     else -- Equipa o item na mao

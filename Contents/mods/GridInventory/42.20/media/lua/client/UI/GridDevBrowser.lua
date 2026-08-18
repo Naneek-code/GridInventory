@@ -395,8 +395,9 @@ function GridDevBrowserUI:prerender()
         -- fullType (truncado pra caber; termina antes da coluna displayName)
         local name = e.fullType
         local maxW = 165
-        if tm:MeasureStringX(UIFont.Small, name) > maxW then
-            local ratio = maxW / math.max(1, tm:MeasureStringX(UIFont.Small, name))
+        local nameWx = tm:MeasureStringX(UIFont.Small, name)
+        if nameWx > maxW then
+            local ratio = maxW / math.max(1, nameWx)
             name = name:sub(1, math.max(6, math.floor(#name * ratio))) .. "..."
         end
         self:drawText(name, 30, y + 3, 1, 1, 1, 1, UIFont.Small)

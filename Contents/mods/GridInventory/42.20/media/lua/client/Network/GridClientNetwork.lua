@@ -82,6 +82,9 @@ local _pendingCount = 0        -- contador espelho (o PZ42/Kahlua não tem next(
 local _lastRefreshRun = 0
 
 local function flushPendingRefreshes(force)
+    -- Short-circuit ANTES do getTimestampMs() (Java): sem pendências, o OnTick
+    -- não precisa gastar nem a chamada de relógio a cada frame.
+    if not force and _pendingCount == 0 then return end
     local now = getTimestampMs()
     if not force and now - _lastRefreshRun < REFRESH_DEBOUNCE_MS then
         return
@@ -352,7 +355,7 @@ local function OnServerCommand(module, command, args)
         -- Aplica localmente no cache de sessão (o modData do jogador já vem
         -- do servidor). O eco do próprio envio também passa por aqui.
         if args and args.containerKey and args.itemIds then
-            GridClientNetwork.applyServerSearch(args.containerKey, args.itemIds)
+            GridClientNetwork.applyServerSearch(args.containerKey, args.itemIds, args.sender)
         end
     end
 end
@@ -360,12 +363,22 @@ end
 --- Aplica uma revelação confirmada pelo servidor no cache de sessão local.
 --- O WIPE branco de descoberta NÃO é repetido aqui: o cliente autor já disparou
 --- no markSearched local (antes do envio). O eco só confirma a sessão/persistência.
+--- A revelação é POR JOGADOR (modData do jogador que vasculhou): o servidor
+--- broadcasta SYNC_SEARCH pra todos, mas cada cliente só aplica o eco do PRÓPRIO
+--- jogador — a busca de outro jogador NÃO te revela os itens (senão 1 jogador
+--- vasculhando liberava o container pra todos no coop).
 ---@param containerKey string
 ---@param itemIds table lista de ids revelados
-function GridClientNetwork.applyServerSearch(containerKey, itemIds)
+---@param sender string|nil username do jogador que vasculhou (do broadcast)
+function GridClientNetwork.applyServerSearch(containerKey, itemIds, sender)
     if not containerKey or not itemIds then return end
+    local me = getPlayer()
+    if sender and me and me.getUsername then
+        -- Filtra pelo autor: só aplica se o broadcast for do próprio jogador.
+        if tostring(sender) ~= tostring(me:getUsername()) then return end
+    end
     local GridInventory_Search = require("System/GridInventory_Search")
-    local playerNum = getPlayer() and getPlayer():getPlayerNum() or 0
+    local playerNum = me and me.getPlayerNum and me:getPlayerNum() or 0
     for _, id in ipairs(itemIds) do
         GridInventory_Search.markSearchedSession(playerNum, containerKey, id, true)
     end
@@ -394,10 +407,9 @@ Events.OnServerCommand.Add(OnServerCommand)
 
 -- Garante o flush do debounce mesmo que parem de chegar mensagens (o lote
 -- final pendente escoa no próximo tick em vez de ficar preso).
+local tickFlushFn = GridClientNetwork.tickFlush
 Events.OnTick.Add(function()
-    if GridClientNetwork.tickFlush then
-        GridClientNetwork.tickFlush()
-    end
+    tickFlushFn()
 end)
 
 -- Exposição GLOBAL pro shared (padrão do mod, ex.: GridInventory_InTransit):

@@ -18,7 +18,8 @@ GridInventory_DropPreview = nil
 local DRAG_BG = { r = 0.4, g = 0.4, b = 0.4, a = 0.5 }
 local DRAG_BORDER = { r = 0.45, g = 0.45, b = 0.45, a = 1 }
 
-GlobalDragRender = ISUIElement:derive("GlobalDragRender")
+local GlobalDragRender = ISUIElement:derive("GlobalDragRender")
+local GridJoypad = require("System/GridJoypad")
 
 function GlobalDragRender:new()
     -- Largura e altura 0 para não bloquear os cliques do mouse da Engine
@@ -93,7 +94,6 @@ function GlobalDragRender:render()
         -- célula do cursor), não o mouse. O getAbsoluteX do grid NÃO inclui o
         -- scroll do pane (setScrollChildren) — desconta o scroll pra achar a
         -- posição de tela real da célula.
-        local GridJoypad = require("System/GridJoypad")
         local playerNum = sourceGrid.playerNum or 0
         -- O nav/switchFocus pode ter RECONSTRUÍDO as grids (container novo):
         -- re-resolve o cursor pra pegar o grid VIVO (senão o ghost lê posição

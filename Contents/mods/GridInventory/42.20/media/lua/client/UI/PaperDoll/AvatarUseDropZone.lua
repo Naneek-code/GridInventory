@@ -499,8 +499,14 @@ function AvatarUseDropZone:onRightMouseUp(x, y)
     for _, bodyPart in ipairs(damagedParts) do
         local sub = context:getNew(context)
         ISContextMenu.get = function() return sub end
-        local ok = pcall(ISHealthPanel.doBodyPartContextMenu, panel, bodyPart, 0, 0)
-        ISContextMenu.get = realGet
+        -- O restore do ISContextMenu.get fica DENTRO do pcall: se o
+        -- doBodyPartContextMenu lançar, o global é restaurado mesmo assim
+        -- (antes o restore ficava fora e o global podia ficar corrompido).
+        local ok = pcall(function()
+            ISHealthPanel.doBodyPartContextMenu(panel, bodyPart, 0, 0)
+            ISContextMenu.get = realGet
+        end)
+        if ok then ISContextMenu.get = realGet end
 
         if not ok or sub:isEmpty() then
             -- Sem tratamento disponível nesta parte: descarta o submenu

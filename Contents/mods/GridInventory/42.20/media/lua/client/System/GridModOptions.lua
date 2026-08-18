@@ -126,7 +126,10 @@ local function refreshPanes()
                 local pane = page.inventoryPane
                 pane.gridRefreshDirty = nil
                 pane.lastBackpackHash = nil
-                pcall(function() pane:refreshContainer() end)
+                local okRef, errRef = pcall(function() pane:refreshContainer() end)
+                if not okRef then
+                    print("[GridInventory] ERRO ao aplicar opção (refreshContainer): " .. tostring(errRef))
+                end
             end
         end
     end
@@ -144,17 +147,20 @@ local function refreshPaperDoll()
         if pd then
             local s = scale / 100
             local pdW = math.floor(350 * s)
-            pcall(function()
+            local okPD, errPD = pcall(function()
                 if pd.setWidth then pd:setWidth(pdW) end
                 if pd.relayout then pd:relayout() end
             end)
+            if not okPD then
+                print("[GridInventory] ERRO ao aplicar opção (PaperDoll relayout): " .. tostring(errPD))
+            end
         end
     end
 end
 
 local function registerOptions()
-    local ok, pzapi = pcall(function() return PZAPI end)
-    if not (ok and pzapi and pzapi.ModOptions and pzapi.ModOptions.create) then
+    local pzapi = PZAPI
+    if not (pzapi and pzapi.ModOptions and pzapi.ModOptions.create) then
         return
     end
 
