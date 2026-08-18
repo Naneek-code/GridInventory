@@ -164,9 +164,24 @@ function GridClientNetwork.sendItemMove(container, itemId, x, y, rotated, gridCo
     local ref = GridProtocol.buildContainerRef(container)
     if not ref then return end
 
+    -- Origem (container atual do item): o servidor pode precisar encontrar o
+    -- item AINDA na origem (a transferência física pode não ter completado).
+    -- Sem isso, o REQUEST_MOVE ia pra fila de pendências, o item chegava ao
+    -- destino SEM posição e era auto-posicionado em (1,1) (deslocando o item
+    -- que já estava lá) até a posição (x,y) sincronizar.
+    local sourceRef = nil
+    local it = GridClientNetwork.findItem(itemId)
+    if it and it.getContainer then
+        local src = it:getContainer()
+        if src then
+            sourceRef = GridProtocol.buildContainerRef(src)
+        end
+    end
+
     sendClientCommand(player, GridProtocol.MODULE, GridProtocol.COMMANDS.REQUEST_MOVE, {
         itemId = itemId,
         ref = ref,
+        sourceRef = sourceRef,
         x = tonumber(x),
         y = tonumber(y),
         rotated = rotated and true or false,

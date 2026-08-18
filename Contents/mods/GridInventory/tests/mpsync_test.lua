@@ -806,4 +806,64 @@ do
         "célula do item anexado fica livre na ocupação [cell=" .. tostring(cell) .. "]")
 end
 
+-- ─── Teste 29: REQUEST_MOVE com sourceRef — servidor acha item na ORIGEM ────
+-- Quando o item ainda está na origem em trânsito (transferência não completou),
+-- ele não está nem no inventário do jogador nem no container de DESTINO (ref).
+-- O sourceRef (origem) permite ao servidor encontrá-lo e aplicar a posição de
+-- imediato — sem isso ia pra fila de pendências e o item chegava ao destino sem
+-- posição (auto-fit em 1,1, deslocando o item existente).
+do
+    -- armário (origem) contendo o item alvo
+    local item = makeItem("srcItem", "Base.Can", 0.1, 1, 1)
+    local crateInv = makeContainer({ item }, 20, "Crate")
+    local crateObj = {
+        _isObject = true,
+        getContainer = function() return crateInv end,
+        getSquare = function() return nil end,
+    }
+    crateInv.getParent = function() return crateObj end
+    item.getContainer = function() return crateInv end
+    local square = {
+        getObjects = function() return { size = function() return 1 end, get = function() return crateObj end } end,
+        getX = function() return 5 end, getY = function() return 6 end, getZ = function() return 0 end,
+    }
+    crateObj.getSquare = function() return square end
+
+    local player = makePlayer({}) -- inventário vazio (item NÃO está nele)
+
+    -- sourceRef = object que resolve o armário (origem)
+    local sourceRef = { type = "object", x = 5, y = 6, z = 0, objIndex = 0 }
+
+    _G.getCell = function() return { getGridSquare = function(self, x, y, z)
+        if x == 5 and y == 6 and z == 0 then return square end return nil end } end
+    _G.instanceof = function(a, b)
+        if a and a._isObject then return b == "IsoObject" end
+        if a and a._isPlayer then return b == "IsoPlayer" end
+        return false
+    end
+
+    local sent = doMove(player, {
+        itemId = "srcItem",
+        ref = { type = "player" },      -- destino = inventário do jogador
+        sourceRef = sourceRef,          -- origem = armário
+        x = 2, y = 1, rotated = false,
+        gridContainer = "sig-player",
+        manual = true,
+    })
+
+    local sync = false
+    for _, s in ipairs(sent) do
+        if s.cmd == GridProtocol.COMMANDS.SYNC_ITEM then sync = true end
+    end
+    H.ok(sync,
+        "REQUEST_MOVE com sourceRef acha item na origem e aplica (SYNC_ITEM) ["
+        .. tostring(sync) .. "]")
+    H.ok(item:getModData().gridX == 2 and item:getModData().gridY == 1,
+        "posição (2,1) gravada no item encontrado via sourceRef ["
+        .. tostring(item:getModData().gridX) .. "," .. tostring(item:getModData().gridY) .. "]")
+
+    _G.getCell = function() return { getGridSquare = function() return nil end } end
+    _G.instanceof = function(a, b) return (a and a._isPlayer) and b == "IsoPlayer" or false end
+end
+
 H.finish()

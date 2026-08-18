@@ -27,9 +27,13 @@ local PENDING_DELAY_MS = 100
 
 --- Encontra o item onde quer que ele esteja acessível ao jogador:
 --- 1. árvore do inventário do jogador (cobre reorganizar e loot→inv);
---- 2. container resolvido pelo ref (caixas, prateleiras, bolsas);
---- 3. fallback bounded: square atual do jogador (chão + objetos + cadáveres).
-local function findItem(player, ref, itemId)
+--- 2. container resolvido pelo ref (destino);
+--- 3. container de ORIGEM (sourceRef) — o item pode ainda estar na origem em
+---    trânsito (transferência física não completou); sem isso o REQUEST_MOVE ia
+---    pra fila de pendências e o item chegava ao destino sem posição (auto-fit
+---    em 1,1, deslocando o item existente) até a posição (x,y) sincronizar;
+--- 4. fallback bounded: square atual do jogador (chão + objetos + cadáveres).
+local function findItem(player, ref, itemId, sourceRef)
     local item = GridProtocol.findItemInTree(player:getInventory(), itemId)
     if item then return item end
 
@@ -37,6 +41,14 @@ local function findItem(player, ref, itemId)
     if container then
         item = GridProtocol.findItemInTree(container, itemId)
         if item then return item end
+    end
+
+    if sourceRef then
+        local src = GridProtocol.resolveContainerRef(sourceRef, player)
+        if src then
+            item = GridProtocol.findItemInTree(src, itemId)
+            if item then return item end
+        end
     end
 
     local sq = player:getSquare()
@@ -59,7 +71,7 @@ end
 --- Executa um movimento. Retorna "ok" | "notfound" | "invalid".
 local function processMove(player, args)
     if not args or not args.itemId then return "invalid" end
-    local item = findItem(player, args.ref, args.itemId)
+    local item = findItem(player, args.ref, args.itemId, args.sourceRef)
     if not item then return "notfound" end
 
     -- Itens equipados/vestidos não vivem em grids → ignora.
@@ -156,7 +168,7 @@ local function processReorder(player, args)
         if m == nil or m.itemId == nil or m.x == nil or m.y == nil then
             return "invalid"
         end
-        local item = findItem(player, args.ref, m.itemId)
+        local item = findItem(player, args.ref, m.itemId, args.sourceRef)
         if not item then return "notfound" end
         if item.isEquipped and item:isEquipped() then return "invalid" end
         table.insert(moves, { item = item, x = tonumber(m.x), y = tonumber(m.y), rotated = m.rotated and true or false })
