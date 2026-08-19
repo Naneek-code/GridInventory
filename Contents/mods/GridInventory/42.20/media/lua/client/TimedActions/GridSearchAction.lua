@@ -160,12 +160,19 @@ function GridSearchAction:perform()
         self.action:stopTimedActionAnim()
         self.action:setLoopedAction(false)
     end
+    -- Libera o guard pra permitir busca futura (retoma de itens ainda ocultos).
+    if self.gridRender then
+        self.gridRender._searchActive = false
+    end
     ISBaseTimedAction.perform(self)
     self.started = false
 end
 
 function GridSearchAction:stop()
     ISBaseTimedAction.stop(self)
+    if self.gridRender then
+        self.gridRender._searchActive = false
+    end
     self.started = false
 end
 

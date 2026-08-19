@@ -892,6 +892,12 @@ function GridRender:startSearch()
     local key = self:searchKey()
     if not key then return false end
 
+    -- Guard: não enfileira múltiplas ações de busca pro mesmo container.
+    -- Clique repetido enquanto a ação roda é ignorado (o que já foi revelado
+    -- fica salvo; o clique seguinte DEPOIS que a ação termina retoma o que
+    -- ainda está oculto).
+    if self._searchActive then return true end
+
     -- Torna o container o alvo ativo do painel (mesma lógica do duplo clique
     -- no fundo / clique no header).
     local pLoot = getPlayerLoot(self.playerNum)
@@ -916,11 +922,13 @@ function GridRender:startSearch()
     if msPer <= 0 then
         -- Instantâneo: revela tudo agora, sem timed action.
         GridInventory_Search.revealAll(self.playerNum, key, self.inventoryContainer:getItems())
+        self._searchActive = false
         return true
     end
 
     -- Retoma: a ação re-coleta só as pilhas ainda ocultas no construtor.
     local GridSearchAction = require("TimedActions/GridSearchAction")
+    self._searchActive = true
     ISTimedActionQueue.add(GridSearchAction:new(playerObj, self, key))
     return true
 end
