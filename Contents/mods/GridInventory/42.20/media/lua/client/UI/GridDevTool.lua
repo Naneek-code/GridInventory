@@ -9,6 +9,7 @@ require "ISUI/ISPanel"
 require "ISUI/ISButton"
 require "ISUI/ISLabel"
 require "ISUI/ISInventoryPaneContextMenu"
+require "ISUI/ISTextEntryBox"
 require "DevTool/GridOverrides"
 
 local GridClientNetwork = require("Network/GridClientNetwork")
@@ -234,30 +235,29 @@ function GridDevToolUI:initialise()
         self.labels.stack = cy + 2
         cy = cy + 40
         
-        -- MaxStack (Auto / número)
+        -- MaxStack (Auto / número digitável)
         self:addChild(ISLabel:new(labelX, cy, 20, "MaxStack:", 1, 1, 1, 1, UIFont.Small, true))
-        self.btnMaxMinus = ISButton:new(130, cy, btnW, btnH, "-", self, function(self)
-            if not self.tempData.maxStackAuto then
-                self.tempData.maxStack = math.max(1, self.tempData.maxStack - 1)
-                self:updateMaxButton()
-            end
-        end)
-        self.btnMaxMinus:initialise()
-        self:addChild(self.btnMaxMinus)
-        self.btnMaxMode = ISButton:new(165, cy, 60, btnH, "Auto", self, function(self)
+        self.btnMaxAuto = ISButton:new(130, cy, 55, btnH, "Auto", self, function(self)
             self.tempData.maxStackAuto = not self.tempData.maxStackAuto
             self:updateMaxButton()
+            self:syncMaxEntry()
         end)
-        self.btnMaxMode:initialise()
-        self:addChild(self.btnMaxMode)
-        self.btnMaxPlus = ISButton:new(230, cy, btnW, btnH, "+", self, function(self)
-            if not self.tempData.maxStackAuto then
-                self.tempData.maxStack = self.tempData.maxStack + 1
-                self:updateMaxButton()
-            end
-        end)
-        self.btnMaxPlus:initialise()
-        self:addChild(self.btnMaxPlus)
+        self.btnMaxAuto:initialise()
+        self:addChild(self.btnMaxAuto)
+        self.entryMaxStack = ISTextEntryBox:new(tostring(self.tempData.maxStack), 190, cy, 70, 22)
+        self.entryMaxStack.font = UIFont.Small
+        self.entryMaxStack:initialise()
+        self.entryMaxStack:instantiate()
+        self.entryMaxStack.target = self
+        self.entryMaxStack.onTextChange = function(box)
+            box.target:onMaxStackChanged()
+        end
+        -- Ao clicar, seleciona o conteúdo pra digitação SUBSTITUIR o valor
+        -- (senão o "5" é anexado ao "1000" existente).
+        self.entryMaxStack.onMouseDown = function(box)
+            box:selectAll()
+        end
+        self:addChild(self.entryMaxStack)
         self:updateMaxButton()
         self.labels.maxStack = cy + 2
         cy = cy + 40
@@ -497,11 +497,40 @@ function GridDevToolUI:updateStackButton()
 end
 
 function GridDevToolUI:updateMaxButton()
-    if not self.btnMaxMode then return end
+    if not self.btnMaxAuto then return end
     if self.tempData.maxStackAuto then
-        self.btnMaxMode:setTitle("Auto")
+        self.btnMaxAuto:setTitle("Auto")
+        self.btnMaxAuto.backgroundColor = { r = 0.15, g = 0.45, b = 0.15, a = 0.8 }
+        self.btnMaxAuto.backgroundColorMouseOver = { r = 0.25, g = 0.6, b = 0.25, a = 0.9 }
+        -- Modo Auto: esconde o input (não há número pra editar).
+        if self.entryMaxStack then self.entryMaxStack:setVisible(false) end
     else
-        self.btnMaxMode:setTitle(tostring(self.tempData.maxStack))
+        self.btnMaxAuto:setTitle("N")
+        self.btnMaxAuto.backgroundColor = { r = 0.45, g = 0.15, b = 0.15, a = 0.8 }
+        self.btnMaxAuto.backgroundColorMouseOver = { r = 0.6, g = 0.25, b = 0.25, a = 0.9 }
+        if self.entryMaxStack then self.entryMaxStack:setVisible(true) end
+    end
+end
+
+--- Sincroniza o TEXTO do input com tempData.maxStack. Só roda de forma
+--- PROGRAMÁTICA (init/toggle do Auto) — NUNCA durante a digitação, senão cada
+--- tecla re-normalizava o texto e "travava" o campo em 1000 (o "5" anexado ao
+--- "1000" virava "10005" → clamp 1000 → setText de volta).
+function GridDevToolUI:syncMaxEntry()
+    if not self.entryMaxStack then return end
+    self._syncingMax = true
+    self.entryMaxStack:setText(tostring(self.tempData.maxStack))
+    self._syncingMax = false
+end
+
+--- Digitou no input de MaxStack: só parseia e guarda (sem reescrever o texto).
+function GridDevToolUI:onMaxStackChanged()
+    if not self.entryMaxStack or self._syncingMax then return end
+    local n = tonumber(self.entryMaxStack:getText())
+    if n and n >= 1 then
+        self.tempData.maxStack = math.min(1000, math.floor(n))
+        self.tempData.maxStackAuto = false
+        self:updateMaxButton()
     end
 end
 
@@ -703,7 +732,7 @@ function GridDevToolUI:onSave()
             self.tempData.w, self.tempData.h,
             nil, nil,
             self.tempData.stackable,
-            self.tempData.maxStackAuto and nil or self.tempData.maxStack,
+            (not self.tempData.maxStackAuto) and self.tempData.maxStack or nil,
             self.tempData.angle or 0,
             self.tempData.scale or 1,
             self.tempData.anchorX or 0,

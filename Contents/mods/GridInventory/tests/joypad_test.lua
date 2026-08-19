@@ -1070,4 +1070,110 @@ GJP.pdActivate(0)
 H.ok(pdEquipped == "HeldItem", "A no slot do PaperDoll equipa o item arrastado")
 H.ok(not GJP.isDragging(0), "equip encerra o drag")
 
+-- ---------------------------------------------------------------------------
+-- PILHA: A dinâmico (tap=1, tap repetido=+1, hold=todos) + Select (picker).
+-- ---------------------------------------------------------------------------
+local aHeld = false
+_G.JoypadButton.A = { isDown = function() return aHeld end }
+
+local stGrid = makeGrid("st", "st-inv", 4, 4, 15, 15)
+local stCells = {}
+stCells[2] = stCells[2] or {}
+stCells[2][2] = "stackL"
+stGrid.gridCore.cells = stCells
+stGrid.gridCore.items = {
+    stackL = { x = 2, y = 2, w = 1, h = 1, itemObj = {} },
+    stackM1 = { x = 2, y = 2, w = 1, h = 1, itemObj = {} },
+    stackM2 = { x = 2, y = 2, w = 1, h = 1, itemObj = {} },
+}
+stGrid.gridCore.getStackSize = function(self, id) return 3 end
+stGrid.gridCore.getStackMembers = function(self, id)
+    if id == "stackL" then return { "stackL", "stackM1", "stackM2" } end
+    return { id }
+end
+function stGrid:isLocked() return false end
+resetPanes()
+addGridToPane(lootPane, stGrid)
+GJP.cursors[0] = { container = "st-inv", gridIndex = 1, grid = stGrid, col = 2, row = 2 }
+GJP.drag = { active = false, playerNum = nil }
+GJP.aPress = { active = false, playerNum = nil }
+GJP.picker = { playerNum = nil }
+GridInventory_GlobalDrag = nil
+
+-- A numa pilha NÃO pega na hora: registra o aPress (aguarda tap/hold).
+fakeNow = 40000
+aHeld = true
+GJP.grab(0, lootPage)
+H.ok(not GJP.isDragging(0), "A numa pilha não inicia o drag imediatamente")
+H.ok(GJP.aPress.active == true, "A numa pilha registra o aPress (aguarda tap/hold)")
+
+-- TAP: solta o A antes de 300ms → pega 1 membro (preserva o líder).
+fakeNow = 40050
+aHeld = false
+GJP.pollA(0, lootPage)
+H.ok(GJP.isDragging(0), "tap do A na pilha pega 1 item (inicia o drag)")
+H.ok(GridInventory_GlobalDrag ~= nil and #GridInventory_GlobalDrag.itemsData == 1,
+    "drag do tap tem exatamente 1 item ["
+    .. tostring(GridInventory_GlobalDrag and #GridInventory_GlobalDrag.itemsData) .. "]")
+H.ok(GridInventory_GlobalDrag.itemsMap["stackM1"] == true, "tap pega um MEMBRO (não o líder)")
+
+-- +1: A (tap) de novo sobre a MESMA pilha acumula outro membro (NÃO o líder).
+fakeNow = 40400
+aHeld = true
+GJP.grab(0, lootPage)
+H.ok(GJP.aPress.active == true and GJP.aPress.mode == "add",
+    "A com peel ativo registra o press (mode=add)")
+fakeNow = 40450
+aHeld = false
+GJP.pollA(0, lootPage)
+H.ok(GridInventory_GlobalDrag ~= nil and #GridInventory_GlobalDrag.itemsData == 2,
+    "A de novo na mesma pilha acumula +1 ["
+    .. tostring(GridInventory_GlobalDrag and #GridInventory_GlobalDrag.itemsData) .. "]")
+H.ok(GridInventory_GlobalDrag.itemsMap["stackM2"] == true, "+1 pega outro MEMBRO (stackM2)")
+H.ok(GridInventory_GlobalDrag.itemsMap["stackL"] ~= true, "+1 NÃO pega o líder (grid não some)")
+
+-- HOLD com peel ativo (+2 já levantados): segura A → pega o RESTANTE (o líder).
+fakeNow = 40500
+aHeld = true
+GJP.grab(0, lootPage)
+fakeNow = 40850
+GJP.pollA(0, lootPage)
+H.ok(GridInventory_GlobalDrag ~= nil and #GridInventory_GlobalDrag.itemsData == 3,
+    "hold com peel ativo pega o restante da pilha (3 itens) ["
+    .. tostring(GridInventory_GlobalDrag and #GridInventory_GlobalDrag.itemsData) .. "]")
+H.ok(GridInventory_GlobalDrag.itemsMap["stackL"] == true, "hold do restante inclui o líder")
+
+-- HOLD: cancelar, segurar A >= 300ms → pega a pilha inteira.
+GJP.cancelDrag(0)
+GJP.aPress = { active = false, playerNum = nil }
+GridInventory_GlobalDrag = nil
+fakeNow = 41000
+aHeld = true
+GJP.grab(0, lootPage)
+fakeNow = 41350
+GJP.pollA(0, lootPage)
+H.ok(GJP.isDragging(0) and GridInventory_GlobalDrag and #GridInventory_GlobalDrag.itemsData == 3,
+    "hold do A pega a pilha inteira (3 itens)")
+GJP.cancelDrag(0)
+
+-- SELECT (Back): abre o stack picker sobre a pilha do cursor (posição da
+-- célula do cursor VIRTUAL, não do mouse).
+local pickerCall = nil
+_G.GridInventory_openStackPicker = function(pn, grid, leaderId, viaJoypad, joyX, joyY)
+    pickerCall = { pn = pn, leaderId = leaderId, viaJoypad = viaJoypad, joyX = joyX, joyY = joyY }
+    _G.GridInventory_StackPicker = {
+        [pn] = { getIsVisible = function() return true end, stackMode = {}, close = function() end },
+    }
+end
+GJP.aPress = { active = false, playerNum = nil }
+local opened = GJP.openStackPicker(0, lootPage)
+H.ok(opened == true, "Select abre o stack picker sobre a pilha")
+H.ok(pickerCall ~= nil and pickerCall.leaderId == "stackL" and pickerCall.viaJoypad == true,
+    "openStackPicker passa o líder e viaJoypad=true")
+H.ok(pickerCall ~= nil and pickerCall.joyX ~= nil and pickerCall.joyY ~= nil,
+    "openStackPicker passa a posição do cursor virtual (joyX/joyY)")
+H.ok(GJP.isPickerActive(0), "isPickerActive = true após abrir pelo controle")
+GJP.closePicker(0)
+H.ok(not GJP.isPickerActive(0), "closePicker desativa o picker")
+
 H.finish()

@@ -227,9 +227,10 @@ do
     H.ok(grid:getPileUnits("u1") == 2, "pilha deitada tem 2 [units=" .. grid:getPileUnits("u1") .. "]")
 end
 
--- ─── Teste 8: posição MANUAL (gridManual) nunca é MOVIDA ────────────────────
+-- ─── Teste 8: posição MANUAL (gridManual) é INERTE na consolidação ──────────
 do
-    -- man (manual) em (1,1): permanece E absorve as automáticas (alvo).
+    -- man (manual) em (1,1): NÃO absorve nem é absorvida — as automáticas
+    -- consolidam ENTRE SI, deixando a manual isolada (controle do jogador).
     local items = {
         makeItem("man", "Base.Nails", 20, 1, 1, false, "container:crate", true),
         makeItem("n1", "Base.Nails", 20, 2, 1),
@@ -242,19 +243,25 @@ do
     local leaders = 0
     local manPos = nil
     local manUnits = 0
+    local autoUnits = 0
     for id, d in pairs(grid.items) do
         if not d.stackMemberOf then
             leaders = leaders + 1
-            if id == "man" then manPos = d.x end
-            manUnits = manUnits + grid:getPileUnits(id)
+            if id == "man" then
+                manPos = d.x
+                manUnits = grid:getPileUnits(id)
+            else
+                autoUnits = grid:getPileUnits(id)
+            end
         end
     end
     H.ok(manPos == 1, "item manual permanece na célula (1,1) [x=" .. tostring(manPos) .. "]")
-    H.ok(leaders == 1, "automáticas consolidam NA manual (1 pilha) [leaders=" .. leaders .. "]")
-    H.ok(manUnits == 4, "pilha manual absorveu as automáticas (1+1+1+1=4) [units=" .. manUnits .. "]")
+    H.ok(leaders == 2, "manual NÃO absorve as automáticas (2 pilhas) [leaders=" .. leaders .. "]")
+    H.ok(manUnits == 1, "pilha manual fica com 1 unidade (não absorve) [units=" .. tostring(manUnits) .. "]")
+    H.ok(autoUnits == 3, "automáticas consolidam entre si (1+1+1=3) [units=" .. tostring(autoUnits) .. "]")
 
-    -- Caso inverso: manual em célula DEPOIS da automática — a manual NUNCA é
-    -- movida; ela absorve a automática (1 pilha na célula da manual).
+    -- Caso inverso: manual em célula DEPOIS da automática — a manual NÃO é
+    -- movida NEM absorve: ficam 2 pilhas separadas.
     local items2 = {
         makeItem("n1", "Base.Nails", 20, 1, 1),
         makeItem("man", "Base.Nails", 20, 2, 1, false, "container:crate", true),
@@ -271,7 +278,7 @@ do
         end
     end
     H.ok(manX2 == 2, "manual não é movida para a automática [x=" .. tostring(manX2) .. "]")
-    H.ok(leaders2 == 1, "automática é absorvida pela manual (1 pilha) [leaders=" .. leaders2 .. "]")
+    H.ok(leaders2 == 2, "manual fica separada da automática (2 pilhas) [leaders=" .. leaders2 .. "]")
 end
 
 -- ─── Teste 9: item em TRÂNSITO (InTransit) não é movido ─────────────────────

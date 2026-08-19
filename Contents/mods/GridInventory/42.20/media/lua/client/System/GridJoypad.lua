@@ -49,7 +49,19 @@ GridJoypad.pds = GridJoypad.pds or {}
 --- (mesmo grid, cross-grid, pilha única, paperdoll, put-in).
 GridJoypad.drag = { active = false, playerNum = nil }
 
+--- Modo PEEL/HOLD do A sobre uma PILHA: apertar A numa pilha não pega tudo na
+--- hora — registra o press e aguarda. O tap (< A_HOLD_MS, decidido no release)
+--- pega 1 item; tap repetido sobre a MESMA pilha acumula (+1); segurar A
+--- (>= A_HOLD_MS) pega a pilha inteira. O polling é feito no GridJoypad.pollA.
+GridJoypad.aPress = { active = false, playerNum = nil }
+
+--- STACK PICKER aberto pelo controle (Select = Joypad.Back): quando ativo, o
+--- D-pad navega a lista da janela em vez de mover o cursor das grids.
+GridJoypad.picker = { playerNum = nil }
+
 local NAV_HOLD_MS = 250
+--- Tempo de hold do A pra pegar a pilha inteira (tap abaixo disso = 1 item).
+local A_HOLD_MS = 300
 local DPAID_TEXTURES = {
     ["left"] = "DPadLeft",
     ["right"] = "DPadRight",
@@ -574,8 +586,150 @@ function GridJoypad.isDragging(playerNum)
     return GridJoypad.drag.active == true
 end
 
+--- Monta a ENTRADA de drag de um itemData do grid (sem alocar fora do loop).
+--- Rotação = mData.rotated (flag do grid, confiável). O tamanho BASE é o par
+--- d.w/d.h desrotacionado (ItemFootprint.getSize retorna o footprint ATUAL).
+local function buildItemEntry(mData, mId)
+    local rotated = mData.rotated or false
+    local baseW, baseH = mData.w, mData.h
+    if rotated then
+        baseW, baseH = mData.h, mData.w
+    end
+    local compatKey = nil
+    local stackInfo = nil
+    local itemObj = mData.itemObj
+    if GridContainer and GridContainer.getStackableCompatKey and itemObj then
+        local okCK, ck = pcall(GridContainer.getStackableCompatKey, itemObj)
+        if okCK then compatKey = ck end
+        local okSI, si = pcall(function()
+            return select(2, GridContainer.getStackInfo(itemObj))
+        end)
+        if okSI then stackInfo = si end
+    end
+    return {
+        id = mId,
+        itemObj = itemObj,
+        originalX = mData.x,
+        originalY = mData.y,
+        originalW = baseW,
+        originalH = baseH,
+        grabOffsetX = 0,
+        grabOffsetY = 0,
+        rotated = rotated,
+        compatKey = compatKey,
+        stackInfo = stackInfo,
+    }
+end
+
+--- Inicia o GridInventory_GlobalDrag do joypad a partir de uma lista de ids de
+--- membros. `stackPeelLeaderId` (opcional) marca o drag como "peel de pilha":
+--- com ele setado, um A sobre a MESMA pilha acumula +1 em vez de soltar.
+local function startDrag(playerNum, grid, anchorId, memberIds, stackPeelLeaderId)
+    local itemsData = {}
+    local itemsMap = {}
+    for _, mId in ipairs(memberIds) do
+        local mData = grid.gridCore.items[mId]
+        if mData and mData.itemObj then
+            table.insert(itemsData, buildItemEntry(mData, mId))
+            itemsMap[mId] = true
+        end
+    end
+    if #itemsData == 0 then return false end
+    GridInventory_GlobalDrag = {
+        itemsData = itemsData,
+        itemsMap = itemsMap,
+        anchorId = anchorId,
+        sourceGrid = grid,
+        joypad = true,
+    }
+    -- IMPORTANTE: NÃO setar ISMouseDrag aqui — o vanilla ISInventoryPane:update
+    -- resolve o drag quando o mouse não está segurado (onMouseUp), o que
+    -- AUTOCOLOCARIA o item no próximo frame. O ISMouseDrag é setado só
+    -- transitoriamente no placeDrag (pro drop cross-grid do onMouseUp).
+    GridJoypad.drag = {
+        active = true,
+        playerNum = playerNum,
+        startedAt = getTimestampMs(),
+        stackPeelLeaderId = stackPeelLeaderId,
+        stackPeelGrid = stackPeelLeaderId and grid or nil,
+    }
+    return true
+end
+
+--- TAP na pilha: pega UM membro (o 2º, preservando o líder) e marca o drag
+--- como peel pra permitir acumular (+1) com novos taps.
+local function peelOne(playerNum, grid, leaderId)
+    local members = grid.gridCore:getStackMembers(leaderId)
+    if #members <= 1 then
+        startDrag(playerNum, grid, leaderId, { leaderId }, nil)
+        return
+    end
+    local peelId = members[2]
+    startDrag(playerNum, grid, peelId, { peelId }, leaderId)
+    joyDebug("peelOne: pegou 1 item da pilha (", tostring(peelId), ")")
+end
+
+--- Acumula +1 item da pilha no drag atual (membro ainda não peelado).
+--- Pula o LÍDER (members[1]) enquanto houver membros: o líder representa a
+--- pilha no render do grid — se ele entra no drag, o grid esconde a pilha
+--- inteira (some) mesmo ainda havendo itens. Só pega o líder quando é o
+--- último item restante.
+local function addStackMember(playerNum, grid, leaderId)
+    local itemsMap = GridInventory_GlobalDrag and GridInventory_GlobalDrag.itemsMap
+    if not itemsMap then return end
+    local members = grid.gridCore:getStackMembers(leaderId)
+    for i = 2, #members do
+        local mId = members[i]
+        if not itemsMap[mId] then
+            local mData = grid.gridCore.items[mId]
+            if mData and mData.itemObj then
+                table.insert(GridInventory_GlobalDrag.itemsData, buildItemEntry(mData, mId))
+                itemsMap[mId] = true
+                joyDebug("addStackMember: +1 (", tostring(mId), ")")
+            end
+            return
+        end
+    end
+    -- Sem membros disponíveis: pega o próprio líder (último item da pilha).
+    if not itemsMap[leaderId] then
+        local mData = grid.gridCore.items[leaderId]
+        if mData and mData.itemObj then
+            table.insert(GridInventory_GlobalDrag.itemsData, buildItemEntry(mData, leaderId))
+            itemsMap[leaderId] = true
+            joyDebug("addStackMember: +1 líder (", tostring(leaderId), ")")
+        end
+    end
+end
+
+--- HOLD com peel ativo: pega todo o RESTANTE da pilha (membros ainda não
+--- peelados + o líder). O grid some (pilha esvaziada), o que é o esperado.
+local function addRestOfStack(playerNum, grid, leaderId)
+    local itemsMap = GridInventory_GlobalDrag and GridInventory_GlobalDrag.itemsMap
+    if not itemsMap then return end
+    local members = grid.gridCore:getStackMembers(leaderId)
+    for i = 2, #members do
+        local mId = members[i]
+        if not itemsMap[mId] then
+            local mData = grid.gridCore.items[mId]
+            if mData and mData.itemObj then
+                table.insert(GridInventory_GlobalDrag.itemsData, buildItemEntry(mData, mId))
+                itemsMap[mId] = true
+            end
+        end
+    end
+    if not itemsMap[leaderId] then
+        local mData = grid.gridCore.items[leaderId]
+        if mData and mData.itemObj then
+            table.insert(GridInventory_GlobalDrag.itemsData, buildItemEntry(mData, leaderId))
+            itemsMap[leaderId] = true
+        end
+    end
+    joyDebug("addRestOfStack: pegou o restante da pilha")
+end
+
 --- Botão A: PEGA o item sob o cursor (inicia o drag — o item fica preso no
 --- cursor) ou, se já arrastando, SOLTA na célula do cursor (place).
+--- Pilhas: tap = 1 item, tap repetido na mesma pilha = +1, hold = todos.
 function GridJoypad.grab(playerNum, page)
     if GridJoypad.drag.active then
         -- Guarda de TEMPO: o engine pode re-enviar o A em rajada no mesmo
@@ -586,6 +740,29 @@ function GridJoypad.grab(playerNum, page)
             joyDebug("grab -> place IGNORADO (eco imediato do A, ",
                 tostring(getTimestampMs() - GridJoypad.drag.startedAt), "ms)")
             return
+        end
+        -- Peel de pilha ativo: se o cursor ainda está sobre a MESMA pilha da
+        -- origem, o A registra o press (tap = +1, hold = restante) em vez de
+        -- soltar ou acumular +1 imediatamente.
+        if GridJoypad.drag.stackPeelLeaderId then
+            local cursor = GridJoypad.resolveCursor(playerNum, page)
+            local cgrid = cursor and cursor.grid
+            if cgrid and cgrid.gridCore and cgrid.gridCore.cells then
+                local cid = cgrid.gridCore.cells[cursor.col] and cgrid.gridCore.cells[cursor.col][cursor.row]
+                if cid == GridJoypad.drag.stackPeelLeaderId and cgrid == GridJoypad.drag.stackPeelGrid then
+                    GridJoypad.aPress = {
+                        active = true,
+                        playerNum = playerNum,
+                        pressTime = getTimestampMs(),
+                        grid = cgrid,
+                        leaderId = cid,
+                        held = false,
+                        mode = "add",
+                    }
+                    joyDebug("grab: peel ativo — aguardando tap(+1)/hold(restante)")
+                    return
+                end
+            end
         end
         joyDebug("grab -> PLACE (A de novo após mover)")
         GridJoypad.placeDrag(playerNum, page)
@@ -605,94 +782,157 @@ function GridJoypad.grab(playerNum, page)
     local d = grid.gridCore.items[id]
     if not d or not d.itemObj or d.stackMemberOf then return end
 
-    -- Rotação = d.rotated (o flag do grid, confiável — o log mostrou que bate
-    -- com gridRot). ItemFootprint.getSize NÃO serve como base: retorna o
-    -- footprint ATUAL (rotacionado quando o item está rotacionado).
-    local rotated = d.rotated or false
-    -- Tamanho BASE (desrotacionado): o grid guarda d.w/d.h como renderiza agora
-    -- (rotacionado = lados trocados). Se rotacionado, o base é o par trocado.
-    local baseW, baseH = d.w, d.h
-    if rotated then
-        baseW, baseH = d.h, d.w
+    -- PILHA (mais de 1 objeto): não pega na hora — registra o press do A e
+    -- aguarda tap/hold no pollA. Tap = 1 item, hold = pilha inteira.
+    local stackSize = 1
+    if grid.gridCore.getStackSize then
+        stackSize = grid.gridCore:getStackSize(id) or 1
     end
-
-    local compatKey = nil
-    local stackInfo = nil
-    if GridContainer and GridContainer.getStackableCompatKey and d.itemObj then
-        local okCK, ck = pcall(GridContainer.getStackableCompatKey, d.itemObj)
-        if okCK then compatKey = ck end
-        local okSI, si = pcall(function()
-            return select(2, GridContainer.getStackInfo(d.itemObj))
-        end)
-        if okSI then stackInfo = si end
-    end
-
-    local itemsData = {
-        {
-            id = id,
-            itemObj = d.itemObj,
-            originalX = d.x,
-            originalY = d.y,
-            originalW = baseW,
-            originalH = baseH,
-            grabOffsetX = 0,
-            grabOffsetY = 0,
-            rotated = rotated,
-            compatKey = compatKey,
-            stackInfo = stackInfo,
+    if stackSize > 1 then
+        GridJoypad.aPress = {
+            active = true,
+            playerNum = playerNum,
+            pressTime = getTimestampMs(),
+            grid = grid,
+            leaderId = id,
+            held = false,
         }
-    }
-    local itemsMap = { [id] = true }
-    -- PILHA: pega o líder junto com os MEMBROS reais (getStackMembers inclui o
-    -- próprio líder — pula ele). Senão mover a pilha só moveria 1 unidade.
-    if grid.gridCore.isStackLeader and grid.gridCore:isStackLeader(id) then
-        local members = grid.gridCore:getStackMembers(id)
-        for _, mId in ipairs(members) do
-            if mId ~= id then
-                local mData = grid.gridCore.items[mId]
-                if mData and mData.itemObj then
-                    table.insert(itemsData, {
-                        id = mId,
-                        itemObj = mData.itemObj,
-                        originalX = d.x,
-                        originalY = d.y,
-                        originalW = baseW,
-                        originalH = baseH,
-                        grabOffsetX = 0,
-                        grabOffsetY = 0,
-                        rotated = rotated,
-                        compatKey = compatKey,
-                        stackInfo = stackInfo,
-                    })
-                    itemsMap[mId] = true
-                end
+        joyDebug("grab: pilha — aguardando tap/hold do A")
+        return
+    end
+
+    -- Item normal: monta o drag na hora (comportamento original).
+    if startDrag(playerNum, grid, id, { id }, nil) then
+        joyDebug("grab INICIOU drag de ", tostring(d.itemObj or id),
+            " t=" .. tostring(getTimestampMs()), " cursor=", cursor.col, cursor.row)
+    end
+end
+
+--- Polling do press do A (chamado no update da página): resolve tap vs hold na
+--- pilha. Hold (>= A_HOLD_MS) pega a pilha inteira; o release antes disso
+--- (tap) pega 1 item.
+function GridJoypad.pollA(playerNum, page)
+    local ap = GridJoypad.aPress
+    if not ap or not ap.active or ap.playerNum ~= playerNum then return end
+
+    local joypadData = getJoypadData(playerNum)
+    if not joypadData or joypadData.id == nil then
+        GridJoypad.aPress = { active = false, playerNum = nil }
+        return
+    end
+
+    local aDown = JoypadButton.A:isDown(joypadData.id)
+    local now = getTimestampMs()
+
+    if ap.held then
+        -- Hold já consumido: só aguarda o release pra liberar o próximo press.
+        if not aDown then
+            GridJoypad.aPress = { active = false, playerNum = nil }
+        end
+        return
+    end
+
+    if not aDown then
+        -- Soltou antes do hold → TAP: pega 1 item (peel) ou +1 (peel ativo).
+        local grid, leaderId = ap.grid, ap.leaderId
+        local mode = ap.mode
+        GridJoypad.aPress = { active = false, playerNum = nil }
+        if grid and leaderId and grid.gridCore and grid.gridCore.items[leaderId] then
+            if mode == "add" then
+                addStackMember(playerNum, grid, leaderId)
+            else
+                peelOne(playerNum, grid, leaderId)
+            end
+        end
+        return
+    end
+
+    if now - ap.pressTime >= A_HOLD_MS then
+        -- HOLD: pega a pilha inteira (peel inicial) ou todo o RESTANTE
+        -- (peel ativo).
+        ap.held = true
+        local grid, leaderId = ap.grid, ap.leaderId
+        local mode = ap.mode
+        if grid and leaderId and grid.gridCore and grid.gridCore.items[leaderId] then
+            if mode == "add" then
+                addRestOfStack(playerNum, grid, leaderId)
+                joyDebug("grab: HOLD — pegou o restante da pilha")
+            else
+                local members = grid.gridCore:getStackMembers(leaderId)
+                startDrag(playerNum, grid, leaderId, members, nil)
+                joyDebug("grab: HOLD — pegou a pilha inteira")
             end
         end
     end
-    GridInventory_GlobalDrag = {
-        itemsData = itemsData,
-        itemsMap = itemsMap,
-        anchorId = id,
-        sourceGrid = grid,
-        joypad = true,
-    }
-    -- IMPORTANTE: NÃO setar ISMouseDrag aqui — o vanilla ISInventoryPane:update
-    -- resolve o drag quando o mouse não está segurado (onMouseUp), o que
-    -- AUTOCOLOCARIA o item no próximo frame. O ISMouseDrag é setado só
-    -- transitoriamente no placeDrag (pro drop cross-grid do onMouseUp).
-    GridJoypad.drag = { active = true, playerNum = playerNum, startedAt = getTimestampMs() }
-    if GridInventory_joypadDebug then
-        local md = d.itemObj and d.itemObj.getModData and d.itemObj:getModData()
-        print("[GridJoypad] grab INICIOU ", tostring(d.itemObj or id),
-            " | d.rotated=", tostring(d.rotated),
-            " | d.w=", tostring(d.w), " d.h=", tostring(d.h),
-            " | base=", baseW, baseH,
-            " | gridRot=", tostring(md and md.gridRot),
-            " | isRotated=", tostring(d.itemObj and d.itemObj.isRotated and d.itemObj:isRotated()),
-            " | rot=", tostring(rotated))
+end
+
+-- ============================================================================
+-- STACK PICKER no controle (Select = Joypad.Back)
+-- ============================================================================
+
+--- Select (Joypad.Back): abre o STACK PICKER sobre a pilha do cursor, com
+--- navegação D-pad dentro da janela (A tira o item destacado, B fecha).
+--- Retorna true se abriu.
+function GridJoypad.openStackPicker(playerNum, page)
+    if not page or not page.inventoryPane then return false end
+    local playerObj = getSpecificPlayer(playerNum)
+    if not playerObj or playerObj:isAsleep() then return false end
+    local cursor = GridJoypad.resolveCursor(playerNum, page)
+    if not cursor or not cursor.grid then return false end
+    local grid = cursor.grid
+    if not grid.gridCore or not grid.gridCore.cells then return false end
+    local id = grid.gridCore.cells[cursor.col] and grid.gridCore.cells[cursor.col][cursor.row]
+    if not id then return false end
+    local d = grid.gridCore.items[id]
+    if not d or not d.itemObj or d.stackMemberOf then return false end
+
+    local stackSize = 1
+    if grid.gridCore.getStackSize then
+        stackSize = grid.gridCore:getStackSize(id) or 1
     end
-    joyDebug("grab INICIOU drag de ", tostring(d.itemObj or id),
-        " t=" .. tostring(getTimestampMs()), " cursor=", cursor.col, cursor.row)
+    if stackSize <= 1 then return false end
+    if not GridInventory_openStackPicker then return false end
+
+    -- Cancela qualquer press pendente do A (não deixar um hold do A disparar o
+    -- drag enquanto o picker está aberto).
+    GridJoypad.aPress = { active = false, playerNum = nil }
+
+    -- Posição de tela do CENTRO da célula do cursor VIRTUAL (não do mouse) —
+    -- o picker abre sobre a pilha selecionada pelo controle.
+    local sx = grid:getAbsoluteX() + grid.gridPadding + ((cursor.col - 0.5) * grid.cellSize)
+    local sy = grid:getAbsoluteY() + grid.gridPadding + (grid.headerH or 0) + ((cursor.row - 0.5) * grid.cellSize)
+
+    GridInventory_openStackPicker(playerNum, grid, id, true, sx, sy)
+    GridJoypad.picker = { playerNum = playerNum }
+    joyDebug("openStackPicker: abriu o picker da pilha ", tostring(id))
+    return true
+end
+
+--- True se o stack picker do controle está ativo (o D-pad/A/B devem navegar a
+--- janela em vez de mover o cursor das grids).
+function GridJoypad.isPickerActive(playerNum)
+    local sp = GridInventory_StackPicker and GridInventory_StackPicker[playerNum]
+    return GridJoypad.picker and GridJoypad.picker.playerNum == playerNum
+        and sp ~= nil and sp:getIsVisible() and sp.stackMode ~= nil
+end
+
+--- Fecha o stack picker do controle (B).
+function GridJoypad.closePicker(playerNum)
+    GridJoypad.picker = { playerNum = nil }
+    local sp = GridInventory_StackPicker and GridInventory_StackPicker[playerNum]
+    if sp then sp:close() end
+end
+
+--- D-pad no picker: move a linha destacada (delta = ±1).
+function GridJoypad.pickerMove(playerNum, delta)
+    local sp = GridInventory_StackPicker and GridInventory_StackPicker[playerNum]
+    if sp and sp.joyMove then sp:joyMove(delta) end
+end
+
+--- A no picker: tira 1 item da linha destacada.
+function GridJoypad.pickerTake(playerNum)
+    local sp = GridInventory_StackPicker and GridInventory_StackPicker[playerNum]
+    if sp and sp.joyTake then sp:joyTake() end
 end
 
 --- Reorder DENTRO do MESMO grid (drop na célula do cursor): caminho DIRETO

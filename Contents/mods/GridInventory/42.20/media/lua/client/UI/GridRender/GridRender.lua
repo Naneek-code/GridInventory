@@ -1294,6 +1294,23 @@ function GridRender:render()
                 -- unidade (o B42 conta o objeto — o count do script é vestigial).
                 -- Mostra a partir de 2 unidades pra não poluir item solto.
                 local pileUnits = self.gridCore:getPileUnits(itemId)
+                -- Durante um drag SAINDO deste grid (peel do joypad/mouse), o
+                -- cache do gridCore ainda conta os membros em trânsito. Subtrai
+                -- eles pra o badge refletir o que AINDA está na pilha
+                -- (10 canecas, levantou 2 → badge mostra 8).
+                if GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid == self
+                    and GridInventory_GlobalDrag.itemsMap then
+                    local transit = 0
+                    for mId in pairs(GridInventory_GlobalDrag.itemsMap) do
+                        local mData = self.gridCore.items[mId]
+                        if mData and mData.stackMemberOf == itemId then
+                            transit = transit + 1
+                        end
+                    end
+                    if transit > 0 then
+                        pileUnits = pileUnits - transit
+                    end
+                end
                 if pileUnits > 1 then
                     self:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH, pileUnits)
                 end

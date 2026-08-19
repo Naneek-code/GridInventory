@@ -81,7 +81,11 @@ end
 
 --- Abre o STACK PICKER (modo lista) na janela DEDICADA e única do player.
 --- Ela SEMPRE se reposiciona no ponto onde foi aberto (ver openStack).
-GridInventory_openStackPicker = function(playerNum, sourceGrid, stackLeaderId)
+--- `viaJoypad` = aberto pelo controle (Select): liga a navegação D-pad
+--- (joyActive) e o highlight da linha destacada (joyIndex). `joyX`/`joyY` são a
+--- posição de tela da célula do cursor VIRTUAL (quando viaJoypad), senão o
+--- picker abriria em cima do mouse.
+GridInventory_openStackPicker = function(playerNum, sourceGrid, stackLeaderId, viaJoypad, joyX, joyY)
     local win = GridInventory_StackPicker[playerNum]
     if not win then
         win = FloatingGridWindow:new(0, 0, 240, 120, playerNum)
@@ -90,7 +94,7 @@ GridInventory_openStackPicker = function(playerNum, sourceGrid, stackLeaderId)
         win:setVisible(false)
         GridInventory_StackPicker[playerNum] = win
     end
-    win:openStack(sourceGrid, stackLeaderId)
+    win:openStack(sourceGrid, stackLeaderId, viaJoypad, joyX, joyY)
 end
 
 --- Fecha janelas flutuantes NÃO pinadas (chamado quando o inventário fecha).
@@ -137,6 +141,10 @@ function FloatingGridWindow:new(x, y, width, height, playerNum)
     o.pinned = false
     o.isStackPicker = false
     o.bagInventory = nil
+    -- Navegação joypad (Select): quando o picker é aberto pelo controle, o
+    -- D-pad move joyIndex (linha destacada) em vez de depender do mouse.
+    o.joyActive = false
+    o.joyIndex = 0
     return o
 end
 
@@ -264,6 +272,8 @@ function FloatingGridWindow:close()
     self.stackRows = nil
     self.selected = {}
     self.scrollDrag = nil
+    self.joyActive = false
+    self.joyIndex = 0
     self:setVisible(false)
     if self.removeFromUIManager then self:removeFromUIManager() end
 
@@ -479,6 +489,14 @@ function FloatingGridWindow:refreshStackList()
     if self.scrollY > maxScroll then self.scrollY = maxScroll end
     if self.scrollY < 0 then self.scrollY = 0 end
 
+    -- Navegação joypad: clamp/inicializa o índice da linha destacada.
+    if self.joyActive and #self.stackRows > 0 then
+        if self.joyIndex < 1 then self.joyIndex = 1 end
+        if self.joyIndex > #self.stackRows then self.joyIndex = #self.stackRows end
+    else
+        self.joyIndex = 0
+    end
+
     self:updateTakeButton()
 end
 
@@ -552,7 +570,7 @@ end
 --- Modo STACK PICKER: mostra cada item da pilha pra escolher o melhor.
 --- Este modo vive numa janela DEDICADA e única por player (GridInventory_StackPicker),
 --- que SEMPRE se move para onde foi aberto (o mouse), sem travar na posição.
-function FloatingGridWindow:openStack(sourceGrid, stackLeaderId)
+function FloatingGridWindow:openStack(sourceGrid, stackLeaderId, viaJoypad, joyX, joyY)
     if not sourceGrid or not sourceGrid.gridCore then return end
     if not sourceGrid.gridCore.items[stackLeaderId] then return end
 
@@ -568,6 +586,8 @@ function FloatingGridWindow:openStack(sourceGrid, stackLeaderId)
     self.lastClickId = nil
     self.lastClickTime = nil
     self.lastSelectedIndex = nil
+    self.joyActive = viaJoypad and true or false
+    self.joyIndex = 0
     if self.gridUi then
         self:removeChild(self.gridUi)
         self.gridUi:destroy()
@@ -583,11 +603,14 @@ function FloatingGridWindow:openStack(sourceGrid, stackLeaderId)
     self:setWidth(240)
     self:refreshStackList()
 
-    -- SEMPRE reposiciona ONDE O MOUSE ESTÁ (offset +20 pra não cobrir o cursor),
-    -- limitado às bordas da tela. O picker é "descartável": reabre no ponto do clique.
+    -- Reposiciona: no mouse (offset +20) OU na célula do cursor VIRTUAL quando
+    -- aberto pelo controle (joyX/joyY). Limitado às bordas da tela.
     local core = getCore()
     local mx = getMouseX()
     local my = getMouseY()
+    if viaJoypad and joyX and joyY then
+        mx, my = joyX, joyY
+    end
     local maxX = math.max(10, core:getScreenWidth() - self.width - 10)
     local maxY = math.max(10, core:getScreenHeight() - self.height - 10)
     self:setX(math.min(math.max(10, mx + 20), maxX))
@@ -629,11 +652,15 @@ function FloatingGridWindow:renderStackList()
         local ry = topY + (i - 1) * ROW_H
         -- Pula linhas fora da área visível (otimização)
         if ry + ROW_H > self.titleH and ry < self.titleH + self.listH then
-            -- Fundo: seleção > hover > zebra
+            -- Fundo: seleção > cursor joypad > hover > zebra
             local isSel = self.selected and self.selected[row.id]
+            local isJoy = self.joyActive and i == self.joyIndex
             if isSel then
                 self:drawRect(pad, ry, rowW, ROW_H - 2, 0.35, 0.2, 0.6, 0.3)
                 self:drawRectBorder(pad, ry, rowW, ROW_H - 2, 0.9, 0.5, 0.9, 0.6)
+            elseif isJoy then
+                self:drawRect(pad, ry, rowW, ROW_H - 2, 0.4, 0.32, 0.1, 0.35)
+                self:drawRectBorder(pad, ry, rowW, ROW_H - 2, 0.95, 0.75, 0.2, 0.9)
             elseif i == hoverIndex then
                 self:drawRect(pad, ry, rowW, ROW_H - 2, 0.25, 0.45, 0.45, 0.45)
             elseif i % 2 == 0 then
@@ -849,6 +876,39 @@ function FloatingGridWindow:afterTake()
         self.title = (item and (item:getName() or item:getDisplayName() or "Stack") or "Stack") .. " (" .. tostring(n) .. ")"
         self:updateTakeButton()
     end
+end
+
+--- Navegação joypad (D-pad cima/baixo) no stack picker: move a linha destacada
+--- e rola a lista pra mantê-la visível. delta = +1 (baixo) / -1 (cima).
+function FloatingGridWindow:joyMove(delta)
+    if not self.stackMode or not self.stackRows or #self.stackRows == 0 then return end
+    self.joyActive = true
+    local n = #self.stackRows
+    self.joyIndex = self.joyIndex + delta
+    if self.joyIndex < 1 then self.joyIndex = 1 end
+    if self.joyIndex > n then self.joyIndex = n end
+
+    -- Scroll automático pra manter a linha destacada dentro da área visível.
+    local rowTop = (self.joyIndex - 1) * ROW_H
+    local rowBottom = rowTop + ROW_H
+    local maxScroll = math.max(0, n * ROW_H - self.listH)
+    if rowTop < self.scrollY then
+        self.scrollY = math.max(0, rowTop)
+    elseif rowBottom > self.scrollY + self.listH then
+        self.scrollY = math.min(maxScroll, rowBottom - self.listH)
+    end
+end
+
+--- A no picker: tira 1 item da linha destacada (o "pegar" do controle).
+function FloatingGridWindow:joyTake()
+    if not self.stackMode or not self.stackRows then return end
+    local row = self.stackRows[self.joyIndex]
+    if not row or not row.id then return end
+    local src = self.stackMode.sourceGrid
+    if src.gridCore.items[row.id] then
+        src:takeStackMember(row.id)
+    end
+    self:afterTake()
 end
 
 --- Arrastar a janela pela barra de título. Consome cliques na janela inteira.

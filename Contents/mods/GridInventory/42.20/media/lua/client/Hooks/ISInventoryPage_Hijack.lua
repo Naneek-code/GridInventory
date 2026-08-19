@@ -90,6 +90,8 @@ function ISInventoryPage:update()
     -- update do painel focado cuida do ciclo). O analógico NÃO move o cursor.
     if JoypadState and JoypadState.players and JoypadState.players[self.player + 1] then
         GridJoypad.pollNav(self.player, self)
+        -- Resolve tap vs hold do A sobre pilha (peel de 1 vs pilha inteira).
+        GridJoypad.pollA(self.player, self)
     end
 
     -- Coalesce do onInventoryUpdate: o refreshContainer (remap de todos os
@@ -1152,6 +1154,17 @@ function ISInventoryPage:onJoypadDown(button, joypadData)
     ISContextMenu.globalPlayerContext = self.player
     local playerObj = getSpecificPlayer(self.player)
 
+    -- STACK PICKER aberto pelo controle: A tira o item destacado, B e Select
+    -- (Back) fecham. O D-pad navega a lista (ver onJoypadDirUp/Down).
+    if GridJoypad.isPickerActive(self.player) then
+        if button == Joypad.AButton then
+            GridJoypad.pickerTake(self.player)
+        elseif button == Joypad.BButton or button == Joypad.Back then
+            GridJoypad.closePicker(self.player)
+        end
+        return
+    end
+
     -- A = pegar/soltar item (drag); no modo PaperDoll, A equipa o item
     -- arrastado no slot selecionado. B = contexto / cancelar drag, X =
     -- rotacionar (enquanto arrasta). No PaperDoll o cursor das grids fica
@@ -1192,6 +1205,9 @@ function ISInventoryPage:onJoypadDown(button, joypadData)
         end
     elseif button == Joypad.YButton and not JoypadState.disableYInventory then
         setJoypadFocus(self.player, nil)
+    elseif button == Joypad.Back then
+        -- Select: abre o STACK PICKER da pilha sob o cursor (navegação D-pad).
+        GridJoypad.openStackPicker(self.player, self)
     end
 
     -- LB/RB: no modo PaperDoll a saída é decidida no RELEASE (pollNav) — aqui
@@ -1213,6 +1229,11 @@ end
 
 local og_pageJoypadDirUp = ISInventoryPage.onJoypadDirUp
 function ISInventoryPage:onJoypadDirUp(joypadData)
+    -- STACK PICKER do controle: D-pad navega a lista da janela.
+    if GridJoypad.isPickerActive(self.player) then
+        GridJoypad.pickerMove(self.player, -1)
+        return
+    end
     -- MODO PAPERDOLL (LB+RB): o D-pad navega os slots.
     if GridJoypad.isPaperdollActive(self.player) then
         GridJoypad.pdDir(self.player, 0, -1)
@@ -1243,6 +1264,11 @@ end
 
 local og_pageJoypadDirDown = ISInventoryPage.onJoypadDirDown
 function ISInventoryPage:onJoypadDirDown(joypadData)
+    -- STACK PICKER do controle: D-pad navega a lista da janela.
+    if GridJoypad.isPickerActive(self.player) then
+        GridJoypad.pickerMove(self.player, 1)
+        return
+    end
     if GridJoypad.isPaperdollActive(self.player) then
         GridJoypad.pdDir(self.player, 0, 1)
         return

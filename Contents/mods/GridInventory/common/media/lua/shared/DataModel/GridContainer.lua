@@ -566,7 +566,7 @@ function GridContainer:_consolidateStacks(grid, containerSig, isFloor)
     for y = 1, grid.height do
         for x = 1, grid.width do
             local leaderId = grid.cells[x][y]
-            if leaderId and not blocked[leaderId] then
+            if leaderId and not blocked[leaderId] and not isManual(leaderId) then
                 local ld = grid.items[leaderId]
                 if ld and not ld.stackMemberOf and ld.compatKey then
                     local limit = ld.stackInfo and ld.stackInfo.limit
