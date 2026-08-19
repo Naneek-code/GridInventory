@@ -29,6 +29,7 @@ local COLOR_DEFAULT = { 0.9, 0.9, 0.9 }
 local COLOR_GOOD    = { 0.4, 0.9, 0.4 }
 local COLOR_WARN    = { 0.95, 0.8, 0.3 }
 local COLOR_BAD     = { 0.95, 0.4, 0.35 }
+local COLOR_COLD    = { 0.45, 0.7, 1.0 }
 
 -- Registry:
 --   GridInventory_FloatingGrid[playerNum] = LISTA de janelas de bolsa (várias)
@@ -310,17 +311,80 @@ local function formatWeight(value)
     return str
 end
 
---- Info de exibição de um item na lista do picker: (count, condition% or nil).
+--- Info de exibição de um item na lista do picker, espelhando a lógica do
+--- vanilla (ISInventoryPane:doRenderItem — o "expanded pile" que mostra a info
+--- MAIS relevante por tipo, não sempre condição). Retorna:
+---   count, info, color, cond, fraction
+---   - info     = string a exibir à direita (nil = só o nome)
+---   - color    = cor da info (COLOR_GOOD/WARN/BAD/COLD/DEFAULT)
+---   - cond     = número 0..100 pra ORDENAÇÃO (melhor primeiro); nil se não aplica.
+---   - fraction = 0..1 pra barra de progresso; nil se não desenha barra.
 local function stackRowInfo(item)
     local count = item.getCount and item:getCount() or 1
+    local info = nil
+    local color = COLOR_DEFAULT
     local cond = nil
-    if item.getCondition and item.getConditionMax then
+    local fraction = nil
+
+    -- HandWeapon (e ferramentas com condição): mostra a condição.
+    if instanceof(item, "HandWeapon") and item.getCondition and item.getConditionMax then
         local maxC = item:getConditionMax()
         if maxC and maxC > 0 then
-            cond = math.floor((item:getCondition() or 0) / maxC * 100)
+            local c = item:getCondition() or 0
+            cond = math.floor(c / maxC * 100)
+            fraction = c / maxC
+            info = tostring(cond) .. "%"
+            if cond >= 70 then color = COLOR_GOOD
+            elseif cond >= 40 then color = COLOR_WARN
+            else color = COLOR_BAD end
+        end
+    -- Drainable (isqueiro, cola, etc.): usos restantes, a menos que o item
+    -- esconda (HIDE_REMAINING).
+    elseif instanceof(item, "Drainable") and not (item.hasTag and ItemTag and item:hasTag(ItemTag.HIDE_REMAINING)) then
+        local usesF = item.getCurrentUsesFloat and item:getCurrentUsesFloat()
+        if usesF ~= nil then
+            fraction = usesF
+            cond = math.floor(usesF * 100 + 0.5)
+            info = tostring(cond) .. "%"
+            if cond >= 70 then color = COLOR_GOOD
+            elseif cond >= 40 then color = COLOR_WARN
+            else color = COLOR_BAD end
+        end
+    -- Derretendo (ex.: neve/sorvete).
+    elseif item.getMeltingTime and item:getMeltingTime() > 0 then
+        local mt = item:getMeltingTime()
+        fraction = math.min(mt / 100, 1)
+        info = getText("IGUI_invpanel_Melting") or "Melting"
+        color = COLOR_WARN
+    -- Comida: cozimento ativo > congelando > (nutrição, omitida — ruidosa).
+    elseif instanceof(item, "Food") then
+        if item.isIsCookable and item:isIsCookable()
+            and not (item.isFrozen and item:isFrozen())
+            and (item.getHeat and item:getHeat() > 1.6) then
+            local ct = item.getCookingTime and item:getCookingTime() or 0
+            local mtc = item.getMinutesToCook and item:getMinutesToCook() or 0
+            local mtb = item.getMinutesToBurn and item:getMinutesToBurn() or 0
+            local burnt = item.isBurnt and item:isBurnt()
+            if burnt or (mtb > 0 and ct > mtb) then
+                info = getText("IGUI_invpanel_Burnt") or "Burnt"
+                color = COLOR_BAD
+                fraction = 1
+            elseif mtc > 0 and ct > mtc then
+                info = getText("IGUI_invpanel_Burning") or "Burning"
+                color = COLOR_BAD
+                fraction = math.min((ct - mtc) / (mtb - mtc), 1)
+            else
+                info = getText("IGUI_invpanel_Cooking") or "Cooking"
+                color = COLOR_GOOD
+                fraction = mtc > 0 and math.min(ct / mtc, 1) or 0
+            end
+        elseif item.getFreezingTime and item:getFreezingTime() > 0 then
+            info = getText("IGUI_invpanel_FreezingTime") or "Freezing"
+            color = COLOR_COLD
         end
     end
-    return count, cond
+
+    return count, info, color, cond, fraction
 end
 
 --- Atualiza o grid da bolsa quando o conteúdo muda (throttle 300ms) e fecha
@@ -452,8 +516,8 @@ function FloatingGridWindow:refreshStackList()
     for _, mId in ipairs(members) do
         local d = src.gridCore.items[mId]
         if d and d.itemObj then
-            local count, cond = stackRowInfo(d.itemObj)
-            table.insert(rows, { id = mId, item = d.itemObj, count = count, cond = cond })
+            local count, info, color, cond, fraction = stackRowInfo(d.itemObj)
+            table.insert(rows, { id = mId, item = d.itemObj, count = count, info = info, color = color, cond = cond, fraction = fraction })
         end
     end
     table.sort(rows, function(a, b)
@@ -646,8 +710,8 @@ function FloatingGridWindow:renderStackList()
     self:setStencilRect(PAD, self.titleH, self.width - PAD * 2, self.listH)
 
     local topY = self.titleH + 2 - scrollY
-    local pad = 4
-    local rowW = self.width - pad * 2 - (maxScroll > 0 and 10 or 0)
+    local pad = PAD
+    local rowW = self.width - PAD * 2 - (maxScroll > 0 and 10 or 0)
     for i, row in ipairs(rows) do
         local ry = topY + (i - 1) * ROW_H
         -- Pula linhas fora da área visível (otimização)
@@ -666,14 +730,16 @@ function FloatingGridWindow:renderStackList()
             elseif i % 2 == 0 then
                 self:drawRect(pad, ry, rowW, ROW_H - 2, 0.15, 0.2, 0.2, 0.2)
             end
-            -- Ícone — usa o MESMO renderer do grid principal (color mask, fluid
-            -- mask e tint são aplicados). drawTextureScaledAspect só desenharia
-            -- a textura base, sem líquido/cor.
-            GridRender.drawItemIconRotated(self, row.item, pad + 2, ry + 3, 24, 24, false, 1, 1, 1, 1, GridIconRotation.getRenderAngle(row.item))
+            -- Ícone — usa o DrawItemIcon nativo (Java), que aplica máscaras
+            -- de dano/condição corretamente e renderiza no tamanho default
+            -- sem rotação/escala (não há espaço no picker).
+            local iconX = pad + 4
+            local iconY = ry + (ROW_H - 24) / 2
+            self:drawItemIcon(row.item, iconX, iconY, 1, 24, 24)
             -- Nome
             local name = row.item:getName() or row.item:getDisplayName() or ""
-            local tx = pad + 30
-            local nameW = self.width - tx - 74 - (maxScroll > 0 and 10 or 0)
+            local tx = iconX + 26
+            local nameW = self.width - tx - 70 - (maxScroll > 0 and 10 or 0)
             if nameW > 20 then
                 local tm = getTextManager()
                 if tm:MeasureStringX(UIFont.Small, name) > nameW then
@@ -681,21 +747,31 @@ function FloatingGridWindow:renderStackList()
                 end
                 self:drawText(name, tx, ry + (ROW_H - 14) / 2, 0.9, 0.9, 0.9, 1, UIFont.Small)
             end
-            -- Condição / contagem (direita)
-            local info = ""
-            if row.cond then
-                info = tostring(row.cond) .. "%"
-            elseif row.count and row.count > 1 then
+            -- Info do item à direita (condição/cozimento/freezing/usos) — a
+            -- string e a cor já vêm do stackRowInfo. Fallback: contagem xN.
+            local info = row.info
+            local color = row.color or COLOR_DEFAULT
+            if not info and row.count and row.count > 1 then
                 info = "x" .. tostring(row.count)
             end
-            if info ~= "" then
-                local color = COLOR_DEFAULT
-                if row.cond then
-                    if row.cond >= 70 then color = COLOR_GOOD
-                    elseif row.cond >= 40 then color = COLOR_WARN
-                    else color = COLOR_BAD end
+            if info then
+                local rX = self.width - pad - 6 - (maxScroll > 0 and 10 or 0)
+                local frac = row.fraction
+                if frac and frac >= 0 then
+                    -- Barra de progresso full-width na base da linha
+                    local barH = 3
+                    local barY = ry + ROW_H - barH - 2
+                    -- Fundo
+                    self:drawRect(pad, barY, rowW, barH, 0.8, 0.15, 0.15, 0.15)
+                    -- Fill colorido
+                    local fill = math.max(1, math.floor(rowW * math.min(frac, 1)))
+                    self:drawRect(pad, barY, fill, barH, 0.9, color[1], color[2], color[3])
+                    -- Texto à direita (acima da barra)
+                    self:drawTextRight(info, rX, ry + (ROW_H - 14) / 2, color[1], color[2], color[3], 1, UIFont.Small)
+                else
+                    -- Sem barra (só texto à direita, ex.: xN)
+                    self:drawTextRight(info, rX, ry + (ROW_H - 14) / 2, color[1], color[2], color[3], 1, UIFont.Small)
                 end
-                self:drawTextRight(info, self.width - pad - 4 - (maxScroll > 0 and 10 or 0), ry + (ROW_H - 14) / 2, color[1], color[2], color[3], 1, UIFont.Small)
             end
         end
     end
