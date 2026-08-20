@@ -106,8 +106,9 @@ function GridDevToolUI:new(x, y, target)
     o.itemVariantKey = o.item and GridIconRotation.getVariantKey(o.item) or o.itemFullType
 
     -- Sprite variants (IconsForTexture) pra seletor no DevTool.
+    -- Cada variante é um InventoryItem separado com sua textura propia.
     o.variants = nil
-    o.variantTextures = nil
+    o.variantItems = nil
     o.variantIndex = 1
     if o.item and o.isItem then
         local sman = getScriptManager()
@@ -116,34 +117,44 @@ function GridDevToolUI:new(x, y, target)
             local ok3, icons = pcall(sitem.getIconsForTexture, sitem)
             if ok3 and icons and icons.size and icons:size() > 1 then
                 o.variants = {}
-                o.variantTextures = {}
-                local TM = TextureManager and TextureManager.instance
-                for i = 0, icons:size() - 1 do
-                    local name = tostring(icons:get(i))
-                    o.variants[#o.variants + 1] = name
-                    -- Resolve o objeto Texture pra poder trocar o sprite.
-                    if TM then
-                        local okT, tex = pcall(TM.getTexture, TM, name)
-                        if okT and tex then
-                            o.variantTextures[#o.variantTextures + 1] = tex
+                o.variantItems = {}
+                local needed = icons:size()
+                local attempts = 0
+                local maxAttempts = needed * 6
+                while #o.variants < needed and attempts < maxAttempts do
+                    attempts = attempts + 1
+                    local okI, vItem = pcall(instanceItem, o.itemFullType)
+                    if okI and vItem and instanceof(vItem, "InventoryItem") then
+                        local vk = GridIconRotation.getVariantKey(vItem)
+                        local dup = false
+                        for _, ev in ipairs(o.variants) do
+                            if ev == vk then dup = true break end
+                        end
+                        if not dup then
+                            o.variants[#o.variants + 1] = vk
+                            o.variantItems[#o.variantItems + 1] = vItem
                         end
                     end
                 end
-                -- Descobre qual variante foi sorteada pelo instanceItem.
-                local vk = o.itemVariantKey or ""
-                local prefix = (o.itemFullType or "") .. "|"
-                if vk:sub(1, #prefix) == prefix then
-                    for i, name in ipairs(o.variants) do
-                        if vk == o.itemFullType .. "|" .. name then
-                            o.variantIndex = i
-                            break
+                -- Ordena por nome da variante pra ficar previsível.
+                for i = 1, #o.variants do
+                    for j = i + 1, #o.variants do
+                        if o.variants[j] < o.variants[i] then
+                            o.variants[i], o.variants[j] = o.variants[j], o.variants[i]
+                            o.variantItems[i], o.variantItems[j] = o.variantItems[j], o.variantItems[i]
                         end
                     end
                 end
-                -- Força a textura da variante detectada no preview inicial.
-                if o.variantTextures and o.variantTextures[o.variantIndex] then
-                    o.forcedTex = o.variantTextures[o.variantIndex]
+                -- Descobre qual variante o item original corresponde.
+                local origVK = o.itemVariantKey or ""
+                for i, vk in ipairs(o.variants) do
+                    if vk == origVK then
+                        o.variantIndex = i
+                        break
+                    end
                 end
+                -- Troca o item pra refletir a variante detectada.
+                o.item = o.variantItems[o.variantIndex]
             end
         end
     end
@@ -616,11 +627,9 @@ function GridDevToolUI:onMaxStackChanged()
     end
 end
 
---- Retorna a textura do item, priorizando forcedTex (seletor de variantes).
---- O campo Java .tex não é setável via Kahlua, então o preview usa esta
---- função pra mostrar a variante selecionada.
+--- Retorna a textura do item atual. Cada variante tem seu próprio item
+--- com sua textura, então self.item:getTex() já retorna a certa.
 function GridDevToolUI:getItemTex()
-    if self.forcedTex then return self.forcedTex end
     local item = self.item
     if not item then return nil end
     return (item.getTex and item:getTex()) or (item.getTexture and item:getTexture()) or nil
@@ -633,19 +642,12 @@ function GridDevToolUI:switchVariant(newIndex)
     local count = #self.variants
     if newIndex < 1 then newIndex = count end
     if newIndex > count then newIndex = 1 end
+    -- Reconstrói a variant key e troca o item inteiro.
     self.variantIndex = newIndex
-
-    -- Reconstrói a variant key.
-    local texName = self.variants[newIndex]
-    self.itemVariantKey = self.itemFullType .. "|" .. texName
-
-    -- Força a textura da variante no preview (item.tex não é setável em
-    -- Kahlua, então o drawFootprintPreview lê self.forcedTex).
-    if self.variantTextures and self.variantTextures[newIndex] then
-        self.forcedTex = self.variantTextures[newIndex]
-    else
-        self.forcedTex = nil
+    if self.variantItems and self.variantItems[newIndex] then
+        self.item = self.variantItems[newIndex]
     end
+    self.itemVariantKey = self.variants[newIndex]
 
     -- Recarrega angle/scale/anchor desta variante (sem fallback fullType).
     local GridIconRotation = require("Algorithm/GridIconRotation")
@@ -1141,8 +1143,9 @@ function GridDevToolUI:prerender()
     ISPanel.prerender(self)
     local title = "Grid DevTool: " .. GridDevToolUI.friendlyName(self)
     if self.variants then
-        local texName = self.variants[self.variantIndex] or "?"
-        local shortName = texName:match("([^/\\]+)$") or texName
+        local vk = self.variants[self.variantIndex] or "?"
+        -- Extrait o nome da sprite depois do pipe (fullType|spriteName).
+        local shortName = vk:match("|([^|]+)$") or vk
         shortName = shortName:match("^(.+)%.") or shortName
         title = title .. " [" .. self.variantIndex .. "/" .. #self.variants .. " " .. shortName .. "]"
     end
@@ -1163,9 +1166,9 @@ function GridDevToolUI:prerender()
     -- os botões -/+ (160/220).
     if self.labels then
         if self.labels.variant then
-            local texName = self.variants and self.variants[self.variantIndex] or ""
-            local shortName = texName:match("([^/\\]+)$") or texName
-            shortName = shortName:match("^(.+)%.") or shortName
+            local vk = self.variants and self.variants[self.variantIndex] or ""
+            local shortName = vk:match("|([^|]+)$") or vk
+            shortName = shortName:match("([^/\\]+)$") or shortName
             local varStr = self.variantIndex .. "/" .. #self.variants .. " " .. shortName
             self:drawTextCentre(varStr, 185, self.labels.variant, 0.5, 0.8, 0.5, 1, UIFont.Small)
         end
