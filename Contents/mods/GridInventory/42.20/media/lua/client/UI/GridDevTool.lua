@@ -383,7 +383,7 @@ function GridDevToolUI:initialise()
         -- de interpolação). O footprint é convertido pra PIXELS (w/h × cellSize)
         -- e o cálculo usa a MESMA matemática do render (computeBaseScale), então
         -- o valor bate exatamente com o que o GridRender aplica.
-        local tex = self.item and (self.item.getTex and self.item:getTex() or self.item.getTexture and self.item:getTexture()) or nil
+        local tex = self:getItemTex()
         if tex then
             local cellSize = math.floor(40 * (GridInventory_uiScale or 100) / 100)
             local isRotated = false
@@ -604,6 +604,16 @@ function GridDevToolUI:onMaxStackChanged()
     end
 end
 
+--- Retorna a textura do item, priorizando forcedTex (seletor de variantes).
+--- O campo Java .tex não é setável via Kahlua, então o preview usa esta
+--- função pra mostrar a variante selecionada.
+function GridDevToolUI:getItemTex()
+    if self.forcedTex then return self.forcedTex end
+    local item = self.item
+    if not item then return nil end
+    return (item.getTex and item:getTex()) or (item.getTexture and item:getTexture()) or nil
+end
+
 --- Troca pra outra variante de sprite (IconsForTexture) e recarrega
 --- angle/scale/anchor do override dessa variante. Wraps circular (1→N→1).
 function GridDevToolUI:switchVariant(newIndex)
@@ -617,9 +627,12 @@ function GridDevToolUI:switchVariant(newIndex)
     local texName = self.variants[newIndex]
     self.itemVariantKey = self.itemFullType .. "|" .. texName
 
-    -- Troca o sprite no item (campo Java .tex) pra preview mostrar a variante.
+    -- Força a textura da variante no preview (item.tex não é setável em
+    -- Kahlua, então o drawFootprintPreview lê self.forcedTex).
     if self.variantTextures and self.variantTextures[newIndex] then
-        self.item.tex = self.variantTextures[newIndex]
+        self.forcedTex = self.variantTextures[newIndex]
+    else
+        self.forcedTex = nil
     end
 
     -- Recarrega angle/scale/anchor desta variante.
@@ -713,7 +726,7 @@ end
 function GridDevToolUI:computePixelBase()
     local item = self.item
     if not item then return nil end
-    local tex = item.getTex and item:getTex() or (item.getTexture and item:getTexture()) or nil
+    local tex = self:getItemTex()
     if not tex then return nil end
     local cellSize = math.floor(40 * (GridInventory_uiScale or 100) / 100)
     local isRotated = false
@@ -1287,7 +1300,7 @@ function GridDevToolUI:drawFootprintPreview()
 
     -- Sprite: mesmos parâmetros do render (ângulo/escala/anchor AO VIVO do
     -- tempData + isRotated do item).
-    local texture = item.getTex and item:getTex() or (item.getTexture and item:getTexture()) or nil
+    local texture = self:getItemTex()
     if texture then
         local texW = texture:getWidth()
         local texH = texture:getHeight()
