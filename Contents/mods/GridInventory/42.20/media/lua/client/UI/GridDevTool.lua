@@ -107,6 +107,7 @@ function GridDevToolUI:new(x, y, target)
 
     -- Sprite variants (IconsForTexture) pra seletor no DevTool.
     o.variants = nil
+    o.variantTextures = nil
     o.variantIndex = 1
     if o.item and o.isItem then
         local sman = getScriptManager()
@@ -115,8 +116,18 @@ function GridDevToolUI:new(x, y, target)
             local ok3, icons = pcall(sitem.getIconsForTexture, sitem)
             if ok3 and icons and icons.size and icons:size() > 1 then
                 o.variants = {}
+                o.variantTextures = {}
+                local TM = TextureManager and TextureManager.instance
                 for i = 0, icons:size() - 1 do
-                    o.variants[#o.variants + 1] = tostring(icons:get(i))
+                    local name = tostring(icons:get(i))
+                    o.variants[#o.variants + 1] = name
+                    -- Resolve o objeto Texture pra poder trocar o sprite.
+                    if TM then
+                        local okT, tex = pcall(TM.getTexture, TM, name)
+                        if okT and tex then
+                            o.variantTextures[#o.variantTextures + 1] = tex
+                        end
+                    end
                 end
                 -- Descobre qual variante foi sorteada pelo instanceItem.
                 local vk = o.itemVariantKey or ""
@@ -605,6 +616,11 @@ function GridDevToolUI:switchVariant(newIndex)
     -- Reconstrói a variant key.
     local texName = self.variants[newIndex]
     self.itemVariantKey = self.itemFullType .. "|" .. texName
+
+    -- Troca o sprite no item (campo Java .tex) pra preview mostrar a variante.
+    if self.variantTextures and self.variantTextures[newIndex] then
+        self.item.tex = self.variantTextures[newIndex]
+    end
 
     -- Recarrega angle/scale/anchor desta variante.
     local GridIconRotation = require("Algorithm/GridIconRotation")
