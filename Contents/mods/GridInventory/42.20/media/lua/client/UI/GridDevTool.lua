@@ -101,16 +101,23 @@ function GridDevToolUI:new(x, y, target)
     o.fullType = GridContainer.getOverrideKey(o.inventoryContainer or (o.item and o.item:getContainer())) or "unknown"
     -- Guarda também o fullType puro (item) pra compatibilidade/fallback.
     o.itemFullType = o.item and o.item.getFullType and o.item:getFullType() or nil
+    -- Chave de variante de sprite (fullType|spriteName) pra angle/scale/anchor.
+    local GridIconRotation = require("Algorithm/GridIconRotation")
+    o.itemVariantKey = o.item and GridIconRotation.getVariantKey(o.item) or o.itemFullType
 
     o.backgroundColor = {r=0, g=0, b=0, a=0.9}
     o.borderColor = {r=0.4, g=0.4, b=0.4, a=1}
     
     o.tempData = {}
     
-    -- Busca valores atuais (chave do grid primeiro, fallback pro fullType puro)
-    local override = GridDevTool.Overrides[o.fullType]
-    if not override and o.itemFullType then
+    -- Busca valores atuais: variante primeiro (angle/scale/anchor), fallback
+    -- fullType (w/h de footprint é sempre fullType puro).
+    local override = GridDevTool.Overrides[o.itemVariantKey]
+    if not override and o.itemVariantKey ~= o.itemFullType then
         override = GridDevTool.Overrides[o.itemFullType]
+    end
+    if not override then
+        override = GridDevTool.Overrides[o.fullType]
     end
     
     local ItemFootprint = require("Algorithm/ItemFootprint")
@@ -542,8 +549,9 @@ function GridDevToolUI:setAngle(angle)
     angle = angle % 360
     self.tempData.angle = angle
 
-    -- Override ao vivo na chave do fullType PURO (footprint do item).
-    local footprintKey = self.itemFullType or (self.item and self.item.getFullType and self.item:getFullType()) or nil
+    -- Override ao vivo na chave de VARIANTE (fullType|spriteName) pra
+    -- itens com múltiplas sprites (ex.: Hammer esquerda/direita).
+    local footprintKey = self.itemVariantKey or self.itemFullType
     if footprintKey then
         local o = GridDevTool.Overrides[footprintKey] or {}
         if angle == 0 then
@@ -647,7 +655,7 @@ end
 function GridDevToolUI:applyScale(scale)
     self.tempData.scale = scale
 
-    local footprintKey = self.itemFullType or (self.item and self.item.getFullType and self.item:getFullType()) or nil
+    local footprintKey = self.itemVariantKey or self.itemFullType
     if footprintKey then
         local o = GridDevTool.Overrides[footprintKey] or {}
         if scale == 1 then
@@ -666,7 +674,7 @@ function GridDevToolUI:setAnchorX(px)
     px = math.floor(px + 0.5)
     self.tempData.anchorX = px
 
-    local footprintKey = self.itemFullType or (self.item and self.item.getFullType and self.item:getFullType()) or nil
+    local footprintKey = self.itemVariantKey or self.itemFullType
     if footprintKey then
         local o = GridDevTool.Overrides[footprintKey] or {}
         if px == 0 then
@@ -684,7 +692,7 @@ function GridDevToolUI:setAnchorY(px)
     px = math.floor(px + 0.5)
     self.tempData.anchorY = px
 
-    local footprintKey = self.itemFullType or (self.item and self.item.getFullType and self.item:getFullType()) or nil
+    local footprintKey = self.itemVariantKey or self.itemFullType
     if footprintKey then
         local o = GridDevTool.Overrides[footprintKey] or {}
         if px == 0 then
@@ -728,15 +736,32 @@ function GridDevToolUI:onSave()
     -- puro. Só quando há um item real de referência (bag/item). Para o
     -- inventário do jogador e containers de mundo sem item, não há footprint.
     if hasItem and footprintKey then
+        -- w/h/stackable/maxStack → fullType puro (footprint é por tipo).
         GridDevTool.applyOverrides(footprintKey,
             self.tempData.w, self.tempData.h,
             nil, nil,
             self.tempData.stackable,
             (not self.tempData.maxStackAuto) and self.tempData.maxStack or nil,
-            self.tempData.angle or 0,
-            self.tempData.scale or 1,
-            self.tempData.anchorX or 0,
-            self.tempData.anchorY or 0)
+            nil, nil, nil, nil)
+        -- angle/scale/anchor → variante (fullType|spriteName) pra itens com
+        -- múltiplas sprites (Hammer esq/dir, etc.).
+        local variantKey = self.itemVariantKey or footprintKey
+        if variantKey ~= footprintKey then
+            GridDevTool.applyOverrides(variantKey,
+                nil, nil, nil, nil, nil, nil,
+                self.tempData.angle or 0,
+                self.tempData.scale or 1,
+                self.tempData.anchorX or 0,
+                self.tempData.anchorY or 0)
+        else
+            -- Sem variante distinta: tudo na mesma chave.
+            GridDevTool.applyOverrides(footprintKey,
+                nil, nil, nil, nil, nil, nil,
+                self.tempData.angle or 0,
+                self.tempData.scale or 1,
+                self.tempData.anchorX or 0,
+                self.tempData.anchorY or 0)
+        end
     end
     -- MP server-mandatory: envia pro servidor aplicar (autoridade) + broadcast.
     GridClientNetwork.sendOverrides(GridDevTool.Overrides)
