@@ -76,8 +76,9 @@ end
 --- Classifica um fullType (instancia + categoria + footprint). pcall-guardado.
 --- @param fullType string
 --- @param displayName string|nil
+--- @param variantCount number|nil quantas IconsForTexture o item tem
 --- @return table|nil entry
-local function classifyFullType(fullType, displayName)
+local function classifyFullType(fullType, displayName, variantCount)
     local ok, item = pcall(instanceItem, fullType)
     if not ok or not item or not instanceof(item, "InventoryItem") then
         return nil
@@ -92,6 +93,7 @@ local function classifyFullType(fullType, displayName)
         category = cat or "MISC",
         w = w or 1,
         h = h or 1,
+        variants = (variantCount and variantCount > 1) and variantCount or nil,
     }
 end
 
@@ -109,7 +111,12 @@ function GridDevBrowser.advanceBuild()
                 local hidden = s.isHidden and s:isHidden()
                 if not obsolete and not hidden then
                     local displayName = (s.getDisplayName and s:getDisplayName()) or fullName
-                    GridDevBrowser.buildQueue[#GridDevBrowser.buildQueue + 1] = { fullName, displayName }
+                    -- Conta variantes de sprite (IconsForTexture) pra informar
+                    -- no browser quais itens têm múltiplas sprites.
+                    local variantCount = 0
+                    local ift = s.getIconsForTexture and s:getIconsForTexture()
+                    if ift and ift.size then variantCount = ift:size() end
+                    GridDevBrowser.buildQueue[#GridDevBrowser.buildQueue + 1] = { fullName, displayName, variantCount }
                 end
             end
         end
@@ -118,8 +125,8 @@ function GridDevBrowser.advanceBuild()
     local queue = GridDevBrowser.buildQueue
     local chunkEnd = math.min(#queue, GridDevBrowser.buildIndex + GridDevBrowser.CHUNK_SIZE)
     for i = GridDevBrowser.buildIndex + 1, chunkEnd do
-        local fullType, displayName = queue[i][1], queue[i][2]
-        local entry = classifyFullType(fullType, displayName)
+        local q = queue[i]
+        local entry = classifyFullType(q[1], q[2], q[3])
         if entry then
             GridDevBrowser.working[#GridDevBrowser.working + 1] = entry
         end
@@ -399,8 +406,15 @@ function GridDevBrowserUI:prerender()
         if nameWx > maxW then
             local ratio = maxW / math.max(1, nameWx)
             name = name:sub(1, math.max(6, math.floor(#name * ratio))) .. "..."
+            nameWx = tm:MeasureStringX(UIFont.Small, name)
         end
         self:drawText(name, 30, y + 3, 1, 1, 1, 1, UIFont.Small)
+
+        -- Indicador de variantes de sprite (+N) quando IconsForTexture > 1
+        if e.variants then
+            local varStr = "+" .. tostring(e.variants - 1)
+            self:drawText(varStr, 30 + nameWx + 4, y + 3, 0.5, 0.7, 0.5, 0.8, UIFont.Small)
+        end
 
         -- displayName (cinza) ao lado, truncado
         local disp = e.displayName and e.displayName ~= e.fullType and e.displayName or nil
