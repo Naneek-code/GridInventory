@@ -105,6 +105,34 @@ function GridDevToolUI:new(x, y, target)
     local GridIconRotation = require("Algorithm/GridIconRotation")
     o.itemVariantKey = o.item and GridIconRotation.getVariantKey(o.item) or o.itemFullType
 
+    -- Sprite variants (IconsForTexture) pra seletor no DevTool.
+    o.variants = nil
+    o.variantIndex = 1
+    if o.item and o.isItem then
+        local sman = getScriptManager()
+        local sitem = sman and sman:getItem(o.itemFullType)
+        if sitem then
+            local ok3, icons = pcall(sitem.getIconsForTexture, sitem)
+            if ok3 and icons and icons.size and icons:size() > 1 then
+                o.variants = {}
+                for i = 0, icons:size() - 1 do
+                    o.variants[#o.variants + 1] = tostring(icons:get(i))
+                end
+                -- Descobre qual variante foi sorteada pelo instanceItem.
+                local vk = o.itemVariantKey or ""
+                local prefix = (o.itemFullType or "") .. "|"
+                if vk:sub(1, #prefix) == prefix then
+                    for i, name in ipairs(o.variants) do
+                        if vk == o.itemFullType .. "|" .. name then
+                            o.variantIndex = i
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     o.backgroundColor = {r=0, g=0, b=0, a=0.9}
     o.borderColor = {r=0.4, g=0.4, b=0.4, a=1}
     
@@ -202,6 +230,19 @@ function GridDevToolUI:initialise()
     self.labels = {}
     
     if self.isItem then
+        -- Variant selector (só pra itens com >1 IconsForTexture).
+        if self.variants then
+            self:addChild(ISLabel:new(labelX, cy, 20, "Variant:", 1, 1, 1, 1, UIFont.Small, true))
+            self.btnVarPrev = ISButton:new(130, cy, 25, btnH, "<", self, function(self) self:switchVariant(self.variantIndex - 1) end)
+            self.btnVarPrev:initialise()
+            self:addChild(self.btnVarPrev)
+            self.btnVarNext = ISButton:new(225, cy, 25, btnH, ">", self, function(self) self:switchVariant(self.variantIndex + 1) end)
+            self.btnVarNext:initialise()
+            self:addChild(self.btnVarNext)
+            self.labels.variant = cy + 2
+            cy = cy + 30
+        end
+
         -- Item Width
         self:addChild(ISLabel:new(labelX, cy, 20, "Item Width (W):", 1, 1, 1, 1, UIFont.Small, true))
         self.btnWMinus = ISButton:new(160, cy, btnW, btnH, "-", self, function(self) self.tempData.w = math.max(1, self.tempData.w - 1) end)
@@ -539,6 +580,61 @@ function GridDevToolUI:onMaxStackChanged()
         self.tempData.maxStackAuto = false
         self:updateMaxButton()
     end
+end
+
+--- Troca pra outra variante de sprite (IconsForTexture) e recarrega
+--- angle/scale/anchor do override dessa variante. Wraps circular (1→N→1).
+function GridDevToolUI:switchVariant(newIndex)
+    if not self.variants then return end
+    local count = #self.variants
+    if newIndex < 1 then newIndex = count end
+    if newIndex > count then newIndex = 1 end
+    self.variantIndex = newIndex
+
+    -- Reconstrói a variant key.
+    local texName = self.variants[newIndex]
+    self.itemVariantKey = self.itemFullType .. "|" .. texName
+
+    -- Recarrega angle/scale/anchor desta variante.
+    local GridIconRotation = require("Algorithm/GridIconRotation")
+    local override = GridDevTool.Overrides[self.itemVariantKey]
+    if not override then
+        override = GridDevTool.Overrides[self.itemFullType]
+    end
+
+    -- Angle.
+    self.tempData.angle = (override and override.angle)
+        or GridIconRotation.Overrides[self.itemFullType] or 0
+    if self.tempData.angle == 0 then self.tempData.angle = nil end
+
+    -- Scale.
+    self.tempData.scale = (override and override.scale)
+        or GridIconRotation.Scales[self.itemFullType] or 1
+    if self.tempData.scale == 1 then self.tempData.scale = nil end
+
+    -- Anchor.
+    local ax, ay = 0, 0
+    if override then
+        ax = override.anchorX or 0
+        ay = override.anchorY or 0
+    else
+        local fixed = GridIconRotation.Anchors[self.itemFullType]
+        ax = fixed and fixed.x or 0
+        ay = fixed and fixed.y or 0
+    end
+    self.tempData.anchorX = ax == 0 and nil or ax
+    self.tempData.anchorY = ay == 0 and nil or ay
+
+    -- Aplica AO VIVO nos overrides pra preview atualizar.
+    self:setAngle(self.tempData.angle or 0)
+    self:setScale(self.tempData.scale or 1)
+    if self.tempData.anchorX or self.tempData.anchorY then
+        self:setAnchor(self.tempData.anchorX or 0, self.tempData.anchorY or 0)
+    end
+
+    -- Reseta pixel-perfect (base muda com a variante).
+    self.ppLock = false
+    self.ppCurrentN = nil
 end
 
 --- Ajusta o ângulo do sprite AO VIVO (sem precisar salvar): aplica o override
@@ -995,12 +1091,26 @@ end
 
 function GridDevToolUI:prerender()
     ISPanel.prerender(self)
-    self:drawTextCentre("Grid DevTool: " .. GridDevToolUI.friendlyName(self), self.width / 2, 10, 1, 1, 1, 1, UIFont.Small)
+    local title = "Grid DevTool: " .. GridDevToolUI.friendlyName(self)
+    if self.variants then
+        local texName = self.variants[self.variantIndex] or "?"
+        local shortName = texName:match("([^/\\]+)$") or texName
+        shortName = shortName:match("^(.+)%.") or shortName
+        title = title .. " [" .. self.variantIndex .. "/" .. #self.variants .. " " .. shortName .. "]"
+    end
+    self:drawTextCentre(title, self.width / 2, 10, 1, 1, 1, 1, UIFont.Small)
     
     -- Valores desenhados ALINHADOS com as linhas reais do initialise (posições
     -- dinâmicas conforme o tipo de alvo — self.labels). x=205 é o centro entre
     -- os botões -/+ (160/220).
     if self.labels then
+        if self.labels.variant then
+            local texName = self.variants and self.variants[self.variantIndex] or ""
+            local shortName = texName:match("([^/\\]+)$") or texName
+            shortName = shortName:match("^(.+)%.") or shortName
+            local varStr = self.variantIndex .. "/" .. #self.variants .. " " .. shortName
+            self:drawTextCentre(varStr, 185, self.labels.variant, 0.5, 0.8, 0.5, 1, UIFont.Small)
+        end
         if self.labels.w then
             self:drawTextCentre(tostring(self.tempData.w), 205, self.labels.w, 1, 1, 1, 1, UIFont.Small)
         end
