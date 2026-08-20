@@ -639,9 +639,8 @@ function GridDevToolUI:switchVariant(newIndex)
     -- Aplica AO VIVO nos overrides pra preview atualizar.
     self:setAngle(self.tempData.angle or 0)
     self:setScale(self.tempData.scale or 1)
-    if self.tempData.anchorX or self.tempData.anchorY then
-        self:setAnchor(self.tempData.anchorX or 0, self.tempData.anchorY or 0)
-    end
+    self:setAnchorX(self.tempData.anchorX or 0)
+    self:setAnchorY(self.tempData.anchorY or 0)
 
     -- Reseta pixel-perfect (base muda com a variante).
     self.ppLock = false
@@ -1559,9 +1558,8 @@ function GridDevToolUI:onPaste()
     -- Aplica ao vivo no preview.
     self:setAngle(self.tempData.angle or 0)
     self:setScale(self.tempData.scale or 1)
-    if self.tempData.anchorX or self.tempData.anchorY then
-        self:setAnchor(self.tempData.anchorX or 0, self.tempData.anchorY or 0)
-    end
+    self:setAnchorX(self.tempData.anchorX or 0)
+    self:setAnchorY(self.tempData.anchorY or 0)
     self:updateStackButton()
     self:updateMaxButton()
     self:syncMaxEntry()
