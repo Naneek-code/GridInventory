@@ -507,6 +507,17 @@ function GridDevToolUI:initialise()
     self.btnSave:initialise()
     self:addChild(self.btnSave)
     
+    -- Copy/Paste (colados ao lado do Save). Copy grava w/h/angle/scale/
+    -- anchor/stackable/maxStack no clipboard; Paste aplica no DevTool ativo.
+    self.btnCopy = ISButton:new(self.width/2 + 45, cy + 10, 50, 25, "Copy", self, self.onCopy)
+    self.btnCopy:initialise()
+    self.btnCopy.backgroundColor = { r = 0.15, g = 0.25, b = 0.15, a = 0.7 }
+    self:addChild(self.btnCopy)
+    self.btnPaste = ISButton:new(self.width/2 + 100, cy + 10, 50, 25, "Paste", self, self.onPaste)
+    self.btnPaste:initialise()
+    self.btnPaste.backgroundColor = { r = 0.15, g = 0.15, b = 0.25, a = 0.7 }
+    self:addChild(self.btnPaste)
+    
     -- Browse Button (browser de itens do jogo)
     self.btnBrowse = ISButton:new(10, cy + 10, 80, 25, "Browse", self, self.onBrowse)
     self.btnBrowse:initialise()
@@ -1100,6 +1111,16 @@ function GridDevToolUI:prerender()
     end
     self:drawTextCentre(title, self.width / 2, 10, 1, 1, 1, 1, UIFont.Small)
     
+    -- Flash do botão Save (Copy/Paste feedback visual, ~250ms).
+    if self._flashEnd and self._flashEnd > 0 then
+        self._flashEnd = self._flashEnd - 1
+        local c = self._flashColor or {r=0.2, g=0.5, b=0.2, a=0.9}
+        self.btnSave.backgroundColor = c
+    elseif self._flashEnd and self._flashEnd <= 0 then
+        self.btnSave.backgroundColor = { r = 0.2, g = 0.2, b = 0.2, a = 0.8 }
+        self._flashEnd = nil
+    end
+    
     -- Valores desenhados ALINHADOS com as linhas reais do initialise (posições
     -- dinâmicas conforme o tipo de alvo — self.labels). x=205 é o centro entre
     -- os botões -/+ (160/220).
@@ -1499,5 +1520,53 @@ local function devToolOnKeyStartPressed(key)
 end
 
 Events.OnKeyStartPressed.Add(devToolOnKeyStartPressed)
+
+-- ─── Clipboard compartilhado (Copy/Paste) ───────────────────────────────────
+-- Uma tabela estática que sobrevive entre instâncias do DevTool. Ao copiar,
+-- grava w/h/angle/scale/anchorX/anchorY/stackable/maxStack. Ao colar, aplica
+-- no DevTool ativo (incluindo overrides ao vivo pro preview atualizar).
+GridDevToolUI.clipboard = nil
+
+function GridDevToolUI:onCopy()
+    local d = self.tempData
+    GridDevToolUI.clipboard = {
+        w = d.w,
+        h = d.h,
+        angle = d.angle,
+        scale = d.scale,
+        anchorX = d.anchorX,
+        anchorY = d.anchorY,
+        stackable = d.stackable,
+        maxStackAuto = d.maxStackAuto,
+        maxStack = d.maxStack,
+    }
+    self._flashEnd = 15 -- ~250ms a 16fps
+    self._flashColor = { r = 0.2, g = 0.6, b = 0.2, a = 0.9 }
+end
+
+function GridDevToolUI:onPaste()
+    local c = GridDevToolUI.clipboard
+    if not c then return end
+    self.tempData.w = c.w
+    self.tempData.h = c.h
+    self.tempData.angle = c.angle
+    self.tempData.scale = c.scale
+    self.tempData.anchorX = c.anchorX
+    self.tempData.anchorY = c.anchorY
+    self.tempData.stackable = c.stackable
+    self.tempData.maxStackAuto = c.maxStackAuto
+    self.tempData.maxStack = c.maxStack
+    -- Aplica ao vivo no preview.
+    self:setAngle(self.tempData.angle or 0)
+    self:setScale(self.tempData.scale or 1)
+    if self.tempData.anchorX or self.tempData.anchorY then
+        self:setAnchor(self.tempData.anchorX or 0, self.tempData.anchorY or 0)
+    end
+    self:updateStackButton()
+    self:updateMaxButton()
+    self:syncMaxEntry()
+    self._flashEnd = 15
+    self._flashColor = { r = 0.2, g = 0.2, b = 0.6, a = 0.9 }
+end
 
 return GridDevToolUI
