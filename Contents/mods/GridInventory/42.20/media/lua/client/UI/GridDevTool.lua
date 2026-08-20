@@ -140,6 +140,10 @@ function GridDevToolUI:new(x, y, target)
                         end
                     end
                 end
+                -- Força a textura da variante detectada no preview inicial.
+                if o.variantTextures and o.variantTextures[o.variantIndex] then
+                    o.forcedTex = o.variantTextures[o.variantIndex]
+                end
             end
         end
     end
@@ -149,15 +153,18 @@ function GridDevToolUI:new(x, y, target)
     
     o.tempData = {}
     
-    -- Busca valores atuais: variante primeiro (angle/scale/anchor), fallback
-    -- fullType (w/h de footprint é sempre fullType puro).
-    local override = GridDevTool.Overrides[o.itemVariantKey]
-    if not override and o.itemVariantKey ~= o.itemFullType then
-        override = GridDevTool.Overrides[o.itemFullType]
+    -- Busca valores atuais. w/h/stackable/maxStack são POR TIPO (fullType)
+    -- e usam o override chain completo (variante → fullType → grid key).
+    -- angle/scale/anchor são POR VARIANTE e NÃO caem no fullType override.
+    local overrideAll = GridDevTool.Overrides[o.itemVariantKey]
+    if not overrideAll and o.itemVariantKey ~= o.itemFullType then
+        overrideAll = GridDevTool.Overrides[o.itemFullType]
     end
-    if not override then
-        override = GridDevTool.Overrides[o.fullType]
+    if not overrideAll then
+        overrideAll = GridDevTool.Overrides[o.fullType]
     end
+    -- Override só da variante (sem fallback fullType) pra angle/scale/anchor.
+    local overrideVariant = GridDevTool.Overrides[o.itemVariantKey]
     
     local ItemFootprint = require("Algorithm/ItemFootprint")
     local w, h = 1, 1
@@ -166,31 +173,36 @@ function GridDevToolUI:new(x, y, target)
     else
         w, h = 1, 1
     end
-    o.tempData.w = (override and override.w) or w
-    o.tempData.h = (override and override.h) or h    
-    o.tempData.stackable = (override and override.stackable) -- nil=Auto, true/false
-    o.tempData.maxStackAuto = not (override and override.maxStack)
+    o.tempData.w = (overrideAll and overrideAll.w) or w
+    o.tempData.h = (overrideAll and overrideAll.h) or h    
+    o.tempData.stackable = (overrideAll and overrideAll.stackable) -- nil=Auto, true/false
+    o.tempData.maxStackAuto = not (overrideAll and overrideAll.maxStack)
     local autoMax = o.item and GridContainer.getMaxStackUnits(o.item) or nil
-    o.tempData.maxStack = (override and override.maxStack) or autoMax or 100
-    -- Ângulo do sprite (rotação fixa). nil = sem override (0). Começa no valor
-    -- atual do override ou no atual do GridIconRotation (tabela fixa do mod).
-    o.tempData.angle = (override and override.angle)
-        or GridIconRotation.getAngle(o.item)
+    o.tempData.maxStack = (overrideAll and overrideAll.maxStack) or autoMax or 100
+    -- Ângulo do sprite (rotação fixa). POR VARIANTE: só override salvo pra
+    -- essa variante, senão hardcoded table, senão 0. NÃO usa fullType override.
+    o.tempData.angle = (overrideVariant and overrideVariant.angle)
+        or GridIconRotation.Overrides[o.itemFullType] or 0
     if o.tempData.angle == 0 then o.tempData.angle = nil end
-    -- Escala do sprite (multiplicador de tamanho sobre o min-fit, preserva o
-    -- aspecto). nil = sem override (1.0 = min-fit puro). Começa no valor atual
-    -- do override ou no atual do GridIconRotation (tabela fixa do mod).
-    o.tempData.scale = (override and override.scale)
-        or GridIconRotation.getScale(o.item)
+    -- Escala do sprite. Mesma lógica POR VARIANTE.
+    o.tempData.scale = (overrideVariant and overrideVariant.scale)
+        or GridIconRotation.Scales[o.itemFullType] or 1
     if o.tempData.scale == 1 then o.tempData.scale = nil end
     -- Lock pixel-perfect: desligado por padrão. ppCurrentN = N atual (texel->px)
     -- quando o lock tá ativo (preenchido pelo toggle/setPixelPerfect).
     o.ppLock = false
     o.ppCurrentN = nil
-    -- Anchor do sprite (px): deslocamento dentro do footprint (positivo = pra
-    -- direita/baixo). nil = sem override (0,0). Lê via GridIconRotation.getAnchor
-    -- (dá prioridade ao override ao vivo do GridDevTool.Overrides).
-    local ax, ay = GridIconRotation.getAnchor(o.item)
+    -- Anchor do sprite (px): POR VARIANTE. Lê override salvo dessa variante,
+    -- senão hardcoded table, senão {0,0}. Não usa fullType override.
+    local ax, ay = 0, 0
+    if overrideVariant then
+        ax = overrideVariant.anchorX or 0
+        ay = overrideVariant.anchorY or 0
+    else
+        local fixed = GridIconRotation.Anchors[o.itemFullType]
+        ax = fixed and fixed.x or 0
+        ay = fixed and fixed.y or 0
+    end
     o.tempData.anchorX = ax
     o.tempData.anchorY = ay
     if o.tempData.anchorX == 0 then o.tempData.anchorX = nil end
@@ -200,8 +212,8 @@ function GridDevToolUI:new(x, y, target)
     o.anchorDragging = nil
     if o.isContainer then
         local cw, ch = GridContainer.getGridSize(o.inventoryContainer)
-        o.tempData.cols = (override and override.cols) or cw
-        o.tempData.rows = (override and override.rows) or ch
+        o.tempData.cols = (overrideAll and overrideAll.cols) or cw
+        o.tempData.rows = (overrideAll and overrideAll.rows) or ch
     end
 
     -- ALTURA estimada pro clamp (o initialise recalcula com o layout real).
@@ -635,12 +647,9 @@ function GridDevToolUI:switchVariant(newIndex)
         self.forcedTex = nil
     end
 
-    -- Recarrega angle/scale/anchor desta variante.
+    -- Recarrega angle/scale/anchor desta variante (sem fallback fullType).
     local GridIconRotation = require("Algorithm/GridIconRotation")
     local override = GridDevTool.Overrides[self.itemVariantKey]
-    if not override then
-        override = GridDevTool.Overrides[self.itemFullType]
-    end
 
     -- Angle.
     self.tempData.angle = (override and override.angle)
