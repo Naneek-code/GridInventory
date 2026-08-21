@@ -1,0 +1,23 @@
+[h1]GridInventory — Major Update (August 14, 2026)[/h1]
+
+[h2]Performance[/h2]
+[list]
+[*] [b]Sandbox options cache:[/b] getSandboxOptions reads (1 pcall + JNI per item per frame) are now O(1), auto-invalidated when an option changes in the menu.
+[*] [b]O(1) stack counting:[/b] getPileUnits no longer iterates the whole pile (up to 1000 objects) every frame — now uses an incremental cache. Render hot path got ~343x faster (8 piles × 500 objects).
+[*] [b]Invisible update skipped:[/b] ISInventoryPage:update (layout, setWidth/X/Y, JNI) no longer runs every frame while the inventory is closed.
+[*] [b]MP refresh debounce:[/b] N SYNC_ITEMs in the same instant (e.g. consolidating a whole pile or multiple players looting the same container) now become one refresh() — previously 1 O(n×W×H) remap per message.
+[*] [b]300ms poll without double refresh:[/b] the poll's hard refresh no longer re-runs the remap that already ran; the search scan is shared once per frame across grids.
+[*] [b]GridProfiler (new):[/b] in-console counters (GridProfilerOn/Off/Toggle) — sandbox, refresh, gridRender, items, drawCalls, sync, reflows — to compare before/after.
+[/list]
+
+[h2]Multiplayer Reorder Fix[/h2]
+[list]
+[*] [b]Swap/multi-drag in the same grid:[/b] snapping back to the old position is fixed. The client validated the whole drag, but sent one REQUEST_MOVE per item; the server validated each in isolation against current state → the first swap collided → ERROR → revert. Now it's a batch REQUEST_REORDER command: the server validates all targets together (same movedSet) and applies all-or-nothing.
+[/list]
+
+[h2]Regression Fixes[/h2]
+[list]
+[*] [b]PaperDoll overflow flickering:[/b] Extra-slot items no longer disappear on every 2nd refresh.
+[*] [b]"Lost" overflow:[/b] an item that fits again after freeing space now reappears immediately (poll detects any 0↔N change, not just spawn/despawn).
+[*] [b]Overflow after reorder:[/b] a reorder that opens space makes overflow flow back into the grid right away.
+[/list]

@@ -771,10 +771,12 @@ function GridRender:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH, tota
     local total = total or (self.gridCore and self.gridCore:getPileUnits(itemId) or 1)
     local text = tostring(total)
     local textW = getTextManager():MeasureStringX(UIFont.Small, text)
-    local bx = drawX + drawW - textW - 5
-    local by = drawY + drawH - 15
-    self:drawRect(bx, by, textW + 5, 14, 0.85, 0, 0, 0)
-    self:drawText(text, bx + 2, by + 1, 1, 1, 1, 1, UIFont.Small)
+    -- Subtrai a largura do texto + 3px de padding na direita
+    local textX = drawX + drawW - textW - 3
+    -- Subtrai ~14px (altura da fonte Small) + 2px de padding embaixo
+    local textY = drawY + drawH - 16
+    
+    self:drawText(text, textX, textY, 1, 1, 1, 1, UIFont.Small)
 end
 
 function GridRender:prerender()

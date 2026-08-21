@@ -1,0 +1,9 @@
+[h1]GridInventory — Hotfix (August 21, 2026)[/h1]
+
+[h2]Vehicle Fixes[/h2]
+[list]
+[*] [b]Grid reuse:[/b] inventory grids are now reused instead of destroyed and recreated every time the container hash changes. Prevents UI flicker and tooltip loss, especially when driving with multiple containers open.
+[*] [b]Search crash fix:[/b] searching a container while seated or driving a vehicle no longer crashes and locks the character. The "Loot" animation is now skipped when in a vehicle.
+[*] [b]Search queue guard:[/b] duplicate search actions for the same container are no longer enqueued when the UI is violently recreated (e.g. walking around in a vehicle with multi-container enabled).
+[*] [b]Vehicle signatures:[/b] each vehicle part (trunk, glovebox, etc.) now gets a unique grid key. Prevents different parts from sharing the same grid state.
+[/list]
