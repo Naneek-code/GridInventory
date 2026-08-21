@@ -9,12 +9,14 @@ require "ISUI/ISPanel"
 require "ISUI/ISButton"
 require "ISUI/ISLabel"
 require "ISUI/ISInventoryPaneContextMenu"
+require "ISUI/ISTextEntryBox"
 require "DevTool/GridOverrides"
 
 local GridClientNetwork = require("Network/GridClientNetwork")
 local GridAdmin = require("System/GridAdmin")
 local GridIconRotation = require("Algorithm/GridIconRotation")
 local ItemCategory = require("Algorithm/ItemCategory")
+local GridSandboxOptions = require("GridSandboxOptions")
 
 --- Gate do DevTool (fail-closed no CLIENTE).
 --- O servidor já rejeita REQ_OVERRIDES de não-admin, mas sem esse gate o
@@ -99,17 +101,81 @@ function GridDevToolUI:new(x, y, target)
     o.fullType = GridContainer.getOverrideKey(o.inventoryContainer or (o.item and o.item:getContainer())) or "unknown"
     -- Guarda também o fullType puro (item) pra compatibilidade/fallback.
     o.itemFullType = o.item and o.item.getFullType and o.item:getFullType() or nil
+    -- Chave de variante de sprite (fullType|spriteName) pra angle/scale/anchor.
+    local GridIconRotation = require("Algorithm/GridIconRotation")
+    o.itemVariantKey = o.item and GridIconRotation.getVariantKey(o.item) or o.itemFullType
+
+    -- Sprite variants (IconsForTexture) pra seletor no DevTool.
+    -- Cada variante é um InventoryItem separado com sua textura propia.
+    o.variants = nil
+    o.variantItems = nil
+    o.variantIndex = 1
+    if o.item and o.isItem then
+        local sman = getScriptManager()
+        local sitem = sman and sman:getItem(o.itemFullType)
+        if sitem then
+            local ok3, icons = pcall(sitem.getIconsForTexture, sitem)
+            if ok3 and icons and icons.size and icons:size() > 1 then
+                o.variants = {}
+                o.variantItems = {}
+                local needed = icons:size()
+                local attempts = 0
+                local maxAttempts = needed * 6
+                while #o.variants < needed and attempts < maxAttempts do
+                    attempts = attempts + 1
+                    local okI, vItem = pcall(instanceItem, o.itemFullType)
+                    if okI and vItem and instanceof(vItem, "InventoryItem") then
+                        local vk = GridIconRotation.getVariantKey(vItem)
+                        local dup = false
+                        for _, ev in ipairs(o.variants) do
+                            if ev == vk then dup = true break end
+                        end
+                        if not dup then
+                            o.variants[#o.variants + 1] = vk
+                            o.variantItems[#o.variantItems + 1] = vItem
+                        end
+                    end
+                end
+                -- Ordena por nome da variante pra ficar previsível.
+                for i = 1, #o.variants do
+                    for j = i + 1, #o.variants do
+                        if o.variants[j] < o.variants[i] then
+                            o.variants[i], o.variants[j] = o.variants[j], o.variants[i]
+                            o.variantItems[i], o.variantItems[j] = o.variantItems[j], o.variantItems[i]
+                        end
+                    end
+                end
+                -- Descobre qual variante o item original corresponde.
+                local origVK = o.itemVariantKey or ""
+                for i, vk in ipairs(o.variants) do
+                    if vk == origVK then
+                        o.variantIndex = i
+                        break
+                    end
+                end
+                -- Troca o item pra refletir a variante detectada.
+                o.item = o.variantItems[o.variantIndex]
+            end
+        end
+    end
 
     o.backgroundColor = {r=0, g=0, b=0, a=0.9}
     o.borderColor = {r=0.4, g=0.4, b=0.4, a=1}
     
     o.tempData = {}
     
-    -- Busca valores atuais (chave do grid primeiro, fallback pro fullType puro)
-    local override = GridDevTool.Overrides[o.fullType]
-    if not override and o.itemFullType then
-        override = GridDevTool.Overrides[o.itemFullType]
+    -- Busca valores atuais. w/h/stackable/maxStack são POR TIPO (fullType)
+    -- e usam o override chain completo (variante → fullType → grid key).
+    -- angle/scale/anchor são POR VARIANTE e NÃO caem no fullType override.
+    local overrideAll = GridDevTool.Overrides[o.itemVariantKey]
+    if not overrideAll and o.itemVariantKey ~= o.itemFullType then
+        overrideAll = GridDevTool.Overrides[o.itemFullType]
     end
+    if not overrideAll then
+        overrideAll = GridDevTool.Overrides[o.fullType]
+    end
+    -- Override só da variante (sem fallback fullType) pra angle/scale/anchor.
+    local overrideVariant = GridDevTool.Overrides[o.itemVariantKey]
     
     local ItemFootprint = require("Algorithm/ItemFootprint")
     local w, h = 1, 1
@@ -118,31 +184,36 @@ function GridDevToolUI:new(x, y, target)
     else
         w, h = 1, 1
     end
-    o.tempData.w = (override and override.w) or w
-    o.tempData.h = (override and override.h) or h    
-    o.tempData.stackable = (override and override.stackable) -- nil=Auto, true/false
-    o.tempData.maxStackAuto = not (override and override.maxStack)
+    o.tempData.w = (overrideAll and overrideAll.w) or w
+    o.tempData.h = (overrideAll and overrideAll.h) or h    
+    o.tempData.stackable = (overrideAll and overrideAll.stackable) -- nil=Auto, true/false
+    o.tempData.maxStackAuto = not (overrideAll and overrideAll.maxStack)
     local autoMax = o.item and GridContainer.getMaxStackUnits(o.item) or nil
-    o.tempData.maxStack = (override and override.maxStack) or autoMax or 100
-    -- Ângulo do sprite (rotação fixa). nil = sem override (0). Começa no valor
-    -- atual do override ou no atual do GridIconRotation (tabela fixa do mod).
-    o.tempData.angle = (override and override.angle)
-        or GridIconRotation.getAngle(o.item)
+    o.tempData.maxStack = (overrideAll and overrideAll.maxStack) or autoMax or 100
+    -- Ângulo do sprite (rotação fixa). POR VARIANTE: só override salvo pra
+    -- essa variante, senão hardcoded table, senão 0. NÃO usa fullType override.
+    o.tempData.angle = (overrideVariant and overrideVariant.angle)
+        or GridIconRotation.Overrides[o.itemFullType] or 0
     if o.tempData.angle == 0 then o.tempData.angle = nil end
-    -- Escala do sprite (multiplicador de tamanho sobre o min-fit, preserva o
-    -- aspecto). nil = sem override (1.0 = min-fit puro). Começa no valor atual
-    -- do override ou no atual do GridIconRotation (tabela fixa do mod).
-    o.tempData.scale = (override and override.scale)
-        or GridIconRotation.getScale(o.item)
+    -- Escala do sprite. Mesma lógica POR VARIANTE.
+    o.tempData.scale = (overrideVariant and overrideVariant.scale)
+        or GridIconRotation.Scales[o.itemFullType] or 1
     if o.tempData.scale == 1 then o.tempData.scale = nil end
     -- Lock pixel-perfect: desligado por padrão. ppCurrentN = N atual (texel->px)
     -- quando o lock tá ativo (preenchido pelo toggle/setPixelPerfect).
     o.ppLock = false
     o.ppCurrentN = nil
-    -- Anchor do sprite (px): deslocamento dentro do footprint (positivo = pra
-    -- direita/baixo). nil = sem override (0,0). Lê via GridIconRotation.getAnchor
-    -- (dá prioridade ao override ao vivo do GridDevTool.Overrides).
-    local ax, ay = GridIconRotation.getAnchor(o.item)
+    -- Anchor do sprite (px): POR VARIANTE. Lê override salvo dessa variante,
+    -- senão hardcoded table, senão {0,0}. Não usa fullType override.
+    local ax, ay = 0, 0
+    if overrideVariant then
+        ax = overrideVariant.anchorX or 0
+        ay = overrideVariant.anchorY or 0
+    else
+        local fixed = GridIconRotation.Anchors[o.itemFullType]
+        ax = fixed and fixed.x or 0
+        ay = fixed and fixed.y or 0
+    end
     o.tempData.anchorX = ax
     o.tempData.anchorY = ay
     if o.tempData.anchorX == 0 then o.tempData.anchorX = nil end
@@ -152,8 +223,8 @@ function GridDevToolUI:new(x, y, target)
     o.anchorDragging = nil
     if o.isContainer then
         local cw, ch = GridContainer.getGridSize(o.inventoryContainer)
-        o.tempData.cols = (override and override.cols) or cw
-        o.tempData.rows = (override and override.rows) or ch
+        o.tempData.cols = (overrideAll and overrideAll.cols) or cw
+        o.tempData.rows = (overrideAll and overrideAll.rows) or ch
     end
 
     -- ALTURA estimada pro clamp (o initialise recalcula com o layout real).
@@ -193,6 +264,19 @@ function GridDevToolUI:initialise()
     self.labels = {}
     
     if self.isItem then
+        -- Variant selector (só pra itens com >1 IconsForTexture).
+        if self.variants then
+            self:addChild(ISLabel:new(labelX, cy, 20, "Variant:", 1, 1, 1, 1, UIFont.Small, true))
+            self.btnVarPrev = ISButton:new(130, cy, 25, btnH, "<", self, function(self) self:switchVariant(self.variantIndex - 1) end)
+            self.btnVarPrev:initialise()
+            self:addChild(self.btnVarPrev)
+            self.btnVarNext = ISButton:new(225, cy, 25, btnH, ">", self, function(self) self:switchVariant(self.variantIndex + 1) end)
+            self.btnVarNext:initialise()
+            self:addChild(self.btnVarNext)
+            self.labels.variant = cy + 2
+            cy = cy + 30
+        end
+
         -- Item Width
         self:addChild(ISLabel:new(labelX, cy, 20, "Item Width (W):", 1, 1, 1, 1, UIFont.Small, true))
         self.btnWMinus = ISButton:new(160, cy, btnW, btnH, "-", self, function(self) self.tempData.w = math.max(1, self.tempData.w - 1) end)
@@ -233,30 +317,29 @@ function GridDevToolUI:initialise()
         self.labels.stack = cy + 2
         cy = cy + 40
         
-        -- MaxStack (Auto / número)
+        -- MaxStack (Auto / número digitável)
         self:addChild(ISLabel:new(labelX, cy, 20, "MaxStack:", 1, 1, 1, 1, UIFont.Small, true))
-        self.btnMaxMinus = ISButton:new(130, cy, btnW, btnH, "-", self, function(self)
-            if not self.tempData.maxStackAuto then
-                self.tempData.maxStack = math.max(1, self.tempData.maxStack - 1)
-                self:updateMaxButton()
-            end
-        end)
-        self.btnMaxMinus:initialise()
-        self:addChild(self.btnMaxMinus)
-        self.btnMaxMode = ISButton:new(165, cy, 60, btnH, "Auto", self, function(self)
+        self.btnMaxAuto = ISButton:new(130, cy, 55, btnH, "Auto", self, function(self)
             self.tempData.maxStackAuto = not self.tempData.maxStackAuto
             self:updateMaxButton()
+            self:syncMaxEntry()
         end)
-        self.btnMaxMode:initialise()
-        self:addChild(self.btnMaxMode)
-        self.btnMaxPlus = ISButton:new(230, cy, btnW, btnH, "+", self, function(self)
-            if not self.tempData.maxStackAuto then
-                self.tempData.maxStack = self.tempData.maxStack + 1
-                self:updateMaxButton()
-            end
-        end)
-        self.btnMaxPlus:initialise()
-        self:addChild(self.btnMaxPlus)
+        self.btnMaxAuto:initialise()
+        self:addChild(self.btnMaxAuto)
+        self.entryMaxStack = ISTextEntryBox:new(tostring(self.tempData.maxStack), 190, cy, 70, 22)
+        self.entryMaxStack.font = UIFont.Small
+        self.entryMaxStack:initialise()
+        self.entryMaxStack:instantiate()
+        self.entryMaxStack.target = self
+        self.entryMaxStack.onTextChange = function(box)
+            box.target:onMaxStackChanged()
+        end
+        -- Ao clicar, seleciona o conteúdo pra digitação SUBSTITUIR o valor
+        -- (senão o "5" é anexado ao "1000" existente).
+        self.entryMaxStack.onMouseDown = function(box)
+            box:selectAll()
+        end
+        self:addChild(self.entryMaxStack)
         self:updateMaxButton()
         self.labels.maxStack = cy + 2
         cy = cy + 40
@@ -323,7 +406,7 @@ function GridDevToolUI:initialise()
         -- de interpolação). O footprint é convertido pra PIXELS (w/h × cellSize)
         -- e o cálculo usa a MESMA matemática do render (computeBaseScale), então
         -- o valor bate exatamente com o que o GridRender aplica.
-        local tex = self.item and (self.item.getTex and self.item:getTex() or self.item.getTexture and self.item:getTexture()) or nil
+        local tex = self:getItemTex()
         if tex then
             local cellSize = math.floor(40 * (GridInventory_uiScale or 100) / 100)
             local isRotated = false
@@ -458,6 +541,17 @@ function GridDevToolUI:initialise()
     self.btnSave:initialise()
     self:addChild(self.btnSave)
     
+    -- Copy/Paste (colados ao lado do Save). Copy grava w/h/angle/scale/
+    -- anchor/stackable/maxStack no clipboard; Paste aplica no DevTool ativo.
+    self.btnCopy = ISButton:new(self.width/2 + 45, cy + 10, 50, 25, "Copy", self, self.onCopy)
+    self.btnCopy:initialise()
+    self.btnCopy.backgroundColor = { r = 0.15, g = 0.25, b = 0.15, a = 0.7 }
+    self:addChild(self.btnCopy)
+    self.btnPaste = ISButton:new(self.width/2 + 100, cy + 10, 50, 25, "Paste", self, self.onPaste)
+    self.btnPaste:initialise()
+    self.btnPaste.backgroundColor = { r = 0.15, g = 0.15, b = 0.25, a = 0.7 }
+    self:addChild(self.btnPaste)
+    
     -- Browse Button (browser de itens do jogo)
     self.btnBrowse = ISButton:new(10, cy + 10, 80, 25, "Browse", self, self.onBrowse)
     self.btnBrowse:initialise()
@@ -496,12 +590,101 @@ function GridDevToolUI:updateStackButton()
 end
 
 function GridDevToolUI:updateMaxButton()
-    if not self.btnMaxMode then return end
+    if not self.btnMaxAuto then return end
     if self.tempData.maxStackAuto then
-        self.btnMaxMode:setTitle("Auto")
+        self.btnMaxAuto:setTitle("Auto")
+        self.btnMaxAuto.backgroundColor = { r = 0.15, g = 0.45, b = 0.15, a = 0.8 }
+        self.btnMaxAuto.backgroundColorMouseOver = { r = 0.25, g = 0.6, b = 0.25, a = 0.9 }
+        -- Modo Auto: esconde o input (não há número pra editar).
+        if self.entryMaxStack then self.entryMaxStack:setVisible(false) end
     else
-        self.btnMaxMode:setTitle(tostring(self.tempData.maxStack))
+        self.btnMaxAuto:setTitle("N")
+        self.btnMaxAuto.backgroundColor = { r = 0.45, g = 0.15, b = 0.15, a = 0.8 }
+        self.btnMaxAuto.backgroundColorMouseOver = { r = 0.6, g = 0.25, b = 0.25, a = 0.9 }
+        if self.entryMaxStack then self.entryMaxStack:setVisible(true) end
     end
+end
+
+--- Sincroniza o TEXTO do input com tempData.maxStack. Só roda de forma
+--- PROGRAMÁTICA (init/toggle do Auto) — NUNCA durante a digitação, senão cada
+--- tecla re-normalizava o texto e "travava" o campo em 1000 (o "5" anexado ao
+--- "1000" virava "10005" → clamp 1000 → setText de volta).
+function GridDevToolUI:syncMaxEntry()
+    if not self.entryMaxStack then return end
+    self._syncingMax = true
+    self.entryMaxStack:setText(tostring(self.tempData.maxStack))
+    self._syncingMax = false
+end
+
+--- Digitou no input de MaxStack: só parseia e guarda (sem reescrever o texto).
+function GridDevToolUI:onMaxStackChanged()
+    if not self.entryMaxStack or self._syncingMax then return end
+    local n = tonumber(self.entryMaxStack:getText())
+    if n and n >= 1 then
+        self.tempData.maxStack = math.min(1000, math.floor(n))
+        self.tempData.maxStackAuto = false
+        self:updateMaxButton()
+    end
+end
+
+--- Retorna a textura do item atual. Cada variante tem seu próprio item
+--- com sua textura, então self.item:getTex() já retorna a certa.
+function GridDevToolUI:getItemTex()
+    local item = self.item
+    if not item then return nil end
+    return (item.getTex and item:getTex()) or (item.getTexture and item:getTexture()) or nil
+end
+
+--- Troca pra outra variante de sprite (IconsForTexture) e recarrega
+--- angle/scale/anchor do override dessa variante. Wraps circular (1→N→1).
+function GridDevToolUI:switchVariant(newIndex)
+    if not self.variants then return end
+    local count = #self.variants
+    if newIndex < 1 then newIndex = count end
+    if newIndex > count then newIndex = 1 end
+    -- Reconstrói a variant key e troca o item inteiro.
+    self.variantIndex = newIndex
+    if self.variantItems and self.variantItems[newIndex] then
+        self.item = self.variantItems[newIndex]
+    end
+    self.itemVariantKey = self.variants[newIndex]
+
+    -- Recarrega angle/scale/anchor desta variante (sem fallback fullType).
+    local GridIconRotation = require("Algorithm/GridIconRotation")
+    local override = GridDevTool.Overrides[self.itemVariantKey]
+
+    -- Angle.
+    self.tempData.angle = (override and override.angle)
+        or GridIconRotation.Overrides[self.itemFullType] or 0
+    if self.tempData.angle == 0 then self.tempData.angle = nil end
+
+    -- Scale.
+    self.tempData.scale = (override and override.scale)
+        or GridIconRotation.Scales[self.itemFullType] or 1
+    if self.tempData.scale == 1 then self.tempData.scale = nil end
+
+    -- Anchor.
+    local ax, ay = 0, 0
+    if override then
+        ax = override.anchorX or 0
+        ay = override.anchorY or 0
+    else
+        local fixed = GridIconRotation.Anchors[self.itemFullType]
+        ax = fixed and fixed.x or 0
+        ay = fixed and fixed.y or 0
+    end
+    self.tempData.anchorX = ax == 0 and nil or ax
+    self.tempData.anchorY = ay == 0 and nil or ay
+
+    -- Aplica AO VIVO nos overrides pra preview atualizar.
+    self:setAngle(self.tempData.angle or 0)
+    self:setScale(self.tempData.scale or 1)
+    self:setAnchorX(self.tempData.anchorX or 0)
+    self:setAnchorY(self.tempData.anchorY or 0)
+
+    -- Reseta pixel-perfect (base muda com a variante).
+    self.ppLock = false
+    self.ppCurrentN = nil
 end
 
 --- Ajusta o ângulo do sprite AO VIVO (sem precisar salvar): aplica o override
@@ -512,8 +695,9 @@ function GridDevToolUI:setAngle(angle)
     angle = angle % 360
     self.tempData.angle = angle
 
-    -- Override ao vivo na chave do fullType PURO (footprint do item).
-    local footprintKey = self.itemFullType or (self.item and self.item.getFullType and self.item:getFullType()) or nil
+    -- Override ao vivo na chave de VARIANTE (fullType|spriteName) pra
+    -- itens com múltiplas sprites (ex.: Hammer esquerda/direita).
+    local footprintKey = self.itemVariantKey or self.itemFullType
     if footprintKey then
         local o = GridDevTool.Overrides[footprintKey] or {}
         if angle == 0 then
@@ -553,7 +737,7 @@ end
 function GridDevToolUI:computePixelBase()
     local item = self.item
     if not item then return nil end
-    local tex = item.getTex and item:getTex() or (item.getTexture and item:getTexture()) or nil
+    local tex = self:getItemTex()
     if not tex then return nil end
     local cellSize = math.floor(40 * (GridInventory_uiScale or 100) / 100)
     local isRotated = false
@@ -617,7 +801,7 @@ end
 function GridDevToolUI:applyScale(scale)
     self.tempData.scale = scale
 
-    local footprintKey = self.itemFullType or (self.item and self.item.getFullType and self.item:getFullType()) or nil
+    local footprintKey = self.itemVariantKey or self.itemFullType
     if footprintKey then
         local o = GridDevTool.Overrides[footprintKey] or {}
         if scale == 1 then
@@ -636,7 +820,7 @@ function GridDevToolUI:setAnchorX(px)
     px = math.floor(px + 0.5)
     self.tempData.anchorX = px
 
-    local footprintKey = self.itemFullType or (self.item and self.item.getFullType and self.item:getFullType()) or nil
+    local footprintKey = self.itemVariantKey or self.itemFullType
     if footprintKey then
         local o = GridDevTool.Overrides[footprintKey] or {}
         if px == 0 then
@@ -654,7 +838,7 @@ function GridDevToolUI:setAnchorY(px)
     px = math.floor(px + 0.5)
     self.tempData.anchorY = px
 
-    local footprintKey = self.itemFullType or (self.item and self.item.getFullType and self.item:getFullType()) or nil
+    local footprintKey = self.itemVariantKey or self.itemFullType
     if footprintKey then
         local o = GridDevTool.Overrides[footprintKey] or {}
         if px == 0 then
@@ -698,15 +882,32 @@ function GridDevToolUI:onSave()
     -- puro. Só quando há um item real de referência (bag/item). Para o
     -- inventário do jogador e containers de mundo sem item, não há footprint.
     if hasItem and footprintKey then
+        -- w/h/stackable/maxStack → fullType puro (footprint é por tipo).
         GridDevTool.applyOverrides(footprintKey,
             self.tempData.w, self.tempData.h,
             nil, nil,
             self.tempData.stackable,
-            self.tempData.maxStackAuto and nil or self.tempData.maxStack,
-            self.tempData.angle or 0,
-            self.tempData.scale or 1,
-            self.tempData.anchorX or 0,
-            self.tempData.anchorY or 0)
+            (not self.tempData.maxStackAuto) and self.tempData.maxStack or nil,
+            nil, nil, nil, nil)
+        -- angle/scale/anchor → variante (fullType|spriteName) pra itens com
+        -- múltiplas sprites (Hammer esq/dir, etc.).
+        local variantKey = self.itemVariantKey or footprintKey
+        if variantKey ~= footprintKey then
+            GridDevTool.applyOverrides(variantKey,
+                nil, nil, nil, nil, nil, nil,
+                self.tempData.angle or 0,
+                self.tempData.scale or 1,
+                self.tempData.anchorX or 0,
+                self.tempData.anchorY or 0)
+        else
+            -- Sem variante distinta: tudo na mesma chave.
+            GridDevTool.applyOverrides(footprintKey,
+                nil, nil, nil, nil, nil, nil,
+                self.tempData.angle or 0,
+                self.tempData.scale or 1,
+                self.tempData.anchorX or 0,
+                self.tempData.anchorY or 0)
+        end
     end
     -- MP server-mandatory: envia pro servidor aplicar (autoridade) + broadcast.
     GridClientNetwork.sendOverrides(GridDevTool.Overrides)
@@ -940,12 +1141,37 @@ end
 
 function GridDevToolUI:prerender()
     ISPanel.prerender(self)
-    self:drawTextCentre("Grid DevTool: " .. GridDevToolUI.friendlyName(self), self.width / 2, 10, 1, 1, 1, 1, UIFont.Small)
+    local title = "Grid DevTool: " .. GridDevToolUI.friendlyName(self)
+    if self.variants then
+        local vk = self.variants[self.variantIndex] or "?"
+        -- Extrait o nome da sprite depois do pipe (fullType|spriteName).
+        local shortName = vk:match("|([^|]+)$") or vk
+        shortName = shortName:match("^(.+)%.") or shortName
+        title = title .. " [" .. self.variantIndex .. "/" .. #self.variants .. " " .. shortName .. "]"
+    end
+    self:drawTextCentre(title, self.width / 2, 10, 1, 1, 1, 1, UIFont.Small)
+    
+    -- Flash do botão Save (Copy/Paste feedback visual, ~250ms).
+    if self._flashEnd and self._flashEnd > 0 then
+        self._flashEnd = self._flashEnd - 1
+        local c = self._flashColor or {r=0.2, g=0.5, b=0.2, a=0.9}
+        self.btnSave.backgroundColor = c
+    elseif self._flashEnd and self._flashEnd <= 0 then
+        self.btnSave.backgroundColor = { r = 0.2, g = 0.2, b = 0.2, a = 0.8 }
+        self._flashEnd = nil
+    end
     
     -- Valores desenhados ALINHADOS com as linhas reais do initialise (posições
     -- dinâmicas conforme o tipo de alvo — self.labels). x=205 é o centro entre
     -- os botões -/+ (160/220).
     if self.labels then
+        if self.labels.variant then
+            local vk = self.variants and self.variants[self.variantIndex] or ""
+            local shortName = vk:match("|([^|]+)$") or vk
+            shortName = shortName:match("([^/\\]+)$") or shortName
+            local varStr = self.variantIndex .. "/" .. #self.variants .. " " .. shortName
+            self:drawTextCentre(varStr, 185, self.labels.variant, 0.5, 0.8, 0.5, 1, UIFont.Small)
+        end
         if self.labels.w then
             self:drawTextCentre(tostring(self.tempData.w), 205, self.labels.w, 1, 1, 1, 1, UIFont.Small)
         end
@@ -1001,7 +1227,6 @@ function GridDevToolUI:prerender()
     -- vigente e avisa que o override FIRME pode ultrapassá-lo. Só pra
     -- containers sem item (worldobj/player/floor).
     if self.maxGridNote and not self.isItem then
-        local GridSandboxOptions = require("GridSandboxOptions")
         local minW = GridSandboxOptions.getMinWorldGridWidth()
         local maxV = GridSandboxOptions.getMaxContainerGridSize()
         self:drawText("Grid (sandbox): W " .. tostring(minW) .. " / H " .. tostring(maxV),
@@ -1087,7 +1312,7 @@ function GridDevToolUI:drawFootprintPreview()
 
     -- Sprite: mesmos parâmetros do render (ângulo/escala/anchor AO VIVO do
     -- tempData + isRotated do item).
-    local texture = item.getTex and item:getTex() or (item.getTexture and item:getTexture()) or nil
+    local texture = self:getItemTex()
     if texture then
         local texW = texture:getWidth()
         local texH = texture:getHeight()
@@ -1107,8 +1332,7 @@ function GridDevToolUI:drawFootprintPreview()
         -- DESLIGADA, TODOS os jogadores veem o sprite no padrão (angle=0,
         -- scale=1, anchor=0) mesmo com override salvo. O preview acompanha pra
         -- mostrar exatamente o que será renderizado no jogo.
-        local GridSandboxOptions = require("GridSandboxOptions")
-        if GridSandboxOptions and GridSandboxOptions.isIconRotationEnabled
+        if GridSandboxOptions.isIconRotationEnabled
             and not GridSandboxOptions.isIconRotationEnabled() then
             deg = 0
             iconScale = 1
@@ -1192,8 +1416,7 @@ function GridDevToolUI:drawFootprintPreview()
     -- Aviso quando a sandbox option "IconRotation" está desligada: o preview
     -- mostra o sprite PADRÃO (o que os jogadores vão ver), mesmo que os campos
     -- à esquerda tenham angle/scale/anchor preenchidos.
-    local GridSandboxOptions = require("GridSandboxOptions")
-    if GridSandboxOptions and GridSandboxOptions.isIconRotationEnabled
+    if GridSandboxOptions.isIconRotationEnabled
         and not GridSandboxOptions.isIconRotationEnabled() then
         self:drawText("IconRotation OFF (sandbox): sprites no padrao", px + 8, py + ph - 20, 1, 0.6, 0.2, 1, UIFont.Small)
     end
@@ -1337,5 +1560,52 @@ local function devToolOnKeyStartPressed(key)
 end
 
 Events.OnKeyStartPressed.Add(devToolOnKeyStartPressed)
+
+-- ─── Clipboard compartilhado (Copy/Paste) ───────────────────────────────────
+-- Uma tabela estática que sobrevive entre instâncias do DevTool. Ao copiar,
+-- grava w/h/angle/scale/anchorX/anchorY/stackable/maxStack. Ao colar, aplica
+-- no DevTool ativo (incluindo overrides ao vivo pro preview atualizar).
+GridDevToolUI.clipboard = nil
+
+function GridDevToolUI:onCopy()
+    local d = self.tempData
+    GridDevToolUI.clipboard = {
+        w = d.w,
+        h = d.h,
+        angle = d.angle,
+        scale = d.scale,
+        anchorX = d.anchorX,
+        anchorY = d.anchorY,
+        stackable = d.stackable,
+        maxStackAuto = d.maxStackAuto,
+        maxStack = d.maxStack,
+    }
+    self._flashEnd = 15 -- ~250ms a 16fps
+    self._flashColor = { r = 0.2, g = 0.6, b = 0.2, a = 0.9 }
+end
+
+function GridDevToolUI:onPaste()
+    local c = GridDevToolUI.clipboard
+    if not c then return end
+    self.tempData.w = c.w
+    self.tempData.h = c.h
+    self.tempData.angle = c.angle
+    self.tempData.scale = c.scale
+    self.tempData.anchorX = c.anchorX
+    self.tempData.anchorY = c.anchorY
+    self.tempData.stackable = c.stackable
+    self.tempData.maxStackAuto = c.maxStackAuto
+    self.tempData.maxStack = c.maxStack
+    -- Aplica ao vivo no preview.
+    self:setAngle(self.tempData.angle or 0)
+    self:setScale(self.tempData.scale or 1)
+    self:setAnchorX(self.tempData.anchorX or 0)
+    self:setAnchorY(self.tempData.anchorY or 0)
+    self:updateStackButton()
+    self:updateMaxButton()
+    self:syncMaxEntry()
+    self._flashEnd = 15
+    self._flashColor = { r = 0.2, g = 0.2, b = 0.6, a = 0.9 }
+end
 
 return GridDevToolUI

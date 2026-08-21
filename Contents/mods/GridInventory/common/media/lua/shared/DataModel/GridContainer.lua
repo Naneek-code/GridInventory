@@ -397,17 +397,32 @@ function GridContainer.buildOccupancy(container, grid)
     for i = 0, items:size() - 1 do
         local item = items:get(i)
         if item and item.getModData then
-            local md = item:getModData()
-            local sx = tonumber(md.gridX)
-            local sy = tonumber(md.gridY)
-            if sx and sy then
-                local isRot = md.gridRot or false
-                local w, h = ItemFootprint.getSize(item)
-                local ew, eh = isRot and h or w, isRot and w or h
-                -- CompatKey de pilha: itens compatíveis na MESMA posição empilham
-                -- (respeitando o limite de unidades do maxStack).
-                local compatKey, stackInfo = GridContainer.getStackInfo(item)
-                grid:insertItem(item:getID(), sx, sy, ew, eh, isRot, item, compatKey, stackInfo)
+            -- Itens escondidos, EQUIPADOS ou ANEXADOS (hotbar/cinto/costas) não
+            -- ocupam o grid (não barram reorder/placement). O cliente já filtra
+            -- no _isItemValidForGrid; o servidor precisa do MESMO filtro pra
+            -- validação autoritativa — senão um item pego e depois equipado/anexado
+            -- continua barrando a célula (o grid do jogador não os mostra, mas o
+            -- servidor ainda os conta na ocupação).
+            -- Server-safe: usa só métodos Java do item (isHidden/isEquipped/
+            -- getAttachedSlot), sem getPlayerHotbar (inexistente no servidor).
+            local hidden = item.isHidden and item:isHidden()
+            local equipped = item.isEquipped and item:isEquipped()
+            local attached = item.getAttachedSlot and item:getAttachedSlot() ~= -1
+            if hidden or equipped or attached then
+                -- item invisível/equipado/anexado: não ocupa espaço
+            else
+                local md = item:getModData()
+                local sx = tonumber(md.gridX)
+                local sy = tonumber(md.gridY)
+                if sx and sy then
+                    local isRot = md.gridRot or false
+                    local w, h = ItemFootprint.getSize(item)
+                    local ew, eh = isRot and h or w, isRot and w or h
+                    -- CompatKey de pilha: itens compatíveis na MESMA posição empilham
+                    -- (respeitando o limite de unidades do maxStack).
+                    local compatKey, stackInfo = GridContainer.getStackInfo(item)
+                    grid:insertItem(item:getID(), sx, sy, ew, eh, isRot, item, compatKey, stackInfo)
+                end
             end
         end
     end
@@ -551,7 +566,7 @@ function GridContainer:_consolidateStacks(grid, containerSig, isFloor)
     for y = 1, grid.height do
         for x = 1, grid.width do
             local leaderId = grid.cells[x][y]
-            if leaderId and not blocked[leaderId] then
+            if leaderId and not blocked[leaderId] and not isManual(leaderId) then
                 local ld = grid.items[leaderId]
                 if ld and not ld.stackMemberOf and ld.compatKey then
                     local limit = ld.stackInfo and ld.stackInfo.limit

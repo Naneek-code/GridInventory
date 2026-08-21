@@ -36,13 +36,23 @@ GridProtocol.MODDATA_KEYS = {
 
 --- Monta um containerRef serializável a partir de um ItemContainer (lado cliente).
 --- O ref identifica ONDE o container mora no mundo, para o servidor re-resolver.
-function GridProtocol.buildContainerRef(container)
+--- `depth` limita a recursão de bolsa-em-bolsa (proteção contra ciclo).
+function GridProtocol.buildContainerRef(container, depth)
     if not container then return nil end
+    depth = depth or 0
 
-    -- Mochila/bolsa: o container é o inventário de um ITEM
+    -- Mochila/bolsa: o container é o inventário de um ITEM. O ref carrega o
+    -- containerRef do container PAI (ref.parent) pra o servidor resolver ONDE
+    -- a bolsa está (inventário do jogador, chão, armário, veículo ou outra
+    -- bolsa) e depois achar a bolsa por itemId dentro do pai.
     local containingItem = container:getContainingItem()
     if containingItem then
-        return { type = "item", itemId = containingItem:getID() }
+        local ref = { type = "item", itemId = containingItem:getID() }
+        if depth < GridProtocol.MAX_REF_DEPTH then
+            local itemContainer = containingItem.getContainer and containingItem:getContainer()
+            ref.parent = GridProtocol.buildContainerRef(itemContainer, depth + 1)
+        end
+        return ref
     end
 
     local parent = container:getParent()
@@ -52,15 +62,27 @@ function GridProtocol.buildContainerRef(container)
         return { type = "player" }
     end
 
-    -- Bolsa largada no chão (IsoWorldInventoryObject)
+    -- Bolsa largada no chão (IsoWorldInventoryObject): inclui a square pra o
+    -- servidor re-resolvê-la de qualquer square (não só a do jogador).
     if parent and instanceof(parent, "IsoWorldInventoryObject") then
         local it = parent:getItem()
-        return { type = "worlditem", itemId = it and it:getID() }
+        local ref = { type = "worlditem", itemId = it and it:getID() }
+        local sq = parent.getSquare and parent:getSquare()
+        if sq and sq.getX then
+            ref.x, ref.y, ref.z = sq:getX(), sq:getY(), sq:getZ()
+        end
+        return ref
     end
 
-    -- Veículo
+    -- Veículo: um veículo tem VÁRIOS containers (porta-malas, luva, bancos).
+    -- O `container:getType()` É o id da parte (ex.: "GloveBox", "TruckBed") —
+    -- o vanilla resolve via vehicle:getPartById(container:getType()).
     if parent and instanceof(parent, "BaseVehicle") then
-        return { type = "vehicle", keyId = parent:getKeyId() }
+        return {
+            type = "vehicle",
+            vehicleId = parent.getId and parent:getId() or nil,
+            containerType = container.getType and container:getType() or nil,
+        }
     end
 
     -- Objeto no mundo (caixa, prateleira, cadáver, etc.)
@@ -89,6 +111,9 @@ function GridProtocol.buildContainerRef(container)
     return nil
 end
 
+--- Profundidade máxima de aninhamento de containerRef (bolsa em bolsa em bolsa).
+GridProtocol.MAX_REF_DEPTH = 8
+
 --- Encontra um item recursivamente dentro de um ItemContainer (e sub-bolsas).
 function GridProtocol.findItemInTree(container, itemId)
     if not container or not itemId then return nil end
@@ -109,8 +134,10 @@ end
 
 --- Resolve um containerRef de volta para um ItemContainer (lado servidor).
 --- contextPlayer = jogador que enviou o comando (para inventários/vezinhaça).
-function GridProtocol.resolveContainerRef(ref, contextPlayer)
+--- `depth` limita a recursão de bolsa-em-bolsa (proteção contra ciclo).
+function GridProtocol.resolveContainerRef(ref, contextPlayer, depth)
     if not ref or not ref.type then return nil end
+    depth = depth or 0
     local cell = getCell()
     local playerInv = contextPlayer and contextPlayer.getInventory and contextPlayer:getInventory()
 
@@ -127,12 +154,64 @@ function GridProtocol.resolveContainerRef(ref, contextPlayer)
     end
 
     if ref.type == "item" then
+        -- Bolsa: o ref carrega o containerRef do PAI. Resolve o pai primeiro e
+        -- procura a bolsa (itemId) dentro dele — cobre bolsa no inventário do
+        -- jogador, no chão, em armário, em veículo ou em outra bolsa.
+        if ref.parent and depth < GridProtocol.MAX_REF_DEPTH then
+            local parentContainer = GridProtocol.resolveContainerRef(ref.parent, contextPlayer, depth + 1)
+            if parentContainer then
+                local bag = GridProtocol.findItemInTree(parentContainer, ref.itemId)
+                if bag and bag.getInventory then return bag:getInventory() end
+            end
+        end
+        -- Fallback (refs antigos sem .parent): inventário do jogador + square.
         local bag = ref.itemId and playerInv and GridProtocol.findItemInTree(playerInv, ref.itemId)
-        return bag and bag:getInventory()
+        if bag and bag.getInventory then return bag:getInventory() end
+        local sq
+        if ref.x ~= nil and cell then
+            sq = cell:getGridSquare(ref.x, ref.y, ref.z)
+        end
+        if not sq and contextPlayer then
+            sq = contextPlayer.getSquare and contextPlayer:getSquare()
+        end
+        if sq and sq.getObjects and ref.itemId then
+            local objs = sq:getObjects()
+            for i = 0, objs:size() - 1 do
+                local o = objs:get(i)
+                if o and o.getItem then
+                    local oi = o:getItem()
+                    if oi and oi.getID and oi:getID() == ref.itemId then
+                        local inv = oi.getInventory and oi:getInventory()
+                        if inv then return inv end
+                    end
+                end
+            end
+        end
+        return nil
     end
 
     if ref.type == "worlditem" then
-        -- Bolsa no chão: procura pelo item na square do jogador (fallback cobre).
+        -- Bolsa no chão: mesmo fallback do tipo "item" (procura na square).
+        local sq
+        if ref.x ~= nil and cell then
+            sq = cell:getGridSquare(ref.x, ref.y, ref.z)
+        end
+        if not sq and contextPlayer then
+            sq = contextPlayer.getSquare and contextPlayer:getSquare()
+        end
+        if sq and sq.getObjects and ref.itemId then
+            local objs = sq:getObjects()
+            for i = 0, objs:size() - 1 do
+                local o = objs:get(i)
+                if o and o.getItem then
+                    local oi = o:getItem()
+                    if oi and oi.getID and oi:getID() == ref.itemId then
+                        local inv = oi.getInventory and oi:getInventory()
+                        if inv then return inv end
+                    end
+                end
+            end
+        end
         return nil
     end
 
@@ -153,16 +232,40 @@ function GridProtocol.resolveContainerRef(ref, contextPlayer)
                 end
             end
         end
-        if obj and obj.getContainer then
-            return obj:getContainer()
+        if obj then
+            -- Cadáver (IsoDeadBody): o inventário é via getInventory(), não
+            -- getContainer() (mesmo padrão do GridContainer.getGridSize/refresh).
+            if instanceof and instanceof(obj, "IsoDeadBody") then
+                if obj.getInventory then return obj:getInventory() end
+                return nil
+            end
+            if obj.getContainer then
+                return obj:getContainer()
+            end
         end
         return nil
     end
 
     if ref.type == "vehicle" then
-        -- B42: resolução de veículo por keyId via getVehicleByKeyId (se disponível).
-        local veh = ref.keyId and getVehicleByKeyId and getVehicleByKeyId(ref.keyId)
-        return veh and veh.getContainer and veh:getContainer() or nil
+        -- B42: API vanilla (ISTransferAction): container:getParent() é o
+        -- BaseVehicle e o container:getType() é o id da parte — resolve com
+        -- vehicle:getPartById(containerType):getItemContainer().
+        local veh
+        if ref.vehicleId then
+            veh = getVehicleById and getVehicleById(ref.vehicleId)
+        end
+        if not veh and ref.keyId then
+            veh = getVehicleByKeyId and getVehicleByKeyId(ref.keyId)
+        end
+        if not veh then return nil end
+        if ref.containerType and veh.getPartById then
+            local part = veh:getPartById(ref.containerType)
+            if part and part.getItemContainer then
+                local inv = part:getItemContainer()
+                if inv then return inv end
+            end
+        end
+        return nil
     end
 
     return nil

@@ -15,13 +15,21 @@ local GridContainer = require("DataModel/GridContainer")
 local GridRender = require("UI/GridRender/GridRender")
 local GridIconRotation = require("Algorithm/GridIconRotation")
 
-FloatingGridWindow = ISPanel:derive("FloatingGridWindow")
+local FloatingGridWindow = ISPanel:derive("FloatingGridWindow")
 
 local TITLE_H = 26
 local PAD = 10
 local BTN_H = 22
 local BTN_W = 24
 local BTN_Y = (TITLE_H - BTN_H) / 2
+
+-- Tabelas de cor RECHEADAS (read-only) pra condição do item no stack picker:
+-- não alocar uma tabela nova por linha por frame no renderStackList.
+local COLOR_DEFAULT = { 0.9, 0.9, 0.9 }
+local COLOR_GOOD    = { 0.4, 0.9, 0.4 }
+local COLOR_WARN    = { 0.95, 0.8, 0.3 }
+local COLOR_BAD     = { 0.95, 0.4, 0.35 }
+local COLOR_COLD    = { 0.45, 0.7, 1.0 }
 
 -- Registry:
 --   GridInventory_FloatingGrid[playerNum] = LISTA de janelas de bolsa (várias)
@@ -74,7 +82,11 @@ end
 
 --- Abre o STACK PICKER (modo lista) na janela DEDICADA e única do player.
 --- Ela SEMPRE se reposiciona no ponto onde foi aberto (ver openStack).
-GridInventory_openStackPicker = function(playerNum, sourceGrid, stackLeaderId)
+--- `viaJoypad` = aberto pelo controle (Select): liga a navegação D-pad
+--- (joyActive) e o highlight da linha destacada (joyIndex). `joyX`/`joyY` são a
+--- posição de tela da célula do cursor VIRTUAL (quando viaJoypad), senão o
+--- picker abriria em cima do mouse.
+GridInventory_openStackPicker = function(playerNum, sourceGrid, stackLeaderId, viaJoypad, joyX, joyY)
     local win = GridInventory_StackPicker[playerNum]
     if not win then
         win = FloatingGridWindow:new(0, 0, 240, 120, playerNum)
@@ -83,7 +95,7 @@ GridInventory_openStackPicker = function(playerNum, sourceGrid, stackLeaderId)
         win:setVisible(false)
         GridInventory_StackPicker[playerNum] = win
     end
-    win:openStack(sourceGrid, stackLeaderId)
+    win:openStack(sourceGrid, stackLeaderId, viaJoypad, joyX, joyY)
 end
 
 --- Fecha janelas flutuantes NÃO pinadas (chamado quando o inventário fecha).
@@ -130,6 +142,10 @@ function FloatingGridWindow:new(x, y, width, height, playerNum)
     o.pinned = false
     o.isStackPicker = false
     o.bagInventory = nil
+    -- Navegação joypad (Select): quando o picker é aberto pelo controle, o
+    -- D-pad move joyIndex (linha destacada) em vez de depender do mouse.
+    o.joyActive = false
+    o.joyIndex = 0
     return o
 end
 
@@ -257,6 +273,8 @@ function FloatingGridWindow:close()
     self.stackRows = nil
     self.selected = {}
     self.scrollDrag = nil
+    self.joyActive = false
+    self.joyIndex = 0
     self:setVisible(false)
     if self.removeFromUIManager then self:removeFromUIManager() end
 
@@ -293,17 +311,80 @@ local function formatWeight(value)
     return str
 end
 
---- Info de exibição de um item na lista do picker: (count, condition% or nil).
+--- Info de exibição de um item na lista do picker, espelhando a lógica do
+--- vanilla (ISInventoryPane:doRenderItem — o "expanded pile" que mostra a info
+--- MAIS relevante por tipo, não sempre condição). Retorna:
+---   count, info, color, cond, fraction
+---   - info     = string a exibir à direita (nil = só o nome)
+---   - color    = cor da info (COLOR_GOOD/WARN/BAD/COLD/DEFAULT)
+---   - cond     = número 0..100 pra ORDENAÇÃO (melhor primeiro); nil se não aplica.
+---   - fraction = 0..1 pra barra de progresso; nil se não desenha barra.
 local function stackRowInfo(item)
     local count = item.getCount and item:getCount() or 1
+    local info = nil
+    local color = COLOR_DEFAULT
     local cond = nil
-    if item.getCondition and item.getConditionMax then
+    local fraction = nil
+
+    -- HandWeapon (e ferramentas com condição): mostra a condição.
+    if instanceof(item, "HandWeapon") and item.getCondition and item.getConditionMax then
         local maxC = item:getConditionMax()
         if maxC and maxC > 0 then
-            cond = math.floor((item:getCondition() or 0) / maxC * 100)
+            local c = item:getCondition() or 0
+            cond = math.floor(c / maxC * 100)
+            fraction = c / maxC
+            info = tostring(cond) .. "%"
+            if cond >= 70 then color = COLOR_GOOD
+            elseif cond >= 40 then color = COLOR_WARN
+            else color = COLOR_BAD end
+        end
+    -- Drainable (isqueiro, cola, etc.): usos restantes, a menos que o item
+    -- esconda (HIDE_REMAINING).
+    elseif instanceof(item, "Drainable") and not (item.hasTag and ItemTag and item:hasTag(ItemTag.HIDE_REMAINING)) then
+        local usesF = item.getCurrentUsesFloat and item:getCurrentUsesFloat()
+        if usesF ~= nil then
+            fraction = usesF
+            cond = math.floor(usesF * 100 + 0.5)
+            info = tostring(cond) .. "%"
+            if cond >= 70 then color = COLOR_GOOD
+            elseif cond >= 40 then color = COLOR_WARN
+            else color = COLOR_BAD end
+        end
+    -- Derretendo (ex.: neve/sorvete).
+    elseif item.getMeltingTime and item:getMeltingTime() > 0 then
+        local mt = item:getMeltingTime()
+        fraction = math.min(mt / 100, 1)
+        info = getText("IGUI_invpanel_Melting") or "Melting"
+        color = COLOR_WARN
+    -- Comida: cozimento ativo > congelando > (nutrição, omitida — ruidosa).
+    elseif instanceof(item, "Food") then
+        if item.isIsCookable and item:isIsCookable()
+            and not (item.isFrozen and item:isFrozen())
+            and (item.getHeat and item:getHeat() > 1.6) then
+            local ct = item.getCookingTime and item:getCookingTime() or 0
+            local mtc = item.getMinutesToCook and item:getMinutesToCook() or 0
+            local mtb = item.getMinutesToBurn and item:getMinutesToBurn() or 0
+            local burnt = item.isBurnt and item:isBurnt()
+            if burnt or (mtb > 0 and ct > mtb) then
+                info = getText("IGUI_invpanel_Burnt") or "Burnt"
+                color = COLOR_BAD
+                fraction = 1
+            elseif mtc > 0 and ct > mtc then
+                info = getText("IGUI_invpanel_Burning") or "Burning"
+                color = COLOR_BAD
+                fraction = math.min((ct - mtc) / (mtb - mtc), 1)
+            else
+                info = getText("IGUI_invpanel_Cooking") or "Cooking"
+                color = COLOR_GOOD
+                fraction = mtc > 0 and math.min(ct / mtc, 1) or 0
+            end
+        elseif item.getFreezingTime and item:getFreezingTime() > 0 then
+            info = getText("IGUI_invpanel_FreezingTime") or "Freezing"
+            color = COLOR_COLD
         end
     end
-    return count, cond
+
+    return count, info, color, cond, fraction
 end
 
 --- Atualiza o grid da bolsa quando o conteúdo muda (throttle 300ms) e fecha
@@ -435,8 +516,8 @@ function FloatingGridWindow:refreshStackList()
     for _, mId in ipairs(members) do
         local d = src.gridCore.items[mId]
         if d and d.itemObj then
-            local count, cond = stackRowInfo(d.itemObj)
-            table.insert(rows, { id = mId, item = d.itemObj, count = count, cond = cond })
+            local count, info, color, cond, fraction = stackRowInfo(d.itemObj)
+            table.insert(rows, { id = mId, item = d.itemObj, count = count, info = info, color = color, cond = cond, fraction = fraction })
         end
     end
     table.sort(rows, function(a, b)
@@ -471,6 +552,14 @@ function FloatingGridWindow:refreshStackList()
     local maxScroll = math.max(0, totalH - self.listH)
     if self.scrollY > maxScroll then self.scrollY = maxScroll end
     if self.scrollY < 0 then self.scrollY = 0 end
+
+    -- Navegação joypad: clamp/inicializa o índice da linha destacada.
+    if self.joyActive and #self.stackRows > 0 then
+        if self.joyIndex < 1 then self.joyIndex = 1 end
+        if self.joyIndex > #self.stackRows then self.joyIndex = #self.stackRows end
+    else
+        self.joyIndex = 0
+    end
 
     self:updateTakeButton()
 end
@@ -545,7 +634,7 @@ end
 --- Modo STACK PICKER: mostra cada item da pilha pra escolher o melhor.
 --- Este modo vive numa janela DEDICADA e única por player (GridInventory_StackPicker),
 --- que SEMPRE se move para onde foi aberto (o mouse), sem travar na posição.
-function FloatingGridWindow:openStack(sourceGrid, stackLeaderId)
+function FloatingGridWindow:openStack(sourceGrid, stackLeaderId, viaJoypad, joyX, joyY)
     if not sourceGrid or not sourceGrid.gridCore then return end
     if not sourceGrid.gridCore.items[stackLeaderId] then return end
 
@@ -561,6 +650,8 @@ function FloatingGridWindow:openStack(sourceGrid, stackLeaderId)
     self.lastClickId = nil
     self.lastClickTime = nil
     self.lastSelectedIndex = nil
+    self.joyActive = viaJoypad and true or false
+    self.joyIndex = 0
     if self.gridUi then
         self:removeChild(self.gridUi)
         self.gridUi:destroy()
@@ -576,11 +667,14 @@ function FloatingGridWindow:openStack(sourceGrid, stackLeaderId)
     self:setWidth(240)
     self:refreshStackList()
 
-    -- SEMPRE reposiciona ONDE O MOUSE ESTÁ (offset +20 pra não cobrir o cursor),
-    -- limitado às bordas da tela. O picker é "descartável": reabre no ponto do clique.
+    -- Reposiciona: no mouse (offset +20) OU na célula do cursor VIRTUAL quando
+    -- aberto pelo controle (joyX/joyY). Limitado às bordas da tela.
     local core = getCore()
     local mx = getMouseX()
     local my = getMouseY()
+    if viaJoypad and joyX and joyY then
+        mx, my = joyX, joyY
+    end
     local maxX = math.max(10, core:getScreenWidth() - self.width - 10)
     local maxY = math.max(10, core:getScreenHeight() - self.height - 10)
     self:setX(math.min(math.max(10, mx + 20), maxX))
@@ -616,30 +710,36 @@ function FloatingGridWindow:renderStackList()
     self:setStencilRect(PAD, self.titleH, self.width - PAD * 2, self.listH)
 
     local topY = self.titleH + 2 - scrollY
-    local pad = 4
-    local rowW = self.width - pad * 2 - (maxScroll > 0 and 10 or 0)
+    local pad = PAD
+    local rowW = self.width - PAD * 2 - (maxScroll > 0 and 10 or 0)
     for i, row in ipairs(rows) do
         local ry = topY + (i - 1) * ROW_H
         -- Pula linhas fora da área visível (otimização)
         if ry + ROW_H > self.titleH and ry < self.titleH + self.listH then
-            -- Fundo: seleção > hover > zebra
+            -- Fundo: seleção > cursor joypad > hover > zebra
             local isSel = self.selected and self.selected[row.id]
+            local isJoy = self.joyActive and i == self.joyIndex
             if isSel then
                 self:drawRect(pad, ry, rowW, ROW_H - 2, 0.35, 0.2, 0.6, 0.3)
                 self:drawRectBorder(pad, ry, rowW, ROW_H - 2, 0.9, 0.5, 0.9, 0.6)
+            elseif isJoy then
+                self:drawRect(pad, ry, rowW, ROW_H - 2, 0.4, 0.32, 0.1, 0.35)
+                self:drawRectBorder(pad, ry, rowW, ROW_H - 2, 0.95, 0.75, 0.2, 0.9)
             elseif i == hoverIndex then
                 self:drawRect(pad, ry, rowW, ROW_H - 2, 0.25, 0.45, 0.45, 0.45)
             elseif i % 2 == 0 then
                 self:drawRect(pad, ry, rowW, ROW_H - 2, 0.15, 0.2, 0.2, 0.2)
             end
-            -- Ícone — usa o MESMO renderer do grid principal (color mask, fluid
-            -- mask e tint são aplicados). drawTextureScaledAspect só desenharia
-            -- a textura base, sem líquido/cor.
-            GridRender.drawItemIconRotated(self, row.item, pad + 2, ry + 3, 24, 24, false, 1, 1, 1, 1, GridIconRotation.getRenderAngle(row.item))
+            -- Ícone — usa o DrawItemIcon nativo (Java), que aplica máscaras
+            -- de dano/condição corretamente e renderiza no tamanho default
+            -- sem rotação/escala (não há espaço no picker).
+            local iconX = pad + 4
+            local iconY = ry + (ROW_H - 24) / 2
+            self:drawItemIcon(row.item, iconX, iconY, 1, 24, 24)
             -- Nome
             local name = row.item:getName() or row.item:getDisplayName() or ""
-            local tx = pad + 30
-            local nameW = self.width - tx - 74 - (maxScroll > 0 and 10 or 0)
+            local tx = iconX + 26
+            local nameW = self.width - tx - 70 - (maxScroll > 0 and 10 or 0)
             if nameW > 20 then
                 local tm = getTextManager()
                 if tm:MeasureStringX(UIFont.Small, name) > nameW then
@@ -647,21 +747,31 @@ function FloatingGridWindow:renderStackList()
                 end
                 self:drawText(name, tx, ry + (ROW_H - 14) / 2, 0.9, 0.9, 0.9, 1, UIFont.Small)
             end
-            -- Condição / contagem (direita)
-            local info = ""
-            if row.cond then
-                info = tostring(row.cond) .. "%"
-            elseif row.count and row.count > 1 then
+            -- Info do item à direita (condição/cozimento/freezing/usos) — a
+            -- string e a cor já vêm do stackRowInfo. Fallback: contagem xN.
+            local info = row.info
+            local color = row.color or COLOR_DEFAULT
+            if not info and row.count and row.count > 1 then
                 info = "x" .. tostring(row.count)
             end
-            if info ~= "" then
-                local color = { 0.9, 0.9, 0.9 }
-                if row.cond then
-                    if row.cond >= 70 then color = { 0.4, 0.9, 0.4 }
-                    elseif row.cond >= 40 then color = { 0.95, 0.8, 0.3 }
-                    else color = { 0.95, 0.4, 0.35 } end
+            if info then
+                local rX = self.width - pad - 6 - (maxScroll > 0 and 10 or 0)
+                local frac = row.fraction
+                if frac and frac >= 0 then
+                    -- Barra de progresso full-width na base da linha
+                    local barH = 3
+                    local barY = ry + ROW_H - barH - 2
+                    -- Fundo
+                    self:drawRect(pad, barY, rowW, barH, 0.8, 0.15, 0.15, 0.15)
+                    -- Fill colorido
+                    local fill = math.max(1, math.floor(rowW * math.min(frac, 1)))
+                    self:drawRect(pad, barY, fill, barH, 0.9, color[1], color[2], color[3])
+                    -- Texto à direita (acima da barra)
+                    self:drawTextRight(info, rX, ry + (ROW_H - 14) / 2, color[1], color[2], color[3], 1, UIFont.Small)
+                else
+                    -- Sem barra (só texto à direita, ex.: xN)
+                    self:drawTextRight(info, rX, ry + (ROW_H - 14) / 2, color[1], color[2], color[3], 1, UIFont.Small)
                 end
-                self:drawTextRight(info, self.width - pad - 4 - (maxScroll > 0 and 10 or 0), ry + (ROW_H - 14) / 2, color[1], color[2], color[3], 1, UIFont.Small)
             end
         end
     end
@@ -678,6 +788,15 @@ function FloatingGridWindow:renderStackList()
 end
 
 function FloatingGridWindow:prerender()
+    if GridInventory_PanelOpacity ~= nil then
+        self.backgroundColor.a = GridInventory_PanelOpacity
+    end
+    local inv = getPlayerInventory(self.playerNum)
+    if inv and inv.backgroundColor then
+        self.backgroundColor.r = inv.backgroundColor.r
+        self.backgroundColor.g = inv.backgroundColor.g
+        self.backgroundColor.b = inv.backgroundColor.b
+    end
     ISPanel.prerender(self)
 
     -- Título: fundo + borda (espelho do header dos grids)
@@ -754,13 +873,17 @@ function FloatingGridWindow:prerender()
     end
 
     -- Fundo da área de grid
-    self:drawRect(0, self.titleH, self.width, self.height - self.titleH, 0.75, 0.08, 0.08, 0.08)
+
     self:drawRectBorder(0, 0, self.width, self.height, 0.5, 0.5, 0.5, 0.5)
 
     -- Destaque quando pinada
     if self.pinned then
         self:drawRectBorder(self.pinBtn:getX(), 1, BTN_W, self.titleH - 2, 0.8, 1.0, 0.9, 0.3)
     end
+    
+    local opacity = GridInventory_PanelOpacity or 0.9
+    local extraAlpha = opacity * 0.5
+    self:drawRect(0, self.titleH, self.width, self.height - self.titleH, extraAlpha, 0.15, 0.15, 0.15)
 end
 
 --- Render do modo stack picker (a janela desenha a lista de itens da pilha).
@@ -842,6 +965,39 @@ function FloatingGridWindow:afterTake()
         self.title = (item and (item:getName() or item:getDisplayName() or "Stack") or "Stack") .. " (" .. tostring(n) .. ")"
         self:updateTakeButton()
     end
+end
+
+--- Navegação joypad (D-pad cima/baixo) no stack picker: move a linha destacada
+--- e rola a lista pra mantê-la visível. delta = +1 (baixo) / -1 (cima).
+function FloatingGridWindow:joyMove(delta)
+    if not self.stackMode or not self.stackRows or #self.stackRows == 0 then return end
+    self.joyActive = true
+    local n = #self.stackRows
+    self.joyIndex = self.joyIndex + delta
+    if self.joyIndex < 1 then self.joyIndex = 1 end
+    if self.joyIndex > n then self.joyIndex = n end
+
+    -- Scroll automático pra manter a linha destacada dentro da área visível.
+    local rowTop = (self.joyIndex - 1) * ROW_H
+    local rowBottom = rowTop + ROW_H
+    local maxScroll = math.max(0, n * ROW_H - self.listH)
+    if rowTop < self.scrollY then
+        self.scrollY = math.max(0, rowTop)
+    elseif rowBottom > self.scrollY + self.listH then
+        self.scrollY = math.min(maxScroll, rowBottom - self.listH)
+    end
+end
+
+--- A no picker: tira 1 item da linha destacada (o "pegar" do controle).
+function FloatingGridWindow:joyTake()
+    if not self.stackMode or not self.stackRows then return end
+    local row = self.stackRows[self.joyIndex]
+    if not row or not row.id then return end
+    local src = self.stackMode.sourceGrid
+    if src.gridCore.items[row.id] then
+        src:takeStackMember(row.id)
+    end
+    self:afterTake()
 end
 
 --- Arrastar a janela pela barra de título. Consome cliques na janela inteira.

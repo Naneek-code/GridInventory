@@ -219,7 +219,10 @@ function ItemCategory.getGradient(item, heightPx)
         local yTop = math.floor(heightPx * i / steps)
         local yBot = math.floor(heightPx * (i + 1) / steps)
         if yBot > yTop then
-            local t = i / (steps - 1) -- 0 no topo (neutro), 1 na base (categoria)
+            local t = 1
+            if steps > 1 then
+                t = i / (steps - 1)
+            end -- 0 no topo (neutro), 1 na base (categoria)
             local r, g, b = ItemCategory.lerpColor(neutral, catColor, t)
             bands[#bands + 1] = { y = yTop, h = yBot - yTop, r = r, g = g, b = b }
         end
@@ -250,7 +253,10 @@ function ItemCategory.getSubtleGradient(heightPx)
         local yTop = math.floor(heightPx * i / steps)
         local yBot = math.floor(heightPx * (i + 1) / steps)
         if yBot > yTop then
-            local t = i / (steps - 1) -- 0 no topo (neutro), 1 na base (alvo sutil)
+            local t = 1
+            if steps > 1 then
+                t = i / (steps - 1)
+            end -- 0 no topo (neutro), 1 na base (alvo sutil)
             local r, g, b = ItemCategory.lerpColor(neutral, target, t)
             bands[#bands + 1] = { y = yTop, h = yBot - yTop, r = r, g = g, b = b }
         end

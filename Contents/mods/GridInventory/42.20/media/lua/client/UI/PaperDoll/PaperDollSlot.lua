@@ -77,7 +77,18 @@ function PaperDollSlot:render()
     -- Borda sutil igual ao do Grid
     self:drawRectBorder(0, 0, self.width, self.height, 0.15, 0.5, 0.5, 0.5)
     
-    local item = self:getEquippedItem()
+    -- getEquippedItems() aloca uma tabela nova + varredura Java: chama UMA vez
+    -- por frame e deriva item + contagem do MESMO resultado (antes o getEquippedItem
+    -- chamava getEquippedItems internamente e depois chamávamos de novo no #items).
+    local items = self:getEquippedItems()
+    local item = nil
+    if #items > 0 then
+        if not self.activeIndex or self.activeIndex > #items or self.lastItemsCount ~= #items then
+            self.activeIndex = #items
+            self.lastItemsCount = #items
+        end
+        item = items[self.activeIndex]
+    end
     if item then
         local tex = item:getTex()
         if tex then
@@ -90,27 +101,43 @@ function PaperDollSlot:render()
             self:drawTextureScaledAspect(tex, 4, 4, self.width - 8, self.height - 8, 1, r, g, b)
         end
         
-        local items = self:getEquippedItems()
         if #items > 1 then
             local text = tostring(self.activeIndex or 1) .. "/" .. tostring(#items)
-            local tw = getTextManager():MeasureStringX(UIFont.Small, text)
-            local th = getTextManager():MeasureStringY(UIFont.Small, text)
+            local uiScale = (GridInventory_uiScale or 100) / 100
+            local font = UIFont.Small
+            if uiScale >= 1.5 then font = UIFont.Large elseif uiScale >= 1.25 then font = UIFont.Medium end
+            
+            local tw = getTextManager():MeasureStringX(font, text)
+            local th = getTextManager():MeasureStringY(font, text)
             
             self:drawRect(self.width - tw - 4, self.height - th - 4, tw + 4, th + 4, 0.7, 0, 0, 0)
-            self:drawText(text, self.width - tw - 2, self.height - th - 2, 1, 1, 1, 1, UIFont.Small)
+            self:drawText(text, self.width - tw - 2, self.height - th - 2, 1, 1, 1, 1, font)
         end
     else
         if self.hotbarProviderTexture then
-            -- Draw large provider icon centered with opacity instead of text
-            self:drawTextureScaledAspect(self.hotbarProviderTexture, 8, 8, self.width - 16, self.height - 16, 0.4, 1, 1, 1)
+            local uiScale = (GridInventory_uiScale or 100) / 100
+            local pad = math.floor(8 * uiScale)
+            self:drawTextureScaledAspect(self.hotbarProviderTexture, pad, pad, self.width - (pad * 2), self.height - (pad * 2), 0.4, 1, 1, 1)
         else
-            self:drawTextCentre(self.shortSlotName, self.width/2, self.height/2 - 5, 0.3, 0.3, 0.3, 1, UIFont.Small)
+            local uiScale = (GridInventory_uiScale or 100) / 100
+            local font = UIFont.Small
+            if uiScale >= 1.5 then font = UIFont.Large elseif uiScale >= 1.25 then font = UIFont.Medium end
+            local fh = getTextManager():MeasureStringY(font, "A")
+            self:drawTextCentre(self.shortSlotName, self.width/2, (self.height - fh)/2, 0.3, 0.3, 0.3, 1, font)
         end
     end
     
     if item and self.hotbarProviderTexture then
-        -- Draw provider icon in the corner, slightly larger (28x28 instead of 20x20)
-        self:drawTextureScaledAspect(self.hotbarProviderTexture, self.width - 32, self.height - 32, 28, 28, 1, 1, 1, 1)
+        local uiScale = (GridInventory_uiScale or 100) / 100
+        local pSize = math.floor(28 * uiScale)
+        local pad = math.floor(4 * uiScale)
+        self:drawTextureScaledAspect(self.hotbarProviderTexture, self.width - pSize - pad, self.height - pSize - pad, pSize, pSize, 1, 1, 1, 1)
+    end
+
+    -- Slot selecionado pelo joypad (modo PaperDoll: LB+RB segurados).
+    if self.joySelected then
+        self:drawRect(0, 0, self.width, self.height, 0.35, 1.0, 1.0, 0.45)
+        self:drawRectBorder(0, 0, self.width, self.height, 1.3, 1.0, 1.0, 1.0)
     end
 end
 
@@ -305,6 +332,45 @@ function PaperDollSlot:onMouseUp(x, y)
     ISMouseDrag.draggingFocus = nil
 end
 
+--- Equipa um item neste slot (usado pelo joypad: drag de item + A no slot do
+--- PaperDoll). Mesma lógica do drop de mouse (onMouseUp), sem depender de
+--- ISMouseDrag. Retorna true se aceitou o item.
+function PaperDollSlot:joypadEquip(itemObj)
+    if not itemObj then return false end
+    local player = getSpecificPlayer(self.playerNum)
+    if not player then return false end
+
+    if self.hotbarRef and self.hotbarSlotIndex then
+        local slot = self.hotbarRef.availableSlot[self.hotbarSlotIndex]
+        if slot and self.hotbarRef:canBeAttached(slot, itemObj) then
+            self.hotbarRef:attachItem(itemObj, slot.def.attachments[itemObj:getAttachmentType()], self.hotbarSlotIndex, slot.def, true)
+            return true
+        end
+        return false
+    end
+
+    if type(self.locations) == "table" then
+        if self.locations[1] == "PRIMARY" then
+            ISInventoryPaneContextMenu.equipWeapon(itemObj, true, false, self.playerNum)
+            return true
+        elseif self.locations[1] == "SECONDARY" then
+            ISInventoryPaneContextMenu.equipWeapon(itemObj, false, false, self.playerNum)
+            return true
+        elseif self.locations[1] == "TWOHANDED" then
+            ISInventoryPaneContextMenu.equipWeapon(itemObj, true, true, self.playerNum)
+            return true
+        elseif self.locations[1] == "OVERFLOW" then
+            return false
+        end
+    end
+
+    if itemObj:IsClothing() or itemObj:IsInventoryContainer() then
+        ISInventoryPaneContextMenu.wearItem(itemObj, self.playerNum)
+        return true
+    end
+    return false
+end
+
 function PaperDollSlot:onRightMouseUp(x, y)
     local item = self:getEquippedItem()
     if item then
@@ -396,9 +462,14 @@ end
 
 function PaperDollSlot:updateTooltip()
     local item = self:getEquippedItem()
-    
+
+    -- Joypad (modo PaperDoll): tooltip segue o slot SELECIONADO (não o mouse).
+    local GridJoypad = require("System/GridJoypad")
+    local joypadSelected = GridJoypad.isPaperdollActive(self.playerNum)
+        and GridJoypad.pdSelectedSlot(self.playerNum) == self
+
     -- Não mostrar tooltip se estiver arrastando algum item
-    if self:isMouseOver() and item and not ISMouseDrag.dragging and not GridInventory_GlobalDrag then
+    if joypadSelected and item and not GridJoypad.isDragging(self.playerNum) then
         if not self.toolRender then
             self.toolRender = ISToolTipInv:new(item)
             self.toolRender:initialise()
@@ -409,20 +480,45 @@ function PaperDollSlot:updateTooltip()
         self.toolRender:setItem(item)
         self.toolRender:setVisible(true)
         self.toolRender:bringToTop()
-        
+        self.toolRender.followMouse = false
+
+        -- Posição junto ao slot selecionado (à direita dele), sem sair da tela.
+        local tx = self:getAbsoluteX() + self:getWidth() + 15
+        local ty = self:getAbsoluteY() - 15
+        if self.toolRender.width and (tx + self.toolRender.width > getCore():getScreenWidth()) then
+            tx = self:getAbsoluteX() - self.toolRender.width - 15
+        end
+        if self.toolRender.height and (ty + self.toolRender.height > getCore():getScreenHeight()) then
+            ty = getCore():getScreenHeight() - self.toolRender.height - 15
+        end
+        self.toolRender:setX(tx)
+        self.toolRender:setY(ty)
+    elseif self:isMouseOver() and item and not ISMouseDrag.dragging and not GridInventory_GlobalDrag
+        and not GridJoypad.isPaperdollActive(self.playerNum) then
+        if not self.toolRender then
+            self.toolRender = ISToolTipInv:new(item)
+            self.toolRender:initialise()
+            self.toolRender:addToUIManager()
+            self.toolRender:setOwner(self)
+            self.toolRender:setCharacter(getSpecificPlayer(self.playerNum))
+        end
+        self.toolRender:setItem(item)
+        self.toolRender:setVisible(true)
+        self.toolRender:bringToTop()
+
         local mx = getMouseX()
         local my = getMouseY()
-        
+
         local tx = mx + 15
         local ty = my + 15
-        
+
         if self.toolRender.width and (tx + self.toolRender.width > getCore():getScreenWidth()) then
             tx = mx - self.toolRender.width - 15
         end
         if self.toolRender.height and (ty + self.toolRender.height > getCore():getScreenHeight()) then
             ty = my - self.toolRender.height - 15
         end
-        
+
         self.toolRender:setX(tx)
         self.toolRender:setY(ty)
     else

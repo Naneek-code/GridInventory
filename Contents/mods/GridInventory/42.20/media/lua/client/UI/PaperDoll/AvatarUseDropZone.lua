@@ -393,7 +393,13 @@ end
 -- ─── Render ───────────────────────────────────────────────────────────────────
 function AvatarUseDropZone:render()
     -- Só aparece quando há um drag ativo com uma ação disponível
-    if not GridInventory_GlobalDrag then return end
+    if not GridInventory_GlobalDrag then
+        -- Highlight do joypad (alvo selecionado no modo PaperDoll).
+        if self.joySelected then
+            self:drawRectBorder(0, 0, self.width, self.height, 1.3, 1.0, 1.0, 1.0)
+        end
+        return
+    end
 
     local item = getDraggedItem()
     if not item then return end
@@ -404,6 +410,11 @@ function AvatarUseDropZone:render()
     -- Cinza padrão do mod
     self:drawRect(0, 0, self.width, self.height, COLOR_FILL.a, COLOR_FILL.r, COLOR_FILL.g, COLOR_FILL.b)
     self:drawRectBorder(0, 0, self.width, self.height, COLOR_BORDER.a, COLOR_BORDER.r, COLOR_BORDER.g, COLOR_BORDER.b)
+
+    -- Highlight do joypad (alvo selecionado no modo PaperDoll).
+    if self.joySelected then
+        self:drawRectBorder(1, 1, self.width - 2, self.height - 2, 1.3, 1.0, 1.0, 1.0)
+    end
 
     -- Apenas o texto da ação, centralizado e em branco
     local label = getActionLabel(actionType, item)
@@ -488,8 +499,14 @@ function AvatarUseDropZone:onRightMouseUp(x, y)
     for _, bodyPart in ipairs(damagedParts) do
         local sub = context:getNew(context)
         ISContextMenu.get = function() return sub end
-        local ok = pcall(ISHealthPanel.doBodyPartContextMenu, panel, bodyPart, 0, 0)
-        ISContextMenu.get = realGet
+        -- O restore do ISContextMenu.get fica DENTRO do pcall: se o
+        -- doBodyPartContextMenu lançar, o global é restaurado mesmo assim
+        -- (antes o restore ficava fora e o global podia ficar corrompido).
+        local ok = pcall(function()
+            ISHealthPanel.doBodyPartContextMenu(panel, bodyPart, 0, 0)
+            ISContextMenu.get = realGet
+        end)
+        if ok then ISContextMenu.get = realGet end
 
         if not ok or sub:isEmpty() then
             -- Sem tratamento disponível nesta parte: descarta o submenu
@@ -518,21 +535,25 @@ end
 function AvatarUseDropZone:onMouseUp(x, y)
     local item = getDraggedItem()
     if not item then return end
+    AvatarUseDropZone.useItem(self.playerNum, item)
+    cancelDrag()
+end
 
-    local playerObj = getSpecificPlayer(self.playerNum)
-    if not playerObj then
-        cancelDrag()
-        return
-    end
-
+--- Usa um item no avatar (comer/beber/ler/tomar pílula) via o menu vanilla.
+--- Reutilizado pelo joypad (modo PaperDoll): o retângulo do avatar é um alvo
+--- navegável e, com um item arrastado, A ativa o "use".
+function AvatarUseDropZone.useItem(playerNum, item)
+    if not item then return false end
+    local playerObj = getSpecificPlayer(playerNum)
+    if not playerObj then return false end
     -- Quem decide se e como o item pode ser usado é o próprio vanilla
     -- (lata fechada, garrafa selada, comida crua, literatura vazia, etc).
-    local useOption = findVanillaUseOption(self.playerNum, item)
+    local useOption = findVanillaUseOption(playerNum, item)
     if useOption then
-        invokeVanillaUse(useOption, self.playerNum)
+        invokeVanillaUse(useOption, playerNum)
+        return true
     end
-
-    cancelDrag()
+    return false
 end
 
 return AvatarUseDropZone

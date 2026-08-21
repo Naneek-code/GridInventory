@@ -13,11 +13,11 @@ local GridReorder = require("Algorithm/GridReorder")
 local GridSandboxOptions = require("GridSandboxOptions")
 local GridInventory_BagDrop = require("System/GridInventory_BagDrop")
 local GridInventory_Search = require("System/GridInventory_Search")
+local GridJoypad = require("System/GridJoypad")
+local GridModOptions = require("System/GridModOptions")
 
 -- Ícone de item não identificado (busca Tarkov): interrogação nativa do PZ.
 local GridInventory_QuestionTex = getTexture("media/ui/foraging/questionMark.png")
-
-GridRender = ISPanel:derive("GridRender")
 
 -- Configurações visuais do nosso estilo "Tarkov"
 
@@ -25,6 +25,10 @@ GridRender = ISPanel:derive("GridRender")
 -- "presos" — não podem ser arrastados de novo até o timer da ação completar.
 -- Set global keyed por itemId (o ghost mora no grid ALVO; o item na origem).
 GridInventory_InTransit = GridInventory_InTransit or {}
+
+-- Auto-search: tabela persistente por container (playerNum:containerKey).
+-- Evita re-trigger quando o hash muda durante o search e os grids são recriados.
+_autoSearchDone = _autoSearchDone or {}
 
 local GridRender = ISPanel:derive("GridRender")
 
@@ -34,6 +38,10 @@ local ITEM_BG_HOT = {r=0.9, g=0.2, b=0.2, a=0.5}
 -- Clareamento de itens SELECIONADOS (multi-select): sutil, não estoura o
 -- contraste com o fundo escuro (antes era 0.3 e ficava claro demais).
 local SEL_BRIGHTEN = 0.15
+
+-- Buffer REUTILIZÁVEL dos ícones de status (drawItemStatusIcons): evita alocar
+-- uma tabela nova por item por frame. Reset com #active = 0 no início da função.
+local statusIconBuffer = {}
 
 -- A opção de "água tinta" é fixa por sessão: cacheia o valor para não buscar
 -- no SandboxOptions a cada item renderizado (getOptionByName é uma chamada Java).
@@ -200,7 +208,10 @@ function GridRender:drawItemStatusIcons(item, drawX, drawY, playerObj, hotbar)
     if not item then return end
 
     -- ── Coleta de condições ──────────────────────────────────────────────────
-    local active = {}
+    -- Buffer reutilizado (módulo) em vez de alocar {} por item por frame.
+    -- Lua 5.1 não permite #t = 0: limpa os elementos do array a cada chamada.
+    local active = statusIconBuffer
+    for i = #active, 1, -1 do active[i] = nil end
 
     -- Favorito
     if item.isFavorite and item:isFavorite() then
@@ -389,16 +400,14 @@ function GridRender:drawItemIconRotated(item, x, y, w, h, isRotated, r, g, b, a,
     local finalG = isCustomTint and g or baseG
     local finalB = isCustomTint and b or baseB
     
-    local renderTex = function(texToDraw, red, green, blue)
-        if not isRotated then
-            self.javaObject:DrawTexture(texToDraw, absX, absY, absX+drawW, absY, absX+drawW, absY+drawH, absX, absY+drawH, red, green, blue, a)
-        else
-            self.javaObject:DrawTexture(texToDraw, absX, absY+drawH, absX, absY, absX+drawW, absY, absX+drawW, absY+drawH, red, green, blue, a)
-        end
+    -- Textura Base (já vem com a sprite de queimado/podre graças ao getTex()).
+    -- Chamada DIRETA (não uma closure por item por frame): o renderTex antigo era
+    -- alocado uma vez por item e usado UMA única vez abaixo.
+    if not isRotated then
+        self.javaObject:DrawTexture(texture, absX, absY, absX+drawW, absY, absX+drawW, absY+drawH, absX, absY+drawH, finalR, finalG, finalB, a)
+    else
+        self.javaObject:DrawTexture(texture, absX, absY+drawH, absX, absY, absX+drawW, absY, absX+drawW, absY+drawH, finalR, finalG, finalB, a)
     end
-    
-    -- Textura Base (já vem com a sprite de queimado/podre graças ao getTex())
-    renderTex(texture, finalR, finalG, finalB)
     
     -- Fluid Mask (Sangue/Água Suja)
     if item.getTextureFluidMask and item:getTextureFluidMask() then
@@ -758,8 +767,8 @@ end
 --- Badge de contagem no canto inferior-direito da célula: mostra o TOTAL DE
 --- UNIDADES da pilha (getPileUnits — soma de getCount() de líder + membros).
 --- É a "capa" real do item: 100 pregos, 50 munição 9mm, 12 twines.
-function GridRender:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH)
-    local total = self.gridCore and self.gridCore:getPileUnits(itemId) or 1
+function GridRender:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH, total)
+    local total = total or (self.gridCore and self.gridCore:getPileUnits(itemId) or 1)
     local text = tostring(total)
     local textW = getTextManager():MeasureStringX(UIFont.Small, text)
     local bx = drawX + drawW - textW - 5
@@ -888,6 +897,12 @@ function GridRender:startSearch()
     local key = self:searchKey()
     if not key then return false end
 
+    -- Guard: não enfileira múltiplas ações de busca pro mesmo container.
+    -- Clique repetido enquanto a ação roda é ignorado (o que já foi revelado
+    -- fica salvo; o clique seguinte DEPOIS que a ação termina retoma o que
+    -- ainda está oculto).
+    if self._searchActive then return true end
+
     -- Torna o container o alvo ativo do painel (mesma lógica do duplo clique
     -- no fundo / clique no header).
     local pLoot = getPlayerLoot(self.playerNum)
@@ -912,11 +927,13 @@ function GridRender:startSearch()
     if msPer <= 0 then
         -- Instantâneo: revela tudo agora, sem timed action.
         GridInventory_Search.revealAll(self.playerNum, key, self.inventoryContainer:getItems())
+        self._searchActive = false
         return true
     end
 
     -- Retoma: a ação re-coleta só as pilhas ainda ocultas no construtor.
     local GridSearchAction = require("TimedActions/GridSearchAction")
+    self._searchActive = true
     ISTimedActionQueue.add(GridSearchAction:new(playerObj, self, key))
     return true
 end
@@ -961,13 +978,13 @@ function GridRender:render()
             text = invItem:getName()
             tex = invItem:getTexture()
         elseif self.inventoryContainer then
-            if self.inventoryContainer:getType() == "floor" then
+            local invType = self.inventoryContainer:getType()
+            if invType == "floor" then
                 text = getTextOrNull("IGUI_ContainerTitle_floor") or "Floor"
-            elseif self.inventoryContainer:getType() == "inventory" or self.inventoryContainer:getType() == "none" then
+            elseif invType == "inventory" or invType == "none" then
                 text = getTextOrNull("IGUI_InventoryTooltip") or "Inventory"
             else
-                local cType = self.inventoryContainer:getType()
-                text = getTextOrNull("IGUI_ContainerTitle_" .. tostring(cType)) or cType
+                text = getTextOrNull("IGUI_ContainerTitle_" .. tostring(invType)) or invType
             end
             tex = self.fallbackIcon
         end
@@ -975,7 +992,6 @@ function GridRender:render()
         -- No CHÃO as grids extras são janelas de chão REAIS (não overflow 1x1):
         -- o título continua "Floor" em todas, nunca "(Overflow)".
         local isFloorTitle = self.inventoryContainer
-            and self.inventoryContainer.getType
             and self.inventoryContainer:getType() == "floor"
         if self.gridIndex and self.gridIndex > 1 and not isFloorTitle then
             text = text .. " (Overflow)"
@@ -983,8 +999,11 @@ function GridRender:render()
         
         local textX = self.gridPadding + 5
         if tex then
-            self:drawTextureScaledAspect(tex, textX, self.gridPadding + 2, 20, 20, 1, 1, 1, 1)
-            textX = textX + 25
+            local texS = math.floor(20 * self.uiScale)
+            local centerY = self.gridPadding + ((self.headerH - 4) / 2)
+            local texYOffset = math.floor(centerY - (texS / 2))
+            self:drawTextureScaledAspect(tex, textX, texYOffset, texS, texS, 1, 1, 1, 1)
+            textX = textX + texS + 5
         end
 
         -- ── PESO: calcula o TEXTO e a COR antes de desenhar qualquer coisa,
@@ -1023,20 +1042,31 @@ function GridRender:render()
         end
 
         -- Reserva o espaço que o texto de peso vai ocupar de verdade (medido, não estimado)
+        local font = UIFont.Small
+        if self.uiScale >= 1.5 then
+            font = UIFont.Large
+        elseif self.uiScale >= 1.25 then
+            font = UIFont.Medium
+        end
+        
+        local centerY = self.gridPadding + ((self.headerH - 4) / 2)
+        local fontH = getTextManager():MeasureStringY(font, "A")
+        local textYOffset = math.floor(centerY - (fontH / 2))
+
         local weightReservedWidth = 0
         if weightStr then
-            weightReservedWidth = getTextManager():MeasureStringX(UIFont.Small, weightStr) + 10
+            weightReservedWidth = getTextManager():MeasureStringX(font, weightStr) + 10
         end
 
         -- ── NOME: agora que já sabemos quanto espaço sobra, trunca e desenha.
         local titleMaxWidth = (self.width - self.gridPadding - 5) - textX - weightReservedWidth
-        local displayText = truncateText(text, titleMaxWidth, UIFont.Small)
-        self:drawText(displayText, textX, self.gridPadding + 4, 0.9, 0.9, 0.9, 1, UIFont.Small)
+        local displayText = truncateText(text, titleMaxWidth, font)
+        self:drawText(displayText, textX, textYOffset, 0.9, 0.9, 0.9, 1, font)
 
         -- ── PESO: desenha por último, já com texto e cor prontos de antes.
         if weightStr then
             local rightX = self.width - self.gridPadding - 5
-            self:drawTextRight(weightStr, rightX, self.gridPadding + 4, weightR, weightG, weightB, 1, UIFont.Small)
+            self:drawTextRight(weightStr, rightX, textYOffset, weightR, weightG, weightB, 1, font)
         end
 
         -- ── BUSCA (Tarkov): aviso "Vasculhar (X)" no header enquanto houver
@@ -1290,8 +1320,26 @@ function GridRender:render()
                 -- empilhados: 100 pregos, 50 9mm, 12 twines). Cada objeto = 1
                 -- unidade (o B42 conta o objeto — o count do script é vestigial).
                 -- Mostra a partir de 2 unidades pra não poluir item solto.
-                if self.gridCore:getPileUnits(itemId) > 1 then
-                    self:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH)
+                local pileUnits = self.gridCore:getPileUnits(itemId)
+                -- Durante um drag SAINDO deste grid (peel do joypad/mouse), o
+                -- cache do gridCore ainda conta os membros em trânsito. Subtrai
+                -- eles pra o badge refletir o que AINDA está na pilha
+                -- (10 canecas, levantou 2 → badge mostra 8).
+                if GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid == self
+                    and GridInventory_GlobalDrag.itemsMap then
+                    local transit = 0
+                    for mId in pairs(GridInventory_GlobalDrag.itemsMap) do
+                        local mData = self.gridCore.items[mId]
+                        if mData and mData.stackMemberOf == itemId then
+                            transit = transit + 1
+                        end
+                    end
+                    if transit > 0 then
+                        pileUnits = pileUnits - transit
+                    end
+                end
+                if pileUnits > 1 then
+                    self:drawStackCountBadge(itemId, drawX, drawY, drawW, drawH, pileUnits)
                 end
 
                 -- FLASH de autoSlot: item recém-entrado SEM posição (autoSort/
@@ -1500,13 +1548,89 @@ function GridRender:render()
     -- "Meio apagada" = o conteúdo continua visível (só leitura), mas fica claro
     -- que o engine não deixa mexer (sem drag in/out, sem put-in, sem autoSlot).
     if locked then
-        self:drawRect(0, 0, self.width, self.height, 0.55, 0.05, 0.05, 0.05)
+        self:drawRect(0, 0, self.width, self.height, 0.55, 0.15, 0.15, 0.15)
         self:drawRectBorder(0, 0, self.width, self.height, 0.9, 1.0, 0.85, 0.3)
         self:drawTextCentre(getText("IGUI_LockedNestedBag") or "Locked", self.width/2, self.height/2 - 10, 1.0, 0.9, 0.6, 1, UIFont.Large)
     end
+
+    -- Cursor de joypad + prompts de botão (só quando este grid é o dono do
+    -- cursor e o painel tem foco do controle). Desenhado por ÚLTIMO: por cima
+    -- dos itens, do overlay de peso e do cadeado, pra nunca ficar escondido.
+    self:renderJoypadCursor()
 end
 
--- ============================================================================
+-- Cursor virtual do joypad: destaca o footprint do item sob o cursor e
+-- desenha uma moldura na célula do cursor (HUD contextual de controle).
+function GridRender:renderJoypadCursor()
+    if not GridJoypad.isCursorOn(self) then return end
+    local cursor = GridJoypad.cursors[self.playerNum]
+    if not cursor or not cursor.col or not cursor.row then return end
+
+    local col, row = cursor.col, cursor.row
+    local x = self.gridPadding + ((col - 1) * self.cellSize)
+    local y = self.gridPadding + (self.headerH or 0) + ((row - 1) * self.cellSize)
+
+    -- Footprint inteiro do item sob o cursor (se houver) — destaque verde.
+    -- Durante um DRAG de joypad NÃO destaca o item sob o cursor (não é seleção;
+    -- só o preview verde/vermelho + o ghost mostram onde o item segurado cai).
+    local onFootprint = false
+    local fp = nil
+    local id = nil
+    if not GridJoypad.isDragging(self.playerNum) then
+        id = self.gridCore.cells[col] and self.gridCore.cells[col][row]
+        if id then
+            local d = self.gridCore.items[id]
+            if d and d.itemObj and not d.stackMemberOf then
+                onFootprint = true
+                fp = d
+                local w = d.w * self.cellSize
+                local h = d.h * self.cellSize
+                local ix = self.gridPadding + ((d.x - 1) * self.cellSize)
+                local iy = self.gridPadding + (self.headerH or 0) + ((d.y - 1) * self.cellSize)
+                self:drawRect(ix, iy, w, h, 0.25, 1.0, 0.95, 0.35)
+                self:drawRectBorder(ix, iy, w, h, 1.0, 1.0, 0.95, 0.35)
+            end
+        end
+    end
+
+    -- Moldura da célula do cursor: SÓ quando não está sobre um footprint — o
+    -- item já mostra o destaque verde com borda; a moldura branca de 1 célula
+    -- ficava "cortando" os slots do footprint. Durante um DRAG de joypad a
+    -- moldura 1x1 também some — o preview verde/vermelho + o ghost mostram o
+    -- tamanho REAL do footprint segurado no cursor.
+    if not onFootprint and not GridJoypad.isDragging(self.playerNum) then
+        self:drawRectBorder(x, y, self.cellSize, self.cellSize, 0.9, 1.0, 1.0, 1.0)
+    end
+end
+
+-- Ícones de botão (A/B/X) logo abaixo da célula do cursor: o "o que cada
+-- botão faz" do grid. Y não é renderizado (só fecha o inventário). Usa as
+-- texturas nativas do jogo (Joypad.Texture.*).
+function GridRender:drawJoypadPrompts(cellX, cellY)
+    if not Joypad or not Joypad.Texture then return end
+    local buttons = {
+        Joypad.Texture.AButton,
+        Joypad.Texture.BButton,
+        Joypad.Texture.XButton,
+    }
+    local size = math.max(14, math.floor(self.cellSize * 0.5))
+    local gap = 3
+    local pad = 3
+    local n = #buttons
+    local totalW = n * size + (n - 1) * gap + pad * 2
+    local bx = cellX - pad
+    local by = cellY + self.cellSize + 3
+    -- Fundo escuro da "pill" (A/B/X/Y juntos, como o HUD do vanilla).
+    self:drawRect(bx, by, totalW, size + pad * 2, 0.7, 0, 0, 0)
+    self:drawRectBorder(bx, by, totalW, size + pad * 2, 0.8, 1, 1, 1)
+    for i, getter in ipairs(buttons) do
+        local tex = getter and getter.getTexture and getter:getTexture()
+        if tex then
+            local tx = bx + pad + (i - 1) * (size + gap)
+            self:drawTextureScaled(tex, tx, by + pad, size, size, 1, 1, 1, 1)
+        end
+    end
+end
 -- SISTEMA DE DRAG AND DROP E CONTEXT MENU
 -- ============================================================================
 
@@ -1538,13 +1662,24 @@ function GridRender:drawDropPreview()
     -- de posicionamento (verde/vermelho do item) cede lugar ao destaque verde da
     -- bolsa (drawPutInFeedback) — dois verdes competindo confundiriam. Se a bolsa
     -- NÃO aceita, o preview normal continua (o drop é de grid, não de put-in).
-    local bagAtPoint = GridInventory_BagDrop.bagAtPoint(self)
-    if bagAtPoint and GridInventory_BagDrop.canTransfer(bagAtPoint) then
-        return
+    -- Só no drag de MOUSE (o joypad usa o cursor virtual).
+    if not (GridInventory_GlobalDrag and GridInventory_GlobalDrag.joypad) then
+        local bagAtPoint = GridInventory_BagDrop.bagAtPoint(self)
+        if bagAtPoint and GridInventory_BagDrop.canTransfer(bagAtPoint) then
+            return
+        end
     end
 
-    local dropCol, dropRow = self:getGridCellAtMouse(self:getMouseX(), self:getMouseY())
-    if not dropCol or not dropRow then return end
+    local dropCol, dropRow
+    if GridInventory_GlobalDrag.joypad then
+        -- Drag de joypad: o preview segue o CURSOR virtual (só no grid dele).
+        local cursor = GridJoypad.cursors[self.playerNum]
+        if not cursor or cursor.grid ~= self or not cursor.col or not cursor.row then return end
+        dropCol, dropRow = cursor.col, cursor.row
+    else
+        dropCol, dropRow = self:getGridCellAtMouse(self:getMouseX(), self:getMouseY())
+        if not dropCol or not dropRow then return end
+    end
 
     -- Multi-drag real (itens em células de origem diferentes): sem footprint
     -- único e sem preview por célula — o drop limpa posições e o auto-sort do
@@ -1572,6 +1707,8 @@ function GridRender:drawDropPreview()
     if not anchorData or not anchorData.itemObj then return end
 
     local fw, fh = ItemFootprint.getSize(anchorData.itemObj)
+    -- Rotação = anchorData.rotated (rotação do grid, data.rotated). NÃO usar
+    -- itemObj:isRotated() — a grid rotaciona visualmente via data.rotated.
     local rotated = anchorData.rotated or false
     local effectiveW = rotated and (anchorData.originalH or fh) or (anchorData.originalW or fw)
     local effectiveH = rotated and (anchorData.originalW or fw) or (anchorData.originalH or fh)
@@ -1636,6 +1773,70 @@ function GridRender:isUnderCollapsedPage()
         end
         parent = parent.parent
     end
+    return false
+end
+
+function GridRender:executeModifierAction(actionId, itemId)
+    local itemData = self.gridCore and self.gridCore.items[itemId]
+    if not itemData then return false end
+    local itemObj = itemData.itemObj
+    local playerObj = getSpecificPlayer(self.playerNum)
+    if not itemObj or not playerObj then return false end
+
+    -- 1: Stack Picker / 2: Take One
+    -- Ambos preparam o "peel", o drag tira 1, o release abre o picker (se for ação 1)
+    if (actionId == 1 or actionId == 2) and self.gridCore:getStackSize(itemId) > 1 then
+        self.ctrlStackPeel = itemId
+        self.selectedItems = {}
+        return false -- false permite que o onMouseDown continue preparando o drag
+    end
+
+    -- 3: Quick Transfer
+    if actionId == 3 then
+        local isCharacter = self.inventoryContainer and self.inventoryContainer:isInCharacterInventory(playerObj)
+        -- Transfere a pilha inteira!
+        local itemsToTransfer = { itemObj }
+        if self.gridCore:isStackLeader(itemId) then
+            itemsToTransfer = {}
+            table.insert(itemsToTransfer, itemObj)
+            for _, mId in ipairs(self.gridCore:getStackMembers(itemId)) do
+                local mData = self.gridCore.items[mId]
+                if mData and mData.itemObj then table.insert(itemsToTransfer, mData.itemObj) end
+            end
+        end
+        
+        if isCharacter then
+            ISInventoryPaneContextMenu.onPutItems(itemsToTransfer, self.playerNum)
+        else
+            ISInventoryPaneContextMenu.onGrabItems(itemsToTransfer, self.playerNum)
+        end
+        self.selectedItems = {}
+        return true -- Consome o clique, aborta drag
+    end
+
+    -- 4: Drop to Floor
+    if actionId == 4 then
+        local itemsToDrop = { itemObj }
+        if self.gridCore:isStackLeader(itemId) then
+            itemsToDrop = {}
+            table.insert(itemsToDrop, itemObj)
+            for _, mId in ipairs(self.gridCore:getStackMembers(itemId)) do
+                local mData = self.gridCore.items[mId]
+                if mData and mData.itemObj then table.insert(itemsToDrop, mData.itemObj) end
+            end
+        end
+        ISInventoryPaneContextMenu.onDropItems(itemsToDrop, self.playerNum)
+        self.selectedItems = {}
+        return true
+    end
+
+    -- 5: Multi-Select
+    if actionId == 5 then
+        self.selectedItems[itemId] = not self.selectedItems[itemId]
+        return true
+    end
+
+    -- 6: Disabled
     return false
 end
 
@@ -1753,18 +1954,19 @@ function GridRender:onMouseDown(x, y)
         -- Ctrl num item EMPILHADO: marca o "peel". Sem arrasto (mouse-up) abre
         -- o STACK PICKER; com arrasto (Ctrl+drag) tira 1 item da pilha e inicia
         -- o drag com ele (maneira rápida de pegar 1 da pilha sem abrir painel).
-        if isCtrlKeyDown() and self.gridCore:getStackSize(itemId) > 1 then
-            self.ctrlStackPeel = itemId
-            self.lastManualClickTime = nil
-            self.lastManualClickItemId = nil
-            self.selectedItems = {}
+        local modifierAction = nil
+        if isAltKeyDown() then modifierAction = GridModOptions.getModifierAction("Alt")
+        elseif isCtrlKeyDown() then modifierAction = GridModOptions.getModifierAction("Ctrl")
+        elseif isShiftKeyDown() then modifierAction = GridModOptions.getModifierAction("Shift")
         end
 
-        if isShiftKeyDown() then
-            self.selectedItems[itemId] = not self.selectedItems[itemId]
-            self.lastManualClickTime = nil
-            self.lastManualClickItemId = nil
-            return -- Se tá segurando shift só marca/desmarca, não arrasta e não ativa duplo clique
+        if modifierAction then
+            local actionConsumed = self:executeModifierAction(modifierAction, itemId)
+            if actionConsumed then
+                self.lastManualClickTime = nil
+                self.lastManualClickItemId = nil
+                return
+            end
         end
 
         -- Lógica customizada de Double Click (ignora restrição severa de pixels do Java)
@@ -2143,6 +2345,10 @@ function GridRender:performGridReorder(targets)
 end
 
 function GridRender:onMouseUp(x, y)
+    if GridInventory_joypadDebug then
+        print("[GridJoypad] GridRender:onMouseUp x=", tostring(x), " y=", tostring(y),
+            " grid=", tostring(self.name or self.inventoryContainer))
+    end
     -- Painel colapsado: cancela QUALQUER drag em curso (evita item preso na
     -- mão) e não processa o drop.
     if self:isUnderCollapsedPage() then
@@ -2152,13 +2358,20 @@ function GridRender:onMouseUp(x, y)
         return
     end
 
-    -- Ctrl+CLIQUE (sem arrasto) num stack: abre o STACK PICKER. Se foi um
-    -- Ctrl+DRAG, o flag já foi consumido no onMouseMove (peel de 1 item).
+    -- Processa o Stack Picker se o cara soltou o clique sem ter arrastado (drag consome o peelId)
     if self.ctrlStackPeel and not GridInventory_GlobalDrag
         and not (ISMouseDrag.dragging and #ISMouseDrag.dragging > 0) then
         local peelId = self.ctrlStackPeel
         self.ctrlStackPeel = nil
-        if GridInventory_openStackPicker then
+        
+        -- Verifica qual ação era pra não abrir o Picker se a pessoa queria só o Take One (2)
+        local wasPicker = false
+        if isAltKeyDown() and GridModOptions.getModifierAction("Alt") == 1 then wasPicker = true
+        elseif isCtrlKeyDown() and GridModOptions.getModifierAction("Ctrl") == 1 then wasPicker = true
+        elseif isShiftKeyDown() and GridModOptions.getModifierAction("Shift") == 1 then wasPicker = true
+        end
+
+        if wasPicker and GridInventory_openStackPicker then
             GridInventory_openStackPicker(self.playerNum, self, peelId)
         end
         return
@@ -2168,8 +2381,9 @@ function GridRender:onMouseUp(x, y)
 
     -- PUT-IN: se soltou sobre uma bolsa (footprint) ou sobre o header de um
     -- grid, transfere ANTES do posicionamento normal — idempotente com os
-    -- caminhos de update()/prerender (o drag é zerado se transferir).
-    if GridInventory_GlobalDrag then
+    -- caminhos de update()/prerender (o drag é zerado se transferir). Só no
+    -- drag de MOUSE: o joypad usa a posição do cursor, não a do mouse.
+    if GridInventory_GlobalDrag and not GridInventory_GlobalDrag.joypad then
         if GridInventory_BagDrop.tryHandleMouseUp(self.playerNum) then
             return
         end
@@ -2285,6 +2499,13 @@ function GridRender:onMouseUp(x, y)
             -- uma vez com o movedSet de TODOS os itens arrastados (pilhas podem
             -- sobrepor a própria origem sem colidir com os membros em movimento).
             local targets = GridReorder.computeTargets(self.gridCore, itemsData, dropCol, dropRow)
+
+            if GridInventory_joypadDebug then
+                print("[GridJoypad] same-grid drop: joypad=", tostring(GridInventory_GlobalDrag and GridInventory_GlobalDrag.joypad),
+                    " col=", tostring(dropCol), " row=", tostring(dropRow),
+                    " targets=", tostring(targets ~= nil),
+                    " noop=", tostring(targets ~= nil and GridReorder.isNoOp(self.gridCore, targets)))
+            end
 
             if targets then
                 -- Drop na própria posição (no-op): consome o drop sem animação,
@@ -2774,6 +2995,29 @@ function GridRender:onRightMouseUp(x, y)
         if col and row then
             local itemId = self.gridCore.cells[col][row]
             if itemId then
+                local modifierAction = nil
+                if isAltKeyDown() then modifierAction = GridModOptions.getModifierAction("RightAlt")
+                elseif isCtrlKeyDown() then modifierAction = GridModOptions.getModifierAction("RightCtrl")
+                elseif isShiftKeyDown() then modifierAction = GridModOptions.getModifierAction("RightShift")
+                end
+
+                if modifierAction and modifierAction ~= 6 then
+                    -- 2 é Take One (que não faz sentido no right click pois não tem arrasto). Se for 2, ignoramos.
+                    if modifierAction == 2 then
+                        modifierAction = 6
+                    end
+                    
+                    if modifierAction == 1 then
+                        if GridInventory_openStackPicker and self.gridCore:getStackSize(itemId) > 1 then
+                            GridInventory_openStackPicker(self.playerNum, self, itemId)
+                        end
+                        return
+                    end
+                    
+                    local actionConsumed = self:executeModifierAction(modifierAction, itemId)
+                    if actionConsumed then return end
+                end
+
                 local itemData = self.gridCore.items[itemId]
                 if itemData and itemData.itemObj then
                     local inv = itemData.itemObj:getContainer()
@@ -2800,9 +3044,16 @@ function GridRender:destroy()
 end
 
 function GridRender:updateTooltip()
+    -- Cursor de joypad: o tooltip segue o cursor virtual (não o mouse).
+    local joyCursor = GridJoypad.isCursorOn(self)
+    -- Com o cursor virtual VISÍVEL, o tooltip do MOUSE é suprimido em todos os
+    -- grids — só o grid do cursor mostra tooltip (na posição da célula). Senão
+    -- o grid sob o mouse real criava/sobrepunha um tooltip na posição do mouse.
+    local joypadActive = GridJoypad.isCursorVisible(self.playerNum)
+
     -- Checa se o mouse está sobre esse grid E sobre o painel pai (para evitar tooltips quando scrollar o grid pra fora da view)
-    local isOver = self:isMouseOver()
-    if isOver and self.parent and not self.parent:isMouseOver() then
+    local isOver = joyCursor or (not joypadActive and self:isMouseOver())
+    if not joyCursor and isOver and self.parent and not self.parent:isMouseOver() then
         isOver = false
     end
     
@@ -2815,9 +3066,38 @@ function GridRender:updateTooltip()
         return
     end
     
-    local mx = self:getMouseX()
-    local my = self:getMouseY()
-    local col, row = self:getGridCellAtMouse(mx, my)
+    local col, row
+    local tx, ty
+    if joyCursor then
+        local cursor = GridJoypad.cursors[self.playerNum]
+        if cursor then
+            col, row = cursor.col, cursor.row
+            -- Posição do tooltip: canto INFERIOR DIREITO do footprint do item
+            -- sob o cursor — longe dos botões A/B/X/Y (que ficam abaixo da
+            -- célula do cursor) e padronizada pro tamanho do item. Sem item,
+            -- usa a própria célula do cursor.
+            local d = nil
+            if self.gridCore and self.gridCore.cells and self.gridCore.cells[col] then
+                local fid = self.gridCore.cells[col][row]
+                if fid then d = self.gridCore.items[fid] end
+            end
+            if d and d.itemObj and not d.stackMemberOf and d.x and d.y and d.w and d.h then
+                -- Canto inferior DIREITO do footprint: a borda DIREITA do item é
+                -- (d.x+d.w-1)*cellSize e a borda inferior (d.y+d.h-1)*cellSize —
+                -- o tooltip encosta no canto, sem 1 slot de folga (antes usava
+                -- d.x+d.w, que fica uma célula além).
+                tx = self:getAbsoluteX() + self.gridPadding + ((d.x + d.w - 1) * self.cellSize)
+                ty = self:getAbsoluteY() + self.gridPadding + (self.headerH or 0) + ((d.y + d.h - 1) * self.cellSize)
+            else
+                tx = self:getAbsoluteX() + self.gridPadding + ((col - 1) * self.cellSize)
+                ty = self:getAbsoluteY() + self.gridPadding + (self.headerH or 0) + ((row - 1) * self.cellSize)
+            end
+        end
+    else
+        local mx = self:getMouseX()
+        local my = self:getMouseY()
+        col, row = self:getGridCellAtMouse(mx, my)
+    end
     
     local hoveredItem = nil
     if col and row and self.gridCore and self.gridCore.cells then
@@ -2850,17 +3130,25 @@ function GridRender:updateTooltip()
         self.toolRender:setVisible(true)
         self.toolRender:bringToTop()
         
-        local gmx = getMouseX()
-        local gmy = getMouseY()
-        
-        local tx = gmx + 15
-        local ty = gmy + 15
+        if not joyCursor then
+            -- Mouse: o tooltip segue o mouse (followMouse default).
+            self.toolRender.followMouse = true
+            local gmx = getMouseX()
+            local gmy = getMouseY()
+            tx = gmx + 15
+            ty = gmy + 15
+        else
+            -- Cursor virtual: desliga o followMouse — o ISToolTipInv:render
+            -- reposicionaria no mouse todo frame; com followMouse=false ele
+            -- respeita o setX/setY abaixo (posição da célula do cursor).
+            self.toolRender.followMouse = false
+        end
         
         if self.toolRender.width and (tx + self.toolRender.width > getCore():getScreenWidth()) then
-            tx = gmx - self.toolRender.width - 15
+            tx = tx - self.toolRender.width - 15
         end
         if self.toolRender.height and (ty + self.toolRender.height > getCore():getScreenHeight()) then
-            ty = gmy - self.toolRender.height - 15
+            ty = ty - self.toolRender.height - 15
         end
         
         self.toolRender:setX(tx)
@@ -2877,6 +3165,34 @@ end
 function GridRender:update()
     ISPanel.update(self)
     self:updateTooltip()
+
+    -- Auto-Search edge-trigger: só ativa quando o container ACABA de se tornar o alvo ativo.
+    -- Usa tabela global por container (sobrevive rebuilds dos grids — o hash muda
+    -- a cada frame de search, o que recria as instâncias GridRender).
+    local autoSearchKey = tostring(self.playerNum) .. ":" .. tostring(self:searchKey())
+
+    local isTargetActive = false
+    if not self:isUnderCollapsedPage() and self:isVisible() and self.parent:isVisible() then
+        local pLoot = getPlayerLoot(self.playerNum)
+        local pInv = getPlayerInventory(self.playerNum)
+        local pLootVis = pLoot and pLoot:getIsVisible()
+        local pInvVis = pInv and pInv:getIsVisible()
+        if (pLootVis and pLoot.inventory == self.inventoryContainer) or (pInvVis and pInv.inventory == self.inventoryContainer) then
+            isTargetActive = true
+        end
+    end
+
+    if isTargetActive then
+        if not _autoSearchDone[autoSearchKey] then
+            _autoSearchDone[autoSearchKey] = true
+            if GridModOptions.cache.autoSearch and self:needsSearch() and not self._searchActive then
+                self:startSearch()
+            end
+        end
+    else
+        -- Container não é mais ativo: limpa pra poder re-trigger se voltar
+        _autoSearchDone[autoSearchKey] = nil
+    end
 
     -- Itens com ação de transferência na fila (pra safe-guard de ghost).
     local q = ISTimedActionQueue.getTimedActionQueue(getSpecificPlayer(self.playerNum))
@@ -2979,6 +3295,13 @@ function GridRender:update()
                     local sourceGrid = GridContainer.getOrCreate(item:getContainer(), self.playerNum)
                     sourceGrid:refresh()
                 end
+                -- Item ENTREGUE ao destino (saiu da origem): o grid do destino
+                -- precisa re-renderizar agora — senão o item recém-chegado (ex.:
+                -- de dentro de uma bolsa no porta-malas) só aparece no próximo
+                -- refresh forçado (re-selecionar o container).
+                if movedAway and item and item.getContainer and GridClientNetwork then
+                    GridClientNetwork.markGridChanged(item:getContainer(), self.playerNum)
+                end
                 if ghosts and ghosts[itemId] then
                     self.gridCore:removeGhostItem(itemId)
                 end
@@ -2987,8 +3310,12 @@ function GridRender:update()
         end
     end
 
-    -- Se o mouse foi solto (em qualquer lugar da tela)
-    if GridInventory_GlobalDrag and GridInventory_GlobalDrag.sourceGrid == self and not isMouseButtonDown(0) then
+    -- Se o mouse foi solto (em qualquer lugar da tela) — SÓ pro drag de MOUSE.
+    -- O drag de JOYPAD não usa o mouse: `isMouseButtonDown(0)` é sempre falso,
+    -- então este bloco LIMPARIA o drag todo frame (o preview verde piscava 1
+    -- frame e o item "caía" — o drag de joypad tem o próprio ciclo A/B).
+    if GridInventory_GlobalDrag and not GridInventory_GlobalDrag.joypad
+        and GridInventory_GlobalDrag.sourceGrid == self and not isMouseButtonDown(0) then
         -- Drop em cima de uma bolsa (caminho próprio do mod): transfere pra
         -- dentro da bolsa e limpa. Idempotente com o vanilla: se o
         -- dropItemsInContainer já transferiu, o GridInventory_GlobalDrag já

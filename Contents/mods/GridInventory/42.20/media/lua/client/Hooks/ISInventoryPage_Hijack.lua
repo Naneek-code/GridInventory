@@ -3,6 +3,7 @@ local PaperDollWindow = require("UI/PaperDoll/PaperDollWindow")
 local GlobalDragRender = require("UI/GridRender/GlobalDragRender")
 local GridModOptions = require("System/GridModOptions")
 local GridInventory_Search = require("System/GridInventory_Search")
+local GridJoypad = require("System/GridJoypad")
 
 -- Precisamos manter uma referência global para o PaperDoll
 GridInventory_PaperDollWindow = GridInventory_PaperDollWindow or {}
@@ -44,6 +45,16 @@ function ISInventoryPage:createChildren()
     end
 
     if self.onCharacter then
+        -- Destrói o PaperDoll anterior (se existir) antes de criar um novo.
+        -- Quando o vanilla recria as janelas (joypad connect, resolution change),
+        -- createChildren roda de novo e o PaperDoll antigo ficaria como "fantasma"
+        -- na UIManager sem referência válida pro inv destruído.
+        local oldPD = GridInventory_PaperDollWindow[self.player]
+        if oldPD then
+            oldPD:removeFromUIManager()
+            GridInventory_PaperDollWindow[self.player] = nil
+        end
+
         -- Largura do PaperDoll acompanha o UI Scale (slots laterais maiores).
         local uiScale = GridInventory_uiScale or 100
         local scale = uiScale / 100
@@ -65,7 +76,7 @@ local CONTROLS_PAD = 1
 
 local og_update = ISInventoryPage.update
 function ISInventoryPage:update()
-    -- Roda o Zomboid (e o maldito CleanUI) primeiro!
+    -- Roda o Zomboid primeiro!
     og_update(self)
 
     -- OTIMIZAÇÃO DE FPS: o UIManager chama update() em TODO elemento todo
@@ -84,6 +95,14 @@ function ISInventoryPage:update()
     -- itens a cada consulta do render E em vez de G vezes (uma por grid) como
     -- acontecia quando cada GridRender:update chamava beginFrame().
     GridInventory_Search.beginFrame()
+
+    -- Joypad: só o pollNav gerencia o modo navegação do bumper segurado (o
+    -- update do painel focado cuida do ciclo). O analógico NÃO move o cursor.
+    if JoypadState and JoypadState.players and JoypadState.players[self.player + 1] then
+        GridJoypad.pollNav(self.player, self)
+        -- Resolve tap vs hold do A sobre pilha (peel de 1 vs pilha inteira).
+        GridJoypad.pollA(self.player, self)
+    end
 
     -- Coalesce do onInventoryUpdate: o refreshContainer (remap de todos os
     -- containers) roda no maximo 1x por frame e apenas com o painel visivel.
@@ -187,13 +206,15 @@ function ISInventoryPage:update()
         -- No modo resize o painel é uma janela nativa e pode ser MOVIDA pela
         -- titlebar (o onMouseDown restaura o moving); não forçamos o X.
         if isFullscreen then
-            self:setX(0)
+            self:setX(GridModOptions.isPaperDollLeft() and paperDollW or 0)
         end
         
         -- Inventário do Jogador: Grid na ESQUERDA (borda), Mochilas na DIREITA (centro)
         if self.containerButtonPanel then
+            local titleH = self:titleBarHeight()
+            local resizeH = self.resizeWidget and self.resizeWidget.height or 0
             self.containerButtonPanel:setX(panelW - self.buttonSize)
-            self.containerButtonPanel:setHeight(self.height)
+            self.containerButtonPanel:setHeight(self.height - titleH - resizeH)
         end
         if self.inventoryPane then
             self.inventoryPane:setX(0)
@@ -215,8 +236,10 @@ function ISInventoryPage:update()
         
         -- Loot: Mochilas na ESQUERDA (centro), Grid na DIREITA (borda)
         if self.containerButtonPanel then
+            local titleH = self:titleBarHeight()
+            local resizeH = self.resizeWidget and self.resizeWidget.height or 0
             self.containerButtonPanel:setX(0)
-            self.containerButtonPanel:setHeight(self.height)
+            self.containerButtonPanel:setHeight(self.height - titleH - resizeH)
         end
         if self.inventoryPane then
             self.inventoryPane:setX(self.buttonSize)
@@ -224,42 +247,17 @@ function ISInventoryPage:update()
         end
     end
     
-    -- Ajuste da Title Bar (Mover botões pro canto direito, descontando o painel de mochilas se ele estiver na direita)
-    -- Nativamente o Zomboid espera os botões acima das mochilas na direita.
-    local btnOffset = self.width
-    if self.onCharacter then
-        -- No inventário do player, as mochilas ficam na direita, vamos recuar os botões pra não esmagar com o peso
-        btnOffset = self.width - self.buttonSize - 5
-    end
-    
-    if self.closeButton then
-        self.closeButton:setX(btnOffset - 3 - 21)
-    end
+    -- (O autor original do mod movia os botões da titlebar. A pedido do usuário,
+    -- foi removido para restaurar o comportamento 100% nativo)
     if self.infoButton then
         self.infoButton:setVisible(false)
     end
-    -- Pin/Collapse: no fullscreen ficam ocultos (painel fixo e sempre aberto).
-    -- No resize restauramos o comportamento nativo (vanilla): o pinButton
-    -- (visível quando NÃO pinado) trava a janela aberta; o collapseButton
-    -- (visível quando pinado) destrava — e aí a janela auto-colapsa pra
-    -- titlebar quando o mouse sai, expandindo ao passar o mouse na titlebar.
     if isFullscreen then
         if self.pinButton then self.pinButton:setVisible(false) end
         if self.collapseButton then self.collapseButton:setVisible(false) end
     else
         if self.pinButton then self.pinButton:setVisible(not self.pin) end
         if self.collapseButton then self.collapseButton:setVisible(self.pin) end
-        -- Pin/Collapse à ESQUERDA do botão de fechar (no loot o close fica no
-        -- canto e, sem isso, os dois ocupariam o MESMO lugar na titlebar).
-        local closeX = self.closeButton and self.closeButton:getX() or (btnOffset - 24)
-        if self.pinButton then
-            self.pinButton:setX(closeX - self.pinButton:getWidth() - 2)
-            self.pinButton:setY(1)
-        end
-        if self.collapseButton then
-            self.collapseButton:setX(closeX - self.collapseButton:getWidth() - 2)
-            self.collapseButton:setY(1)
-        end
     end
 
     -- O SEGREDO DE TUDO:
@@ -317,7 +315,13 @@ function ISInventoryPage:update()
                 end
             end
         end
+        -- No CONTROLE não dá pra clicar nos botões (Take All etc.) — não
+        -- reserva o rodapé e o grid mantém a altura de conteúdo (sem "crescer"
+        -- como se os botões existissem).
+        local usingJoypad = JoypadState and JoypadState.players
+            and JoypadState.players[self.player + 1] ~= nil
         local hasButtons = (gridUi and self.controlsUI.controls and #self.controlsUI.controls > 0)
+            and not usingJoypad
         local footerH = 0
         if hasButtons then
             footerH = math.max(24, (self.controlsUI:getHeight() or 0) + (CONTROLS_PAD * 2))
@@ -663,7 +667,13 @@ end
 local og_setVisible = ISInventoryPage.setVisible
 function ISInventoryPage:setVisible(visible)
     og_setVisible(self, visible)
-    
+
+    -- Fechou o inventário: cancela o drag de joypad (o item preso no cursor
+    -- volta pra origem — ele nunca saiu do container durante o drag).
+    if not visible and GridJoypad.isDragging(self.player) then
+        GridJoypad.cancelDrag(self.player)
+    end
+
     if visible then
         self:bringToTop()
     end
@@ -715,11 +725,17 @@ end
 
 local og_pagePrerender = ISInventoryPage.prerender
 function ISInventoryPage:prerender()
+    local opacity = GridInventory_PanelOpacity or 0.9
+    -- Oculte o fundo nativo ANTES de chamar o vanilla para impedir que ele
+    -- desenhe um fundo repetido no lado direito (bug do Zomboid vanilla)
+    -- que causava a coluna do Inv (direita) ficar mais escura que a do Loot (esquerda)
+    local ogAlpha = self.backgroundColor.a
+    if GridInventory_PanelOpacity ~= nil then
+        self.backgroundColor.a = 0
+    end
+    
     local oldTitle = self.title
     
-    -- No modo fullscreen ocultamos APENAS o título para que a classe pai não
-    -- desenhe o nome do container; no modo resize o título nativo é restaurado
-    -- (só o PaperDoll ficaria com o nome "Equipment", o que fica estranho).
     if GridModOptions.isFullscreenPanel() then
         self.title = ""
     end
@@ -728,35 +744,53 @@ function ISInventoryPage:prerender()
     
     self.title = oldTitle
     
-    -- Quando colapsado (modo resize, pin destravado) desenhamos só a titlebar:
-    -- o fundo escuro e a coluna de mochilas não são desenhados pra não sobrar
-    -- "fantasma" do corpo do painel.
+    -- Sobrescreve o fundo "branco/cinza" (0.7, 0.7, 0.7) que o Vanilla aplica na bolsa ativa
+    if not self.blinkContainer and self.backpacks then
+        for _, btn in ipairs(self.backpacks) do
+            if btn.backgroundColor then
+                if btn.inventory == self.inventoryPane.inventory then
+                    btn.backgroundColor.r = 1.0
+                    btn.backgroundColor.g = 0.9
+                    btn.backgroundColor.b = 0.3
+                    btn.backgroundColor.a = 0.35
+                else
+                    btn.backgroundColor.a = 0
+                end
+            end
+        end
+    end
+    
+    -- Restaura o alpha original para manter o estado consistente no objeto (caso algo mais precise)
+    self.backgroundColor.a = ogAlpha
+    
     local collapsed = self.isCollapsed
     local w = self:getWidth()
     local h = self:getHeight()
     local titleH = self:titleBarHeight()
     
     if not collapsed then
-        -- Desenha um fundo sólido escuro (estilo Tarkov/Zomboid) em TODO o painel!
-        -- Reduzi a opacidade de 0.85 para 0.65 para que o jogador consiga ver os zumbis!
-        self:drawRect(0, titleH, w, h - titleH, 0.65, 0.08, 0.08, 0.08)
-        self:drawRectBorder(0, titleH, w, h - titleH, 0.5, 0.5, 0.5, 0.5)
+        -- Fundo unificado do painel usando as exatas cores que o PaperDoll usa (a base do Zomboid).
+        -- Como desativamos o desenho duplo do vanilla (self.backgroundColor.a = 0 acima),
+        -- este é o ÚNICO background renderizado no painel, garantindo paridade perfeita 1:1.
+        self:drawRect(0, titleH, w, h - titleH, opacity, self.backgroundColor.r, self.backgroundColor.g, self.backgroundColor.b)
     end
     
-    -- (Bordas dos botões suspensas a pedido do usuário devido a spam de erros no console)
-    
-    -- Restaura a borda bonitinha exclusiva da coluna de mochilas
-    -- E também mantemos um fundo mais opaco (0.85) só pra essa coluna,
-    -- garantindo que os botões não fiquem confusos com o chão!
+    -- A coluna de mochilas não precisa de um segundo fundo hardcoded agora! 
+    -- Como o fundo unificado acima cobre de X=0 a X=Width, ele já preenche a área da coluna
+    -- tanto se ela estiver na direita (Inv) quanto na esquerda (Loot). 
+    -- Mas se a coluna VAZA para fora ou quisermos a bordinha bonitinha de volta:
     if self.containerButtonPanel and not collapsed then
         local bx = self.containerButtonPanel:getX()
         local by = self.containerButtonPanel:getY()
         local bw = self.containerButtonPanel:getWidth()
         local bh = self.containerButtonPanel:getHeight()
         
-        -- Fundo mais forte pra coluna das mochilas
-        self:drawRect(bx, by, bw, bh, 0.85, 0.08, 0.08, 0.08)
-        self:drawRectBorder(bx, by, bw, bh, 0.5, 0.5, 0.5, 0.5)
+        -- Adiciona uma camada extra de preto escalando com a opacidade para dar profundidade
+        local extraAlpha = opacity * 0.5
+        self:drawRect(bx, by, bw, bh, extraAlpha, 0.15, 0.15, 0.15)
+        
+        local borderAlpha = opacity > 0 and 0.5 or 0
+        self:drawRectBorder(bx, by, bw, bh, borderAlpha, 0.5, 0.5, 0.5)
     end
 end
 
@@ -764,11 +798,15 @@ end
 -- que o vanilla desenhava no rodapé (agora a controlsUI vive dentro do pane,
 -- no grid ativo). Redesenha apenas a borda externa do painel.
 local og_pageRender = ISInventoryPage.render
+-- Closure única compartilhada: não alocar uma nova closure a cada frame do
+-- render (mesmo padrão do ISInventoryPane:render). Suprime o drawRectBorder/
+-- drawTextureScaled do vanilla durante o og_pageRender.
+local function noop() end
 function ISInventoryPage:render()
     local ogDRB = self.drawRectBorder
     local ogDTS = self.drawTextureScaled
-    self.drawRectBorder = function() end
-    self.drawTextureScaled = function() end
+    self.drawRectBorder = noop
+    self.drawTextureScaled = noop
     og_pageRender(self)
     self.drawRectBorder = ogDRB
     self.drawTextureScaled = ogDTS
@@ -783,9 +821,121 @@ function ISInventoryPage:render()
         self.borderColor.a, self.borderColor.r, self.borderColor.g, self.borderColor.b)
     -- Modo resize: redesenha o grip de redimensionar (o vanilla o desenha via
     -- drawTextureScaled, que suprimimos acima no og_pageRender).
-    if not GridModOptions.isFullscreenPanel() and not self.isCollapsed and self.resizeimage then
-        local rh = (BUTTON_HGT or 34) / 2 + 2
-        self:drawTextureScaled(self.resizeimage, self:getWidth() - rh + 1, self:getHeight() - rh + 1, rh - 2, rh - 2, 1, 1, 1, 1)
+    if not self.isCollapsed then
+        local rwH = self.resizeWidget and self.resizeWidget.height or 0
+        if rwH > 0 then
+            local footerY = self:getHeight() - rwH
+            local opacity = GridInventory_PanelOpacity or 0.9
+            local extraAlpha = opacity * 0.4
+            local borderAlpha = opacity > 0 and 0.5 or 0
+            
+            -- Desenha o fundo escurecido pro rodapé fantasma
+            self:drawRect(0, footerY, self:getWidth(), rwH, extraAlpha, 0.15, 0.15, 0.15)
+            -- Borda superior do rodapé (separando do grid)
+            self:drawRectBorder(0, footerY, self:getWidth(), rwH, borderAlpha, 0.5, 0.5, 0.5)
+        end
+        
+        -- Grip de redimensionamento
+        if not GridModOptions.isFullscreenPanel() and self.resizeimage then
+            local rh = rwH
+            if rh > 0 then
+                self:drawTextureScaled(self.resizeimage, self:getWidth() - rh + 1, self:getHeight() - rh + 1, rh - 2, rh - 2, 1, 1, 1, 1)
+            end
+        end
+    end
+    -- Overlay do modo navegação (RB segurado): o Lua render da página roda
+    -- DEPOIS dos filhos (verificamos no bytecode do UIElement.render), então
+    -- os ícones D-pad e o destaque ficam por cima dos grids/pane.
+    GridJoypad.renderNavOverlay(self)
+    
+    -- Drag & Drop de containers (mochilas)
+    if self.GridInventory_DragContainer then
+        local panel = self.containerButtonPanel
+        if panel then
+            local mouseY = panel:getMouseY()
+            
+            if not self.GridInventory_IsDragging then
+                local startY = self.GridInventory_DragStartY or 0
+                if math.abs(mouseY - startY) > 5 then
+                    self.GridInventory_IsDragging = true
+                end
+            end
+            
+            if not isMouseButtonDown(0) then
+                local dragBtn = self.GridInventory_DragContainer
+                local wasDragging = self.GridInventory_IsDragging
+                
+                self.GridInventory_DragContainer = nil
+                self.GridInventory_IsDragging = false
+                
+                if wasDragging and dragBtn.parent == panel then
+                    local buttonSize = self.buttonSize or 32
+                    local rawIndex = math.floor(mouseY / buttonSize) + 1
+                    if rawIndex < 2 then rawIndex = 2 end
+                    
+                    local tempList = {}
+                    for i = 2, #self.backpacks do
+                        if self.backpacks[i] ~= dragBtn then
+                            table.insert(tempList, self.backpacks[i])
+                        end
+                    end
+                    table.sort(tempList, function(a, b)
+                        return (a.y or 0) < (b.y or 0)
+                    end)
+                    
+                    local insertIndex = rawIndex - 1
+                    if insertIndex > #tempList + 1 then insertIndex = #tempList + 1 end
+                    if insertIndex < 1 then insertIndex = 1 end
+                    
+                    table.insert(tempList, insertIndex, dragBtn)
+                    
+                    local str = ""
+                    for i, b in ipairs(tempList) do
+                        local id = ""
+                        if b.inventory then
+                            local item = b.inventory:getContainingItem()
+                            if item then
+                                local iID = item:getID()
+                                if iID and iID ~= -1 and iID ~= 0 then
+                                    id = tostring(iID)
+                                else
+                                    id = item:getFullType() or ""
+                                end
+                            else
+                                id = b.name or ""
+                            end
+                        end
+                        if id ~= "" then
+                            str = str .. id .. ":" .. tostring(i) .. ","
+                        end
+                    end
+                    
+                    local modData = getSpecificPlayer(self.player):getModData()
+                    modData.GridInventory_ContainerOrderStr = str
+                    
+                    self:refreshBackpacks()
+                end
+            elseif self.GridInventory_IsDragging then
+                -- Desenhando a linha indicadora
+                local buttonSize = self.buttonSize or 32
+                local rawIndex = math.floor(mouseY / buttonSize)
+                if rawIndex < 1 then rawIndex = 1 end
+                if rawIndex > #self.backpacks then rawIndex = #self.backpacks end
+                
+                local yScroll = panel:getYScroll() or 0
+                local lineY = panel:getY() + yScroll + (rawIndex * buttonSize)
+                local lineX = panel:getX()
+                local lineW = panel:getWidth()
+                
+                self:drawRect(lineX, lineY - 2, lineW, 4, 0.8, 1.0, 1.0, 0.0)
+                self:drawRectBorder(lineX, lineY - 2, lineW, 4, 1.0, 0.0, 0.0, 0.0)
+            end
+        else
+            if not isMouseButtonDown(0) then
+                self.GridInventory_DragContainer = nil
+                self.GridInventory_IsDragging = false
+            end
+        end
     end
 end
 
@@ -951,7 +1101,73 @@ end
 --- Troca o container selecionado usando o scroll (mesma lógica do vanilla
 --- quando o mouse está sobre a coluna de mochilas/ícones). Também é chamado
 --- pelo ISInventoryPane:onMouseWheel quando o scroll rola FORA de um grid.
+-- Sincroniza a navegação vanilla (Joypad LB/RB) com a ordem visual
+local og_selectNextContainer = ISInventoryPage.selectNextContainer
+function ISInventoryPage:selectNextContainer()
+    if not self.backpacks or #self.backpacks == 0 then return end
+    local originalOrder = {}
+    for i, button in ipairs(self.backpacks) do originalOrder[i] = button end
+    table.sort(self.backpacks, function(a, b) return (a.y or 0) < (b.y or 0) end)
+
+    local currentIndex = self:getCurrentBackpackIndex()
+    local unlockedIndex = self:nextUnlockedContainer(currentIndex, true)
+    
+    local selectedBtn = nil
+    if unlockedIndex ~= -1 then selectedBtn = self.backpacks[unlockedIndex] end
+
+    for i, button in ipairs(originalOrder) do self.backpacks[i] = button end
+
+    if selectedBtn then
+        for i, b in ipairs(self.backpacks) do
+            if b == selectedBtn then
+                self.backpackChoice = i
+                break
+            end
+        end
+        self:selectContainer(selectedBtn)
+    end
+end
+
+local og_selectPrevContainer = ISInventoryPage.selectPrevContainer
+function ISInventoryPage:selectPrevContainer()
+    if not self.backpacks or #self.backpacks == 0 then return end
+    local originalOrder = {}
+    for i, button in ipairs(self.backpacks) do originalOrder[i] = button end
+    table.sort(self.backpacks, function(a, b) return (a.y or 0) < (b.y or 0) end)
+
+    local currentIndex = self:getCurrentBackpackIndex()
+    local unlockedIndex = self:prevUnlockedContainer(currentIndex, true)
+    
+    local selectedBtn = nil
+    if unlockedIndex ~= -1 then selectedBtn = self.backpacks[unlockedIndex] end
+
+    for i, button in ipairs(originalOrder) do self.backpacks[i] = button end
+
+    if selectedBtn then
+        for i, b in ipairs(self.backpacks) do
+            if b == selectedBtn then
+                self.backpackChoice = i
+                break
+            end
+        end
+        self:selectContainer(selectedBtn)
+    end
+end
+
 function ISInventoryPage:cycleContainer(del)
+    if not self.backpacks or #self.backpacks == 0 then return true end
+
+    -- Snapshot the original array order
+    local originalOrder = {}
+    for i, button in ipairs(self.backpacks) do
+        originalOrder[i] = button
+    end
+
+    -- Temporarily sort by visual Y position so scrolling feels natural
+    table.sort(self.backpacks, function(a, b)
+        return (a.y or 0) < (b.y or 0)
+    end)
+
     local currentIndex = self:getCurrentBackpackIndex()
     local unlockedIndex = -1
 
@@ -966,12 +1182,27 @@ function ISInventoryPage:cycleContainer(del)
         unlockedIndex = self:nextUnlockedContainer(currentIndex, wrap)
     end
 
+    local selectedBtn = nil
     if unlockedIndex ~= -1 then
+        selectedBtn = self.backpacks[unlockedIndex]
+    end
+
+    -- Restore the original array order IMMEDIATELY to prevent GridInventory hashes from breaking
+    for i, button in ipairs(originalOrder) do
+        self.backpacks[i] = button
+    end
+
+    if selectedBtn then
         local playerObj = getSpecificPlayer(self.player)
         if playerObj and playerObj:getJoypadBind() ~= -1 then
-            self.backpackChoice = unlockedIndex
+            for i, b in ipairs(self.backpacks) do
+                if b == selectedBtn then
+                    self.backpackChoice = i
+                    break
+                end
+            end
         end
-        self:selectContainer(self.backpacks[unlockedIndex])
+        self:selectContainer(selectedBtn)
     end
     return true
 end
@@ -998,6 +1229,8 @@ function ISInventoryPage:selectContainer(button)
     if self.inventoryPane and self.inventoryPane.gridRefreshDirty ~= nil then
         self.inventoryPane.gridRefreshDirty = true
     end
+    -- Cursor do joypad acompanha o container ativo (mochila clicada, etc).
+    GridJoypad.reanchorToActive(self.player, self)
 end
 
 local og_pageSetNewContainer = ISInventoryPage.setNewContainer
@@ -1006,6 +1239,7 @@ function ISInventoryPage:setNewContainer(inventory)
     if self.inventoryPane and self.inventoryPane.gridRefreshDirty ~= nil then
         self.inventoryPane.gridRefreshDirty = true
     end
+    GridJoypad.reanchorToActive(self.player, self)
 end
 
 -- HEIGHT FIX (respirar do painel): o vanilla refreshBackpacks termina com
@@ -1016,11 +1250,87 @@ end
 local og_pageRefreshBackpacks = ISInventoryPage.refreshBackpacks
 function ISInventoryPage:refreshBackpacks()
     og_pageRefreshBackpacks(self)
+    
+    if self.backpacks then
+        for _, btn in ipairs(self.backpacks) do
+            btn.drawBorder = false
+            btn.isBorderVisible = false
+            btn.borderColor = {r=0, g=0, b=0, a=0} -- Força o alpha para 0 garantindo invisibilidade
+            
+            -- Troca o fundo cinza de hover pro amarelo do projeto
+            btn.backgroundColorMouseOver = {r=1.0, g=0.9, b=0.3, a=0.35}
+            btn.backgroundColorPressed = {r=1.0, g=0.9, b=0.3, a=0.15}
+        end
+    end
+    
+    if self.onCharacter and self.backpacks and #self.backpacks > 1 then
+        local pObj = getSpecificPlayer(self.player)
+        if pObj then
+            local modData = pObj:getModData()
+            if modData then
+                local orderStr = modData.GridInventory_ContainerOrderStr or ""
+                local order = {}
+                for id, i in string.gmatch(orderStr, "([^:,]+):([^:,]+)") do
+                    order[id] = tonumber(i)
+                end
+                
+                local function getContainerId(btn)
+                    if not btn.inventory then return "" end
+                    local item = btn.inventory:getContainingItem()
+                    if item then
+                        local id = item:getID()
+                        if id and id ~= -1 and id ~= 0 then
+                            return tostring(id)
+                        end
+                        return item:getFullType() or ""
+                    end
+                    return btn.name or ""
+                end
+                
+                local buttonsWithSort = {}
+                for i, button in ipairs(self.backpacks) do
+                    local isMain = (i == 1)
+                    local id = getContainerId(button)
+                    local priority = order[id]
+                    
+                    if isMain then
+                        priority = -1
+                    elseif not priority then
+                        priority = i * 1000 -- vanilla fallback
+                    end
+                    
+                    table.insert(buttonsWithSort, {
+                        button = button,
+                        priority = priority,
+                        vanillaIndex = i
+                    })
+                end
+                
+                table.sort(buttonsWithSort, function(a, b)
+                    if a.priority ~= b.priority then
+                        return a.priority < b.priority
+                    end
+                    return a.vanillaIndex < b.vanillaIndex
+                end)
+                
+                for index, data in ipairs(buttonsWithSort) do
+                    local targetY = ((index - 1) * self.buttonSize) - 1
+                    if data.button.y ~= targetY then
+                        data.button:setY(targetY)
+                    end
+                end
+            end
+        end
+    end
+
     if self.inventoryPane and self.resizeWidget then
-        local resizeH = self.resizeWidget.height or 0
+        local resizeH = self.resizeWidget and self.resizeWidget.height or 0
         local fullH = self.height - self.inventoryPane.y - resizeH
         if self.inventoryPane.height ~= fullH then
             self.inventoryPane:setHeight(fullH)
+        end
+        if self.containerButtonPanel and self.containerButtonPanel:getHeight() ~= fullH then
+            self.containerButtonPanel:setHeight(fullH)
         end
     end
 end
@@ -1097,4 +1407,258 @@ function ISInventoryPage:onMouseDownOutside(x, y)
         return
     end
     og_pageMouseDownOutside(self, x, y)
+end
+-- ============================================================================
+-- SUPORTE A CONTROLE (JOYPAD)
+-- ============================================================================
+-- O foco do joypad continua na ISInventoryPage (vanilla). Interceptamos os
+-- métodos de joypad da página e roteamos pro GridJoypad, que mantém o cursor
+-- virtual (col,row) sobre as grids do mod. A/D-pad/analógico navegam, e os
+-- botões replicam o mapeamento vanilla:
+--   A = contexto do item sob o cursor   X = pegar/transferir
+--   B = abrir/selecionar mochila        Y = fechar inventário
+--   LB/RB = trocar container (3 modos do vanilla)
+-- Sempre que a ISInventoryPage perde o foco (ex.: menu de contexto aberto),
+-- quem recebe os eventos é o menu (o B do menu devolve o foco pra cá).
+
+local og_pageGainJoypadFocus = ISInventoryPage.onGainJoypadFocus
+function ISInventoryPage:onGainJoypadFocus(joypadData)
+    og_pageGainJoypadFocus(self, joypadData)
+    GridJoypad.anchorOnFocus(self.player, self)
+end
+
+local og_pageJoypadDown = ISInventoryPage.onJoypadDown
+function ISInventoryPage:onJoypadDown(button, joypadData)
+    ISContextMenu.globalPlayerContext = self.player
+    local playerObj = getSpecificPlayer(self.player)
+
+    -- STACK PICKER aberto pelo controle: A tira o item destacado, B e Select
+    -- (Back) fecham. O D-pad navega a lista (ver onJoypadDirUp/Down).
+    if GridJoypad.isPickerActive(self.player) then
+        if button == Joypad.AButton then
+            GridJoypad.pickerTake(self.player)
+        elseif button == Joypad.BButton or button == Joypad.Back then
+            GridJoypad.closePicker(self.player)
+        end
+        return
+    end
+
+    -- A = pegar/soltar item (drag); no modo PaperDoll, A equipa o item
+    -- arrastado no slot selecionado. B = contexto / cancelar drag, X =
+    -- rotacionar (enquanto arrasta). No PaperDoll o cursor das grids fica
+    -- oculto: os botões de grid ficam inertes (LB/RB saem do paperdoll; Y fecha
+    -- o inventário).
+    if button == Joypad.AButton then
+        -- No PaperDoll, A equipa o item arrastado no slot (se arrastando).
+        if GridJoypad.isPaperdollActive(self.player) then
+            GridJoypad.pdActivate(self.player)
+        else
+            GridJoypad.grab(self.player, self)
+        end
+    elseif button == Joypad.BButton then
+        if isPlayerDoingActionThatCanBeCancelled(playerObj) then
+            stopDoingActionThatCanBeCancelled(playerObj)
+            return
+        end
+        if GridJoypad.isPaperdollActive(self.player) then
+            -- No PaperDoll, B cancela o drag (se arrastando); senão abre o menu.
+            if GridJoypad.isDragging(self.player) then
+                GridJoypad.cancelDrag(self.player)
+            else
+                GridJoypad.pdContext(self.player, self)
+            end
+        else
+            GridJoypad.activateB(self.player, self)
+        end
+    elseif button == Joypad.XButton and not JoypadState.disableGrab then
+        if GridJoypad.isPaperdollActive(self.player) then
+            -- No PaperDoll, X roda o menu CÍCLICO do slot.
+            GridJoypad.pdCycle(self.player)
+        elseif GridJoypad.isDragging(self.player) then
+            -- Com drag: rotaciona o item segurado.
+            GridJoypad.rotate(self.player, self)
+        else
+            -- Sem drag: transferência RÁPIDA inv<->loot (comportamento vanilla).
+            GridJoypad.quickTransfer(self.player, self)
+        end
+    elseif button == Joypad.YButton and not JoypadState.disableYInventory then
+        setJoypadFocus(self.player, nil)
+    elseif button == Joypad.Back then
+        -- Select: abre o STACK PICKER da pilha sob o cursor (navegação D-pad).
+        GridJoypad.openStackPicker(self.player, self)
+    end
+
+    -- LB/RB: no modo PaperDoll a saída é decidida no RELEASE (pollNav) — aqui
+    -- não faz nada pro bumper. Fora dele, a ação (trocar painel / ciclar
+    -- container) NÃO roda no aperto — só no SOLTAR, se foi um tap curto
+    -- (<250ms). Segurar o bumper >=250ms ativa o modo NAVEGAÇÃO do painel dele
+    -- (pollNav no update). LB+RB juntos (pollNav) entra no PaperDoll.
+    if button == Joypad.LBumper then
+        if not GridJoypad.isPaperdollActive(self.player) then
+            GridJoypad.bumperDown(self.player, "LB")
+        end
+    end
+    if button == Joypad.RBumper then
+        if not GridJoypad.isPaperdollActive(self.player) then
+            GridJoypad.bumperDown(self.player, "RB")
+        end
+    end
+end
+
+local og_pageJoypadDirUp = ISInventoryPage.onJoypadDirUp
+function ISInventoryPage:onJoypadDirUp(joypadData)
+    -- STACK PICKER do controle: D-pad navega a lista da janela.
+    if GridJoypad.isPickerActive(self.player) then
+        GridJoypad.pickerMove(self.player, -1)
+        return
+    end
+    -- MODO PAPERDOLL (LB+RB): o D-pad navega os slots.
+    if GridJoypad.isPaperdollActive(self.player) then
+        GridJoypad.pdDir(self.player, 0, -1)
+        return
+    end
+    -- MODO NAVEGAÇÃO (bumper segurado): o D-pad pula de grid em grid / pro
+    -- painel oposto. Tem que vir ANTES do modo 3 (bumper segurado + D-pad cicla
+    -- container) — durante o nav o bumper está segurado e dispararia o ciclo.
+    if GridJoypad.isNavActive(self.player) then
+        GridJoypad.navDir(self.player, self, 0, -1)
+        return
+    end
+    local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
+    if shoulderSwitch == 3 then
+        if JoypadButton.LeftBump:isDown(joypadData.id) then
+            getPlayerInventory(self.player):selectPrevContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+        if JoypadButton.RightBump:isDown(joypadData.id) then
+            getPlayerLoot(self.player):selectPrevContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+    end
+    GridJoypad.handleDir(self.player, self, 0, -1)
+end
+
+local og_pageJoypadDirDown = ISInventoryPage.onJoypadDirDown
+function ISInventoryPage:onJoypadDirDown(joypadData)
+    -- STACK PICKER do controle: D-pad navega a lista da janela.
+    if GridJoypad.isPickerActive(self.player) then
+        GridJoypad.pickerMove(self.player, 1)
+        return
+    end
+    if GridJoypad.isPaperdollActive(self.player) then
+        GridJoypad.pdDir(self.player, 0, 1)
+        return
+    end
+    if GridJoypad.isNavActive(self.player) then
+        GridJoypad.navDir(self.player, self, 0, 1)
+        return
+    end
+    local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
+    if shoulderSwitch == 3 then
+        if JoypadButton.LeftBump:isDown(joypadData.id) then
+            getPlayerInventory(self.player):selectNextContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+        if JoypadButton.RightBump:isDown(joypadData.id) then
+            getPlayerLoot(self.player):selectNextContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+    end
+    GridJoypad.handleDir(self.player, self, 0, 1)
+end
+
+local og_pageJoypadDirLeft = ISInventoryPage.onJoypadDirLeft
+function ISInventoryPage:onJoypadDirLeft(joypadData)
+    if GridJoypad.isPaperdollActive(self.player) then
+        GridJoypad.pdDir(self.player, -1, 0)
+        return
+    end
+    if GridJoypad.isNavActive(self.player) then
+        GridJoypad.navDir(self.player, self, -1, 0)
+        return
+    end
+    local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
+    if shoulderSwitch == 3 then
+        if JoypadButton.LeftBump:isDown(joypadData.id) then
+            getPlayerInventory(self.player):selectPrevContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+        if JoypadButton.RightBump:isDown(joypadData.id) then
+            getPlayerLoot(self.player):selectPrevContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+    end
+    GridJoypad.handleDir(self.player, self, -1, 0)
+end
+
+local og_pageJoypadDirRight = ISInventoryPage.onJoypadDirRight
+function ISInventoryPage:onJoypadDirRight(joypadData)
+    if GridJoypad.isPaperdollActive(self.player) then
+        GridJoypad.pdDir(self.player, 1, 0)
+        return
+    end
+    if GridJoypad.isNavActive(self.player) then
+        GridJoypad.navDir(self.player, self, 1, 0)
+        return
+    end
+    local shoulderSwitch = getCore():getOptionShoulderButtonContainerSwitch()
+    if shoulderSwitch == 3 then
+        if JoypadButton.LeftBump:isDown(joypadData.id) then
+            getPlayerInventory(self.player):selectNextContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+        if JoypadButton.RightBump:isDown(joypadData.id) then
+            getPlayerLoot(self.player):selectNextContainer()
+            GridJoypad.reanchorToActive(self.player, self)
+            return
+        end
+    end
+    GridJoypad.handleDir(self.player, self, 1, 0)
+end
+
+-- ─── Joypad + resize: reservar espaço pro PaperDoll ─────────────────────────
+-- O vanilla placeInventoryScreens divide a tela ao meio (inv = metade esquerda,
+-- loot = metade direita), mas não sabe do PaperDollWindow. Hookamos pra
+-- encolher o inv e deslocar o loot quando o PaperDoll estiver visível.
+-- Roda UMA vez na ativação do joypad (e no resolution change), NÃO a cada frame.
+local og_placeScreens = ISPlayerDataObject.placeInventoryScreens
+function ISPlayerDataObject:placeInventoryScreens(id, numPlayers, isMouse)
+    og_placeScreens(self, id, numPlayers, isMouse)
+    if isMouse then return end
+    local pdW = math.floor(350 * ((GridInventory_uiScale or 100) / 100))
+    if pdW <= 0 then return end
+    -- Divide igualmente: cada painel recebe (screenW - pdW) / 2.
+    local screenW = self.w1 + self.w2
+    local half = (screenW - pdW) / 2
+    self.w1 = half
+    self.w2 = half
+    if GridModOptions.isPaperDollLeft() then
+        self.x1 = self.x1 + pdW
+        self.x2 = self.x1 + self.w1
+    else
+        self.x2 = self.x1 + self.w1 + pdW
+    end
+end
+
+local og_onBackpackMouseDown = ISInventoryPage.onBackpackMouseDown
+function ISInventoryPage.onBackpackMouseDown(page, button, x, y)
+    if og_onBackpackMouseDown then
+        og_onBackpackMouseDown(page, button, x, y)
+    end
+    if page.onCharacter and page.backpacks and page.backpacks[1] ~= button then
+        page.GridInventory_DragContainer = button
+        if page.containerButtonPanel then
+            page.GridInventory_DragStartY = page.containerButtonPanel:getMouseY()
+        else
+            page.GridInventory_DragStartY = 0
+        end
+        page.GridInventory_IsDragging = false
+    end
 end

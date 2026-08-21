@@ -17,7 +17,7 @@
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "搜索容器时，揭露每个堆叠所需的时间（毫秒）。随堆叠数量扩展：物品越多，搜索越久。\n\n0 = 即时（点击时揭露全部）。",
     "Sandbox_GridInventory_EnableDevTools": "启用 DevTools",
     "Sandbox_GridInventory_EnableDevTools_tooltip": "在物品的右键菜单中加入「[DevTool] 编辑网格大小」选项，让你可以无需以 -debug 启动游戏就能调整物品占用空间和容器网格的大小。\n\n开启：DevTools 在此存档中可用。在多人游戏中，非管理员玩家可以看到该选项，但服务器会拒绝应用更改。\n\n关闭：仅在游戏以 -debug 启动时可用。",
-    "Sandbox_GridInventory_IconRotation": "Rotate/Scale Item Sprites",
+    "Sandbox_GridInventory_IconRotation": "旋转/缩放物品图标",
     "Sandbox_GridInventory_IconRotation_tooltip": "Applies the saved sprite rotation, scale and anchor overrides (GridDevTool) for all players.\n\nOn: everyone sees item sprites rotated/scaled/anchored as configured.\n\nOff: the server forces the default sprite (only the footprint w/h is applied). Server-side decision for everyone.",
     "Sandbox_GridInventory_MaxContainerGridSize": "容器网格大小上限",
     "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "世界容器网格的最大行数。网格会按容量调整大小，直到这个上限。DevTool 的网格覆盖可以针对特定容器超过此上限。\n\n默认 15 保持原有行为。",

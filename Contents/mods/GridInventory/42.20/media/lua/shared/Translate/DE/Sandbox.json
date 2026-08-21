@@ -17,7 +17,7 @@
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Zeit in Millisekunden, um jeden Stapel beim Durchsuchen eines Behälters aufzudecken. Skaliert mit der Anzahl der Stapel: mehr Gegenstände, längere Suche.\n\n0 = sofort (deckt alles beim Klicken auf).",
     "Sandbox_GridInventory_EnableDevTools": "DevTools aktivieren",
     "Sandbox_GridInventory_EnableDevTools_tooltip": "Fügt die Option \"[DevTool] Rastergröße bearbeiten\" zum Kontextmenü der Gegenstände hinzu, sodass du Gegenstands-Footprints und Behälter-Raster verändern kannst, ohne das Spiel mit -debug zu starten.\n\nAn: DevTools in diesem Spielstand verfügbar. In Multiplayer sehen Nicht-Admin-Spieler die Option, aber der Server lehnt das Anwenden von Änderungen ab.\n\nAus: Nur verfügbar, wenn das Spiel mit -debug gestartet wird.",
-    "Sandbox_GridInventory_IconRotation": "Rotate/Scale Item Sprites",
+    "Sandbox_GridInventory_IconRotation": "Gegenstands-Sprites drehen/skalieren",
     "Sandbox_GridInventory_IconRotation_tooltip": "Applies the saved sprite rotation, scale and anchor overrides (GridDevTool) for all players.\n\nOn: everyone sees item sprites rotated/scaled/anchored as configured.\n\nOff: the server forces the default sprite (only the footprint w/h is applied). Server-side decision for everyone.",
     "Sandbox_GridInventory_MaxContainerGridSize": "Maximale Behälter-Rastergröße",
     "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Maximale Anzahl von Zeilen für Welt-Behälter-Raster. Raster werden je nach Kapazität bis zu dieser Grenze skaliert. Die DevTool-Rasterüberschreibung kann diese Grenze für bestimmte Behälter überschreiten.\n\nStandard 15 behält das klassische Verhalten bei.",

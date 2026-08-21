@@ -310,7 +310,11 @@ Events.OnGameBoot.Add(function()
             end
         end
         local hasButtons = (gridUi and controlsUI.controls and #controlsUI.controls > 0)
-        if not hasButtons then
+        -- No CONTROLE não dá pra clicar nos botões (Take All etc. — também é
+        -- vanilla); esconde pra não enganar o usuário e não reserva o rodapé.
+        local usingJoypad = JoypadState and JoypadState.players
+            and JoypadState.players[page.player + 1] ~= nil
+        if not hasButtons or usingJoypad then
             controlsUI:setVisible(false)
             return
         end
@@ -505,9 +509,68 @@ Events.OnGameBoot.Add(function()
         -- os outros grids; passada 2 = floor (e seu overflow). Assim qualquer
         -- redraw o reposiciona por último, na base do loot, sem "pular" por cima.
         local orderedGrids = {}
+        local nonFloor = {}
         for _, g in ipairs(self.gridContainerUis) do
-            if not g.isFloor then table.insert(orderedGrids, g) end
+            if not g.isFloor then table.insert(nonFloor, g) end
         end
+        
+        -- Aplica a ordenação customizada para bater com a visualização dos botões
+        local playerObj = getSpecificPlayer(self.player)
+        if playerObj and self.inventoryPage and self.inventoryPage.onCharacter then
+            local modData = playerObj:getModData()
+            local orderStr = modData.GridInventory_ContainerOrderStr or ""
+            local orderTbl = {}
+            for id, i in string.gmatch(orderStr, "([^:,]+):([^:,]+)") do
+                orderTbl[id] = tonumber(i)
+            end
+            
+            local function getGridId(g)
+                if not g.inventoryContainer then return "" end
+                local item = g.inventoryContainer:getContainingItem()
+                if item then
+                    local id = item:getID()
+                    if id and id ~= -1 and id ~= 0 then return tostring(id) end
+                    return item:getFullType() or ""
+                end
+                return ""
+            end
+            
+            local sortData = {}
+            for i, g in ipairs(nonFloor) do
+                local id = getGridId(g)
+                local priority = orderTbl[id]
+                local isMain = false
+                if self.inventoryPage.backpacks and self.inventoryPage.backpacks[1] and self.inventoryPage.backpacks[1].inventory == g.inventoryContainer then
+                    isMain = true
+                end
+                
+                if isMain then
+                    priority = -1
+                elseif not priority then
+                    priority = i * 1000
+                end
+                
+                table.insert(sortData, {
+                    grid = g,
+                    priority = priority,
+                    vanillaIndex = i
+                })
+            end
+            
+            table.sort(sortData, function(a, b)
+                if a.priority ~= b.priority then return a.priority < b.priority end
+                return a.vanillaIndex < b.vanillaIndex
+            end)
+            
+            for _, data in ipairs(sortData) do
+                table.insert(orderedGrids, data.grid)
+            end
+        else
+            for _, g in ipairs(nonFloor) do
+                table.insert(orderedGrids, g)
+            end
+        end
+        
         for _, g in ipairs(self.gridContainerUis) do
             if g.isFloor then table.insert(orderedGrids, g) end
         end
@@ -620,14 +683,15 @@ Events.OnGameBoot.Add(function()
     -- Scroll FORA de um grid = troca o container selecionado (mesmo
     -- comportamento do vanilla na coluna de mochilas/ícones), valendo para o
     -- painel de LOOT e o de INVENTÁRIO. Sobre um grid, rola o painel
-    -- normalmente (comportamento vanilla).
+    -- com multiplicador pra scrollar mais rápido que o vanilla.
+    local SCROLL_MULT = 3
     local og_paneOnMouseWheel = ISInventoryPane.onMouseWheel
     function ISInventoryPane:onMouseWheel(del)
         local page = self.inventoryPage
         if page and not page.isCollapsed and not self:isMouseOverAnyGrid() then
             return page:cycleContainer(del)
         end
-        return og_paneOnMouseWheel(self, del)
+        return og_paneOnMouseWheel(self, del * SCROLL_MULT)
     end
 
     -- Painel COLAPSADO = o pane (filho da página, altura cheia) não pode

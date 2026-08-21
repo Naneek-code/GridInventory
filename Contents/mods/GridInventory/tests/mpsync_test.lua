@@ -50,6 +50,7 @@ local function makeItem(id, fullType, weight, gx, gy, rot, opts)
         getCount = function() return 1 end,
         isHidden = function() return false end,
         isEquipped = function() return opts.equipped or false end,
+        getAttachedSlot = function() return opts.attachedSlot or -1 end,
         getContainer = function() return opts.container end,
     }
 end
@@ -594,6 +595,275 @@ do
     _G.isClient = nil
     _G.getPlayer = nil
     _G.sendClientCommand = nil
+end
+
+-- ─── Teste 25: buildContainerRef/resolveContainerRef de VEÍCULO ─────────────
+-- O container de um veículo (porta-malas, luva, bancos) é de uma PARTE
+-- (VehiclePart). O vanilla (ISTransferAction) resolve com:
+--   container:getParent() é o BaseVehicle; container:getType() é o id da parte;
+--   vehicle:getPartById(containerType):getItemContainer().
+do
+    -- mock do instanceof: reconhece BaseVehicle (além de IsoPlayer)
+    local origInstanceof = _G.instanceof
+    _G.instanceof = function(a, b)
+        if a and a._isVehicle then return b == "BaseVehicle" end
+        if a and a._isPlayer then return b == "IsoPlayer" end
+        return false
+    end
+
+    -- parte com container (ex.: luva); o container É o getItemContainer da parte
+    local gloveInv = makeContainer({}, 5, "GloveBox")
+    local part = {
+        getId = function() return "GloveBox" end,
+        getItemContainer = function() return gloveInv end,
+    }
+
+    -- veículo
+    local vehicle = {
+        _isVehicle = true,
+        getId = function() return 999 end,
+        getPartById = function(_, id)
+            if id == "GloveBox" then return part end
+            return nil
+        end,
+    }
+
+    -- o container de veículo no jogo é o próprio itemContainer da parte, e o
+    -- getParent() dele é o BaseVehicle
+    gloveInv.getParent = function() return vehicle end
+
+    -- buildContainerRef deve produzir vehicleId + containerType
+    local ref = GridProtocol.buildContainerRef(gloveInv)
+    H.ok(ref and ref.type == "vehicle" and ref.vehicleId == 999 and ref.containerType == "GloveBox",
+        "buildContainerRef veículo -> type/vehicleId/containerType ["
+        .. tostring(ref and ref.type) .. "/" .. tostring(ref and ref.vehicleId) .. "/"
+        .. tostring(ref and ref.containerType) .. "]")
+
+    -- resolveContainerRef deve retornar o itemContainer da parte via getPartById
+    _G.getVehicleById = function(id) if id == 999 then return vehicle end return nil end
+    _G.getVehicleByKeyId = function() return nil end
+    _G.getCell = function() return nil end
+    local resolved = GridProtocol.resolveContainerRef(ref, nil)
+    H.ok(resolved == gloveInv,
+        "resolveContainerRef veículo -> getPartById(getType()):getItemContainer() ["
+        .. tostring(resolved == gloveInv) .. "]")
+
+    _G.getVehicleById = nil
+    _G.getVehicleByKeyId = nil
+    _G.instanceof = origInstanceof
+end
+
+-- ─── Teste 26: buildContainerRef/resolveContainerRef de BOLSA ───────────────
+-- Uma bolsa pode estar: no inventário do jogador, no chão, em um armário ou em
+-- outra bolsa. O ref da bolsa (type="item") carrega o containerRef do PAI
+-- (ref.parent) pra o servidor resolver ONDE a bolsa está e achá-la por itemId.
+do
+    local origInstanceof = _G.instanceof
+    _G.instanceof = function(a, b)
+        if a and a._isPlayer then return b == "IsoPlayer" end
+        if a and a._isObject then return b == "IsoObject" end
+        return false
+    end
+
+    -- bolsa com inventário próprio (getInventory) e que vive num container pai
+    local bagItem = {
+        getID = function() return 500 end,
+        getInventory = function() return nil end, -- setado abaixo
+        getContainer = function() return nil end, -- setado por cenário
+    }
+    local bagInv = makeContainer({}, 5, "Bag")
+    bagInv.getContainingItem = function() return bagItem end
+    bagItem.getInventory = function() return bagInv end
+
+    -- cenário 1: bolsa no inventário do JOGADOR (pai = player)
+    do
+        local player = makePlayer({ bagItem })
+        bagItem.getContainer = function() return player:getInventory() end
+        local ref = GridProtocol.buildContainerRef(bagInv)
+        H.ok(ref and ref.type == "item" and ref.parent and ref.parent.type == "player",
+            "buildContainerRef bolsa no inventário -> parent player ["
+            .. tostring(ref and ref.type) .. "/" .. tostring(ref and ref.parent and ref.parent.type) .. "]")
+        local resolved = GridProtocol.resolveContainerRef(ref, player)
+        H.ok(resolved == bagInv,
+            "resolveContainerRef bolsa no inventário -> getInventory() da bolsa ["
+            .. tostring(resolved == bagInv) .. "]")
+    end
+
+    -- cenário 2: bolsa dentro de um ARMÁRIO (pai = object no mundo)
+    do
+        -- armário: um IsoObject com getContainer() no square
+        local crateInv = makeContainer({ bagItem }, 20, "Crate")
+        local crateObj = {
+            _isObject = true,
+            getContainer = function() return crateInv end,
+            getSquare = function() return nil end, -- setado abaixo
+        }
+        crateInv.getParent = function() return crateObj end
+        local square = {
+            getObjects = function()
+                return { size = function() return 1 end, get = function(_, i) return crateObj end }
+            end,
+            getX = function() return 10 end, getY = function() return 20 end, getZ = function() return 0 end,
+        }
+        crateObj.getSquare = function() return square end
+        bagItem.getContainer = function() return crateInv end
+
+        _G.getCell = function() return { getGridSquare = function(self, x, y, z)
+            if x == 10 and y == 20 and z == 0 then return square end return nil end } end
+
+        local ref = GridProtocol.buildContainerRef(bagInv)
+        H.ok(ref and ref.type == "item" and ref.parent and ref.parent.type == "object"
+            and ref.parent.x == 10,
+            "buildContainerRef bolsa em armário -> parent object ["
+            .. tostring(ref and ref.parent and ref.parent.type) .. "]")
+
+        local resolved = GridProtocol.resolveContainerRef(ref, nil)
+        H.ok(resolved == bagInv,
+            "resolveContainerRef bolsa em armário -> getInventory() da bolsa ["
+            .. tostring(resolved == bagInv) .. "]")
+
+        _G.getCell = function() return { getGridSquare = function() return nil end } end
+    end
+
+    -- cenário 3: bolsa dentro de OUTRA bolsa (pai = item)
+    do
+        local outerItem = {
+            getID = function() return 600 end,
+            getInventory = function() return nil end, -- setado abaixo
+            getContainer = function() return nil end,
+        }
+        local outerInv = makeContainer({ bagItem }, 20, "BigBag")
+        outerInv.getContainingItem = function() return outerItem end
+        outerItem.getInventory = function() return outerInv end
+        local player = makePlayer({ outerItem })
+        bagItem.getContainer = function() return outerInv end
+        outerItem.getContainer = function() return player:getInventory() end
+
+        local ref = GridProtocol.buildContainerRef(bagInv)
+        H.ok(ref and ref.type == "item" and ref.parent and ref.parent.type == "item"
+            and ref.parent.parent and ref.parent.parent.type == "player",
+            "buildContainerRef bolsa em bolsa -> parent aninhado ["
+            .. tostring(ref and ref.parent and ref.parent.type) .. "/"
+            .. tostring(ref and ref.parent and ref.parent.parent and ref.parent.parent.type) .. "]")
+        local resolved = GridProtocol.resolveContainerRef(ref, player)
+        H.ok(resolved == bagInv,
+            "resolveContainerRef bolsa em bolsa -> getInventory() da bolsa ["
+            .. tostring(resolved == bagInv) .. "]")
+    end
+
+    _G.instanceof = origInstanceof
+end
+
+-- ─── Teste 27: buildOccupancy ignora itens EQUIPADOS (não barram reorder) ──
+-- O cliente não mostra itens equipados no grid do inventário; o servidor precisa
+-- do mesmo filtro na ocupação autoritativa — senão um item pego e depois equipado
+-- continua barrando a célula na validação de reorder/placement.
+do
+    -- item equipado com posição salva (1,1)
+    local equipped = makeItem("eq", "Base.Shirt", 0.1, 1, 1, false, { equipped = true })
+    -- item normal com posição salva (2,1)
+    local normal = makeItem("n1", "Base.Can", 0.1, 2, 1)
+    local container = makeContainer({ equipped, normal }, 6, "crate")
+
+    local grid = require("DataModel/GridCore").new(6, 6)
+    GridContainer.buildOccupancy(container, grid)
+
+    H.ok(grid.items["eq"] == nil,
+        "buildOccupancy NÃO insere item equipado na ocupação ["
+        .. tostring(grid.items["eq"] ~= nil) .. "]")
+    H.ok(grid.items["n1"] ~= nil,
+        "buildOccupancy insere item normal na ocupação ["
+        .. tostring(grid.items["n1"] ~= nil) .. "]")
+
+    -- a célula (1,1) do item equipado deve estar LIVRE pra um novo placement
+    local cell = grid.cells[1] and grid.cells[1][1]
+    H.ok(cell == nil,
+        "célula do item equipado fica livre na ocupação [cell=" .. tostring(cell) .. "]")
+end
+
+-- ─── Teste 28: buildOccupancy ignora itens ANEXADOS/HOTBAR (cinto/costas) ──
+-- Itens na hotbar (getAttachedSlot() ~= -1) não são isEquipped(), mas também
+-- não devem ocupar espaço no grid do inventário — senão viram "espaço fantasma"
+-- que barra reorder no servidor.
+do
+    -- item anexado (hotbar/cinto/costas) com posição salva (1,1)
+    local attached = makeItem("at", "Base.Knife", 0.1, 1, 1, false, { attachedSlot = 2 })
+    -- item normal com posição salva (2,1)
+    local normal = makeItem("n2", "Base.Can", 0.1, 2, 1)
+    local container = makeContainer({ attached, normal }, 6, "crate")
+
+    local grid = require("DataModel/GridCore").new(6, 6)
+    GridContainer.buildOccupancy(container, grid)
+
+    H.ok(grid.items["at"] == nil,
+        "buildOccupancy NÃO insere item anexado/hotbar na ocupação ["
+        .. tostring(grid.items["at"] ~= nil) .. "]")
+    H.ok(grid.items["n2"] ~= nil,
+        "buildOccupancy insere item normal na ocupação (com anexado) ["
+        .. tostring(grid.items["n2"] ~= nil) .. "]")
+    local cell = grid.cells[1] and grid.cells[1][1]
+    H.ok(cell == nil,
+        "célula do item anexado fica livre na ocupação [cell=" .. tostring(cell) .. "]")
+end
+
+-- ─── Teste 29: REQUEST_MOVE com sourceRef — servidor acha item na ORIGEM ────
+-- Quando o item ainda está na origem em trânsito (transferência não completou),
+-- ele não está nem no inventário do jogador nem no container de DESTINO (ref).
+-- O sourceRef (origem) permite ao servidor encontrá-lo e aplicar a posição de
+-- imediato — sem isso ia pra fila de pendências e o item chegava ao destino sem
+-- posição (auto-fit em 1,1, deslocando o item existente).
+do
+    -- armário (origem) contendo o item alvo
+    local item = makeItem("srcItem", "Base.Can", 0.1, 1, 1)
+    local crateInv = makeContainer({ item }, 20, "Crate")
+    local crateObj = {
+        _isObject = true,
+        getContainer = function() return crateInv end,
+        getSquare = function() return nil end,
+    }
+    crateInv.getParent = function() return crateObj end
+    item.getContainer = function() return crateInv end
+    local square = {
+        getObjects = function() return { size = function() return 1 end, get = function() return crateObj end } end,
+        getX = function() return 5 end, getY = function() return 6 end, getZ = function() return 0 end,
+    }
+    crateObj.getSquare = function() return square end
+
+    local player = makePlayer({}) -- inventário vazio (item NÃO está nele)
+
+    -- sourceRef = object que resolve o armário (origem)
+    local sourceRef = { type = "object", x = 5, y = 6, z = 0, objIndex = 0 }
+
+    _G.getCell = function() return { getGridSquare = function(self, x, y, z)
+        if x == 5 and y == 6 and z == 0 then return square end return nil end } end
+    _G.instanceof = function(a, b)
+        if a and a._isObject then return b == "IsoObject" end
+        if a and a._isPlayer then return b == "IsoPlayer" end
+        return false
+    end
+
+    local sent = doMove(player, {
+        itemId = "srcItem",
+        ref = { type = "player" },      -- destino = inventário do jogador
+        sourceRef = sourceRef,          -- origem = armário
+        x = 2, y = 1, rotated = false,
+        gridContainer = "sig-player",
+        manual = true,
+    })
+
+    local sync = false
+    for _, s in ipairs(sent) do
+        if s.cmd == GridProtocol.COMMANDS.SYNC_ITEM then sync = true end
+    end
+    H.ok(sync,
+        "REQUEST_MOVE com sourceRef acha item na origem e aplica (SYNC_ITEM) ["
+        .. tostring(sync) .. "]")
+    H.ok(item:getModData().gridX == 2 and item:getModData().gridY == 1,
+        "posição (2,1) gravada no item encontrado via sourceRef ["
+        .. tostring(item:getModData().gridX) .. "," .. tostring(item:getModData().gridY) .. "]")
+
+    _G.getCell = function() return { getGridSquare = function() return nil end } end
+    _G.instanceof = function(a, b) return (a and a._isPlayer) and b == "IsoPlayer" or false end
 end
 
 H.finish()

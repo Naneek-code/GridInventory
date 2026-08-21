@@ -17,6 +17,11 @@
 --- (campos .angle/.scale/.anchorX/.anchorY), salvo no GridOverrides.ini — o
 --- mesmo sistema do footprint. GridIconRotation.Overrides/Scales/Anchors aqui
 --- são só as tabelas FIXAS (hardcoded pelo mod).
+---
+--- VARIAÇÃO DE SPRITE: itens como Base.Hammer têm 2 sprites (esquerda/direita)
+--- que compartilham o mesmo fullType. O sistema resolve isso com uma chave
+--- composta "fullType|spriteName" que permite overrides independentes por
+--- variante. Fallback: fullType puro (backward compat).
 
 local GridIconRotation = {}
 
@@ -74,25 +79,54 @@ function GridIconRotation.clearCache()
     _anchorCache = {}
 end
 
+--- Chave de variante de sprite: permite overrides diferentes pras 2 sprites
+--- do mesmo fullType (ex.: Base.Hammer esquerda vs direita). Usa o nome da
+--- textura runtime (getTex():getName()) que DIFERE entre variantes.
+--- Retorna "fullType|spriteName" ou só "fullType" se a sprite não for
+--- distinguível (fallback backward compat).
+---@param item InventoryItem
+---@return string
+function GridIconRotation.getVariantKey(item)
+    if not item then return "" end
+    local fullType = item.getFullType and item:getFullType() or ""
+    local tex = item.getTex and item:getTex()
+    if tex then
+        local texName = tex.getName and tex:getName()
+        if texName and texName ~= "" then
+            return fullType .. "|" .. texName
+        end
+    end
+    return fullType
+end
+
 --- Retorna o ângulo de rotação fixo (graus) do item, ou 0 se não houver.
 --- Prioridade: GridDevTool.Overrides (ao vivo) > tabela fixa > 0.
+--- Lookup: variante (fullType|spriteName) primeiro, fallback fullType puro.
 --- @param item InventoryItem
 --- @return number angle graus (0 = sem rotação)
 function GridIconRotation.getAngle(item)
     if not item then return 0 end
 
     local fullType = item:getFullType()
+    local variantKey = GridIconRotation.getVariantKey(item)
 
     -- 1. Override AO VIVO do GridDevTool (mesmo padrão do ItemFootprint):
     --    checado em cada chamada, sem cache, pra refletir o tuning na hora.
+    --    Variante primeiro, fallback fullType.
     if GridDevTool and GridDevTool.Overrides then
-        local live = GridDevTool.Overrides[fullType]
+        local live = GridDevTool.Overrides[variantKey]
         if live and live.angle ~= nil then
             return live.angle
         end
+        if variantKey ~= fullType then
+            live = GridDevTool.Overrides[fullType]
+            if live and live.angle ~= nil then
+                return live.angle
+            end
+        end
     end
 
-    -- 2. Tabela fixa do mod (cacheada).
+    -- 2. Tabela fixa do mod (cacheada — sempre fullType, sem suporte a variante).
     local cached = _cache[fullType]
     if cached ~= nil then
         return cached
@@ -105,22 +139,30 @@ end
 
 --- Retorna o multiplicador de escala (tamanho) do sprite, ou 1.0 se não houver.
 --- Prioridade: GridDevTool.Overrides (ao vivo) > tabela fixa > 1.0.
+--- Lookup: variante primeiro, fallback fullType.
 --- @param item InventoryItem
 --- @return number scale multiplicador (1.0 = min-fit puro, preserva aspecto)
 function GridIconRotation.getScale(item)
     if not item then return 1 end
 
     local fullType = item:getFullType()
+    local variantKey = GridIconRotation.getVariantKey(item)
 
     -- 1. Override AO VIVO do GridDevTool (mesmo padrão do ângulo).
     if GridDevTool and GridDevTool.Overrides then
-        local live = GridDevTool.Overrides[fullType]
+        local live = GridDevTool.Overrides[variantKey]
         if live and live.scale ~= nil then
             return live.scale
         end
+        if variantKey ~= fullType then
+            live = GridDevTool.Overrides[fullType]
+            if live and live.scale ~= nil then
+                return live.scale
+            end
+        end
     end
 
-    -- 2. Tabela fixa do mod (cacheada).
+    -- 2. Tabela fixa do mod (cacheada — fullType puro).
     local cached = _scaleCache[fullType]
     if cached ~= nil then
         return cached
@@ -136,14 +178,16 @@ end
 --- "massa visual" do item fora do centro do PNG (lâmina/cabo deslocados), que
 --- ao rotacionar fica torta em relação à célula.
 --- Prioridade: GridDevTool.Overrides (ao vivo) > tabela fixa > { x=0, y=0 }.
+--- Lookup: variante primeiro, fallback fullType.
 --- @param item InventoryItem
 --- @return number, number anchorX, anchorY (pixels)
 function GridIconRotation.getAnchor(item)
     if not item then return 0, 0 end
 
     local fullType = item:getFullType()
+    local variantKey = GridIconRotation.getVariantKey(item)
 
-    -- 2. Tabela fixa do mod (cacheada).
+    -- 2. Tabela fixa do mod (cacheada — fullType puro).
     local cached = _anchorCache[fullType]
     if cached == nil then
         local fixed = GridIconRotation.Anchors[fullType]
@@ -153,11 +197,18 @@ function GridIconRotation.getAnchor(item)
 
     -- 3. Override AO VIVO tem prioridade POR EIXO: se só o X foi definido, o
     --    Y continua vindo da tabela fixa (fallback independente por eixo).
+    --    Variante primeiro, fallback fullType.
     if GridDevTool and GridDevTool.Overrides then
-        local live = GridDevTool.Overrides[fullType]
+        local live = GridDevTool.Overrides[variantKey]
         if live then
             if live.anchorX ~= nil then cached = { x = live.anchorX, y = cached.y } end
             if live.anchorY ~= nil then cached = { x = cached.x, y = live.anchorY } end
+        elseif variantKey ~= fullType then
+            live = GridDevTool.Overrides[fullType]
+            if live then
+                if live.anchorX ~= nil then cached = { x = live.anchorX, y = cached.y } end
+                if live.anchorY ~= nil then cached = { x = cached.x, y = live.anchorY } end
+            end
         end
     end
 
