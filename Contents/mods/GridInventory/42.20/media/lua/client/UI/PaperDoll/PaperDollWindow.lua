@@ -84,8 +84,9 @@ function PaperDollWindow:initialise()
                         local barW = pdWin.avatarW - math.floor(20 * barScale)
                         local barH = math.floor(15 * barScale)
                         local barX = pdWin.avatarX + math.floor(10 * barScale)
-                        local scrollOffset = this:getYScroll() or 0
-                        local barY = pdWin.avatarY - math.floor(20 * barScale) + scrollOffset
+                        -- Mesma lógica do overlay: render() já está no contexto
+                        -- scrolled, não somar yScroll.
+                        local barY = pdWin.avatarY - math.floor(20 * barScale)
 
                         local actionName = getText("IGUI_ActionBar_Generic")
                         if action.Type then
@@ -117,12 +118,13 @@ function PaperDollWindow:initialise()
             if GridJoypad.isPaperdollActive(pdWin.playerNum) then
                 local slot = GridJoypad.pdSelectedSlot(pdWin.playerNum)
                 if slot and slot:getIsVisible() then
-                    -- Coordenadas no espaço do scrollPanel. setScrollChildren(true)
-                    -- translada os filhos por yScroll, mas getAbsolute não inclui
-                    -- esse offset — somamos aqui pra alinhar com a posição visual.
-                    local scrollY = this:getYScroll() or 0
+                    -- Coordenadas no espaço do scrollPanel.
+                    -- O callback render() é chamado DENTRO do contexto gráfico já
+                    -- transladado por setScrollChildren (yScroll aplicado). Não
+                    -- somamos yScroll — getAbsolute retorna a posição lógica e o
+                    -- contexto de renderização cuida do offset visual.
                     local sx = slot:getAbsoluteX() - this:getAbsoluteX()
-                    local sy = slot:getAbsoluteY() - this:getAbsoluteY() + scrollY
+                    local sy = slot:getAbsoluteY() - this:getAbsoluteY()
                     local sw, sh = slot:getWidth(), slot:getHeight()
                     local pad = math.floor(6 * (pdWin.uiScale or 1))
                     this:drawRectBorder(sx - 2, sy - 2, sw + 4, sh + 4, 0.5, 1.0, 1.0, 1.0)
