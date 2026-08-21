@@ -881,7 +881,7 @@ function FloatingGridWindow:prerender()
         self:drawRectBorder(self.pinBtn:getX(), 1, BTN_W, self.titleH - 2, 0.8, 1.0, 0.9, 0.3)
     end
     
-    local opacity = GridInventory_PanelOpacity or 0.8
+    local opacity = GridInventory_PanelOpacity or 0.9
     local extraAlpha = opacity * 0.5
     self:drawRect(0, self.titleH, self.width, self.height - self.titleH, extraAlpha, 0.15, 0.15, 0.15)
 end

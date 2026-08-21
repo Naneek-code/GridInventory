@@ -14,6 +14,7 @@ local GridSandboxOptions = require("GridSandboxOptions")
 local GridInventory_BagDrop = require("System/GridInventory_BagDrop")
 local GridInventory_Search = require("System/GridInventory_Search")
 local GridJoypad = require("System/GridJoypad")
+local GridModOptions = require("System/GridModOptions")
 
 -- Ícone de item não identificado (busca Tarkov): interrogação nativa do PZ.
 local GridInventory_QuestionTex = getTexture("media/ui/foraging/questionMark.png")
@@ -24,6 +25,10 @@ local GridInventory_QuestionTex = getTexture("media/ui/foraging/questionMark.png
 -- "presos" — não podem ser arrastados de novo até o timer da ação completar.
 -- Set global keyed por itemId (o ghost mora no grid ALVO; o item na origem).
 GridInventory_InTransit = GridInventory_InTransit or {}
+
+-- Auto-search: tabela persistente por container (playerNum:containerKey).
+-- Evita re-trigger quando o hash muda durante o search e os grids são recriados.
+_autoSearchDone = _autoSearchDone or {}
 
 local GridRender = ISPanel:derive("GridRender")
 
@@ -1771,6 +1776,70 @@ function GridRender:isUnderCollapsedPage()
     return false
 end
 
+function GridRender:executeModifierAction(actionId, itemId)
+    local itemData = self.gridCore and self.gridCore.items[itemId]
+    if not itemData then return false end
+    local itemObj = itemData.itemObj
+    local playerObj = getSpecificPlayer(self.playerNum)
+    if not itemObj or not playerObj then return false end
+
+    -- 1: Stack Picker / 2: Take One
+    -- Ambos preparam o "peel", o drag tira 1, o release abre o picker (se for ação 1)
+    if (actionId == 1 or actionId == 2) and self.gridCore:getStackSize(itemId) > 1 then
+        self.ctrlStackPeel = itemId
+        self.selectedItems = {}
+        return false -- false permite que o onMouseDown continue preparando o drag
+    end
+
+    -- 3: Quick Transfer
+    if actionId == 3 then
+        local isCharacter = self.inventoryContainer and self.inventoryContainer:isInCharacterInventory(playerObj)
+        -- Transfere a pilha inteira!
+        local itemsToTransfer = { itemObj }
+        if self.gridCore:isStackLeader(itemId) then
+            itemsToTransfer = {}
+            table.insert(itemsToTransfer, itemObj)
+            for _, mId in ipairs(self.gridCore:getStackMembers(itemId)) do
+                local mData = self.gridCore.items[mId]
+                if mData and mData.itemObj then table.insert(itemsToTransfer, mData.itemObj) end
+            end
+        end
+        
+        if isCharacter then
+            ISInventoryPaneContextMenu.onPutItems(itemsToTransfer, self.playerNum)
+        else
+            ISInventoryPaneContextMenu.onGrabItems(itemsToTransfer, self.playerNum)
+        end
+        self.selectedItems = {}
+        return true -- Consome o clique, aborta drag
+    end
+
+    -- 4: Drop to Floor
+    if actionId == 4 then
+        local itemsToDrop = { itemObj }
+        if self.gridCore:isStackLeader(itemId) then
+            itemsToDrop = {}
+            table.insert(itemsToDrop, itemObj)
+            for _, mId in ipairs(self.gridCore:getStackMembers(itemId)) do
+                local mData = self.gridCore.items[mId]
+                if mData and mData.itemObj then table.insert(itemsToDrop, mData.itemObj) end
+            end
+        end
+        ISInventoryPaneContextMenu.onDropItems(itemsToDrop, self.playerNum)
+        self.selectedItems = {}
+        return true
+    end
+
+    -- 5: Multi-Select
+    if actionId == 5 then
+        self.selectedItems[itemId] = not self.selectedItems[itemId]
+        return true
+    end
+
+    -- 6: Disabled
+    return false
+end
+
 function GridRender:onMouseDown(x, y)
     -- Painel colapsado: nenhum clique é processado pelo grid
     if self:isUnderCollapsedPage() then
@@ -1885,18 +1954,19 @@ function GridRender:onMouseDown(x, y)
         -- Ctrl num item EMPILHADO: marca o "peel". Sem arrasto (mouse-up) abre
         -- o STACK PICKER; com arrasto (Ctrl+drag) tira 1 item da pilha e inicia
         -- o drag com ele (maneira rápida de pegar 1 da pilha sem abrir painel).
-        if isCtrlKeyDown() and self.gridCore:getStackSize(itemId) > 1 then
-            self.ctrlStackPeel = itemId
-            self.lastManualClickTime = nil
-            self.lastManualClickItemId = nil
-            self.selectedItems = {}
+        local modifierAction = nil
+        if isAltKeyDown() then modifierAction = GridModOptions.getModifierAction("Alt")
+        elseif isCtrlKeyDown() then modifierAction = GridModOptions.getModifierAction("Ctrl")
+        elseif isShiftKeyDown() then modifierAction = GridModOptions.getModifierAction("Shift")
         end
 
-        if isShiftKeyDown() then
-            self.selectedItems[itemId] = not self.selectedItems[itemId]
-            self.lastManualClickTime = nil
-            self.lastManualClickItemId = nil
-            return -- Se tá segurando shift só marca/desmarca, não arrasta e não ativa duplo clique
+        if modifierAction then
+            local actionConsumed = self:executeModifierAction(modifierAction, itemId)
+            if actionConsumed then
+                self.lastManualClickTime = nil
+                self.lastManualClickItemId = nil
+                return
+            end
         end
 
         -- Lógica customizada de Double Click (ignora restrição severa de pixels do Java)
@@ -2288,13 +2358,20 @@ function GridRender:onMouseUp(x, y)
         return
     end
 
-    -- Ctrl+CLIQUE (sem arrasto) num stack: abre o STACK PICKER. Se foi um
-    -- Ctrl+DRAG, o flag já foi consumido no onMouseMove (peel de 1 item).
+    -- Processa o Stack Picker se o cara soltou o clique sem ter arrastado (drag consome o peelId)
     if self.ctrlStackPeel and not GridInventory_GlobalDrag
         and not (ISMouseDrag.dragging and #ISMouseDrag.dragging > 0) then
         local peelId = self.ctrlStackPeel
         self.ctrlStackPeel = nil
-        if GridInventory_openStackPicker then
+        
+        -- Verifica qual ação era pra não abrir o Picker se a pessoa queria só o Take One (2)
+        local wasPicker = false
+        if isAltKeyDown() and GridModOptions.getModifierAction("Alt") == 1 then wasPicker = true
+        elseif isCtrlKeyDown() and GridModOptions.getModifierAction("Ctrl") == 1 then wasPicker = true
+        elseif isShiftKeyDown() and GridModOptions.getModifierAction("Shift") == 1 then wasPicker = true
+        end
+
+        if wasPicker and GridInventory_openStackPicker then
             GridInventory_openStackPicker(self.playerNum, self, peelId)
         end
         return
@@ -2918,6 +2995,29 @@ function GridRender:onRightMouseUp(x, y)
         if col and row then
             local itemId = self.gridCore.cells[col][row]
             if itemId then
+                local modifierAction = nil
+                if isAltKeyDown() then modifierAction = GridModOptions.getModifierAction("RightAlt")
+                elseif isCtrlKeyDown() then modifierAction = GridModOptions.getModifierAction("RightCtrl")
+                elseif isShiftKeyDown() then modifierAction = GridModOptions.getModifierAction("RightShift")
+                end
+
+                if modifierAction and modifierAction ~= 6 then
+                    -- 2 é Take One (que não faz sentido no right click pois não tem arrasto). Se for 2, ignoramos.
+                    if modifierAction == 2 then
+                        modifierAction = 6
+                    end
+                    
+                    if modifierAction == 1 then
+                        if GridInventory_openStackPicker and self.gridCore:getStackSize(itemId) > 1 then
+                            GridInventory_openStackPicker(self.playerNum, self, itemId)
+                        end
+                        return
+                    end
+                    
+                    local actionConsumed = self:executeModifierAction(modifierAction, itemId)
+                    if actionConsumed then return end
+                end
+
                 local itemData = self.gridCore.items[itemId]
                 if itemData and itemData.itemObj then
                     local inv = itemData.itemObj:getContainer()
@@ -3065,6 +3165,34 @@ end
 function GridRender:update()
     ISPanel.update(self)
     self:updateTooltip()
+
+    -- Auto-Search edge-trigger: só ativa quando o container ACABA de se tornar o alvo ativo.
+    -- Usa tabela global por container (sobrevive rebuilds dos grids — o hash muda
+    -- a cada frame de search, o que recria as instâncias GridRender).
+    local autoSearchKey = tostring(self.playerNum) .. ":" .. tostring(self:searchKey())
+
+    local isTargetActive = false
+    if not self:isUnderCollapsedPage() and self:isVisible() and self.parent:isVisible() then
+        local pLoot = getPlayerLoot(self.playerNum)
+        local pInv = getPlayerInventory(self.playerNum)
+        local pLootVis = pLoot and pLoot:getIsVisible()
+        local pInvVis = pInv and pInv:getIsVisible()
+        if (pLootVis and pLoot.inventory == self.inventoryContainer) or (pInvVis and pInv.inventory == self.inventoryContainer) then
+            isTargetActive = true
+        end
+    end
+
+    if isTargetActive then
+        if not _autoSearchDone[autoSearchKey] then
+            _autoSearchDone[autoSearchKey] = true
+            if GridModOptions.cache.autoSearch and self:needsSearch() and not self._searchActive then
+                self:startSearch()
+            end
+        end
+    else
+        -- Container não é mais ativo: limpa pra poder re-trigger se voltar
+        _autoSearchDone[autoSearchKey] = nil
+    end
 
     -- Itens com ação de transferência na fila (pra safe-guard de ghost).
     local q = ISTimedActionQueue.getTimedActionQueue(getSpecificPlayer(self.playerNum))

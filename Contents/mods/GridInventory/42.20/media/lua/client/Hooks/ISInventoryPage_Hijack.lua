@@ -725,7 +725,7 @@ end
 
 local og_pagePrerender = ISInventoryPage.prerender
 function ISInventoryPage:prerender()
-    local opacity = GridInventory_PanelOpacity or 0.8
+    local opacity = GridInventory_PanelOpacity or 0.9
     -- Oculte o fundo nativo ANTES de chamar o vanilla para impedir que ele
     -- desenhe um fundo repetido no lado direito (bug do Zomboid vanilla)
     -- que causava a coluna do Inv (direita) ficar mais escura que a do Loot (esquerda)
@@ -825,7 +825,7 @@ function ISInventoryPage:render()
         local rwH = self.resizeWidget and self.resizeWidget.height or 0
         if rwH > 0 then
             local footerY = self:getHeight() - rwH
-            local opacity = GridInventory_PanelOpacity or 0.8
+            local opacity = GridInventory_PanelOpacity or 0.9
             local extraAlpha = opacity * 0.4
             local borderAlpha = opacity > 0 and 0.5 or 0
             

@@ -17,7 +17,7 @@
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Bir konteyneri ararken her yığını ortaya çıkarmak için geçen süre (milisaniye). Yığın sayısıyla ölçeklenir: daha çok öğe, daha uzun arama.\n\n0 = anında (tıklamada her şeyi ortaya çıkarır).",
     "Sandbox_GridInventory_EnableDevTools": "DevTools'u Etkinleştir",
     "Sandbox_GridInventory_EnableDevTools_tooltip": "Öğe bağlam menüsüne \"[DevTool] Izgara Boyutunu Düzenle\" seçeneğini ekler; böylece oyunu -debug ile başlatmadan öğe alanlarını ve konteyner ızgaralarını yeniden boyutlandırabilirsiniz.\n\nAçık: DevTools bu kayıtta kullanılabilir. Çok oyunculuda, admin olmayan oyuncular seçeneği görebilir ancak sunucu değişikliklerin uygulanmasını reddeder.\n\nKapalı: yalnızca oyun -debug ile başlatıldığında kullanılabilir.",
-    "Sandbox_GridInventory_IconRotation": "Rotate/Scale Item Sprites",
+    "Sandbox_GridInventory_IconRotation": "Öğe sprite'larını döndür/ölçekle",
     "Sandbox_GridInventory_IconRotation_tooltip": "Applies the saved sprite rotation, scale and anchor overrides (GridDevTool) for all players.\n\nOn: everyone sees item sprites rotated/scaled/anchored as configured.\n\nOff: the server forces the default sprite (only the footprint w/h is applied). Server-side decision for everyone.",
     "Sandbox_GridInventory_MaxContainerGridSize": "Maksimum konteyner ızgara boyutu",
     "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Dünya konteyner ızgaraları için maksimum satır sayısı. Izgaralar bu sınıra kadar kapasiteye göre boyutlanır. DevTool ızgara geçersiz kılması, belirli konteynerler için bu sınırı aşabilir.\n\nVarsayılan 15, klasik davranışı korur.",

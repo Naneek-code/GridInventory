@@ -17,7 +17,7 @@
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Czas w milisekundach potrzebny do ujawnienia każdej sterty podczas przeszukiwania pojemnika. Skaluje się z liczbą stert: więcej przedmiotów, dłuższe szukanie.\n\n0 = natychmiast (ujawnia wszystko po kliknięciu).",
     "Sandbox_GridInventory_EnableDevTools": "Włącz DevTools",
     "Sandbox_GridInventory_EnableDevTools_tooltip": "Dodaje opcję \"[DevTool] Edytuj rozmiar siatki\" do menu kontekstowego przedmiotów, dzięki czemu możesz zmieniać rozmiar zajmowanych przez przedmioty pól oraz siatki pojemników bez uruchamiania gry z -debug.\n\nWł.: DevTools dostępne w tym zapisie. W trybie wieloosobowym gracze bez uprawnień administratora widzą opcję, ale serwer odrzuca zastosowanie zmian.\n\nWył.: dostępne tylko, gdy gra jest uruchamiana z -debug.",
-    "Sandbox_GridInventory_IconRotation": "Rotate/Scale Item Sprites",
+    "Sandbox_GridInventory_IconRotation": "Obróć/przeskaluj sprite'y przedmiotów",
     "Sandbox_GridInventory_IconRotation_tooltip": "Applies the saved sprite rotation, scale and anchor overrides (GridDevTool) for all players.\n\nOn: everyone sees item sprites rotated/scaled/anchored as configured.\n\nOff: the server forces the default sprite (only the footprint w/h is applied). Server-side decision for everyone.",
     "Sandbox_GridInventory_MaxContainerGridSize": "Maksymalny rozmiar siatki pojemnika",
     "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Maksymalna liczba wierszy dla siatek pojemników świata. Siatki są skalowane do pojemności aż do tego limitu. Nadpisanie siatki przez DevTool może przekroczyć ten limit dla konkretnych pojemników.\n\nDomyślna wartość 15 zachowuje klasyczne zachowanie.",

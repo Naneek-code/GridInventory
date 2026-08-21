@@ -17,7 +17,7 @@
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tempo em milissegundos para revelar cada pilha ao vasculhar um recipiente. Escala com o número de pilhas: mais itens, pesquisa mais longa.\n\n0 = instantâneo (revela tudo ao clicar).",
     "Sandbox_GridInventory_EnableDevTools": "Ativar DevTools",
     "Sandbox_GridInventory_EnableDevTools_tooltip": "Adiciona a opção \"[DevTool] Editar tamanho da grelha\" ao menu de contexto dos itens, para poder redimensionar a área ocupada pelos itens e as grelhas dos recipientes sem iniciar o jogo com -debug.\n\nLigado: DevTools disponíveis neste save. No multijogador, jogadores que não são administradores veem a opção, mas o servidor recusa aplicar as alterações.\n\nDesligado: só disponível quando o jogo é iniciado com -debug.",
-    "Sandbox_GridInventory_IconRotation": "Rotate/Scale Item Sprites",
+    "Sandbox_GridInventory_IconRotation": "Rodar/escalar sprites dos itens",
     "Sandbox_GridInventory_IconRotation_tooltip": "Applies the saved sprite rotation, scale and anchor overrides (GridDevTool) for all players.\n\nOn: everyone sees item sprites rotated/scaled/anchored as configured.\n\nOff: the server forces the default sprite (only the footprint w/h is applied). Server-side decision for everyone.",
     "Sandbox_GridInventory_MaxContainerGridSize": "Tamanho máximo da grelha dos recipientes",
     "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Número máximo de linhas para as grelhas dos recipientes do mundo. As grelhas são dimensionadas pela capacidade até este limite. A sobreposição de grelha do DevTool pode ultrapassar este limite para recipientes específicos.\n\nO valor 15 (padrão) mantém o comportamento clássico.",

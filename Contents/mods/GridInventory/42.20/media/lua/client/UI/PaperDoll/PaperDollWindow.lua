@@ -611,15 +611,23 @@ function PaperDollWindow:prerender()
     end
     
     if self.scrollPanel then
-        self.scrollPanel:setHeight(self.height - self:titleBarHeight())
+        local rwH = self:resizeWidgetHeight() - 1
+        self.scrollPanel:setHeight(self.height - self:titleBarHeight() - rwH)
         self.scrollPanel:setWidth(self.width)
     end
     
     if not self.isCollapsed then
         local titleH = self:titleBarHeight()
-        local opacity = GridInventory_PanelOpacity or 0.8
+        local opacity = GridInventory_PanelOpacity or 0.9
         local extraAlpha = opacity * 0.4
         self:drawRect(0, titleH, self.width, self.height - titleH, extraAlpha, 0.15, 0.15, 0.15)
+        
+        local rwH = self:resizeWidgetHeight() - 1
+        local footerY = self.height - rwH
+        if footerY > titleH then
+            local borderAlpha = opacity > 0 and 0.5 or 0
+            self:drawRectBorder(0, footerY, self.width, rwH, borderAlpha, 0.5, 0.5, 0.5)
+        end
     end
 end
 
@@ -698,6 +706,37 @@ function PaperDollWindow:render()
     if self.isCollapsed then return end
     -- Barra de progresso e overlay joypad foram movidos pra scrollPanel.render
     -- (desenhados DENTRO do stencil, não vazam pra titlebar nem fora da janela).
+
+    -- Overlay de instrução (Modo Navegação do Joypad)
+    local GridJoypad = require("System/GridJoypad")
+    local nav = GridJoypad.navs and GridJoypad.navs[self.playerNum]
+    if nav and nav.active then
+        local titleH = self:titleBarHeight()
+        local w = self.width
+        local h = self.height - titleH
+
+        -- Escurece o PaperDoll pra chamar atenção pros ícones
+        self:drawRect(0, titleH, w, h, 0.15, 1.0, 1.0, 1.0)
+        
+        if Joypad.Texture and Joypad.Texture.LBumper and Joypad.Texture.RBumper then
+            local uiScale = (GridInventory_uiScale or 100) / 100
+            local texW = math.floor(48 * uiScale)
+            local texH = math.floor(48 * uiScale)
+            
+            local cx = w / 2
+            local cy = titleH + (h / 2)
+            
+            local font = UIFont.Massive
+            local plusW = getTextManager():MeasureStringX(font, "+")
+            local fontY = cy - (getTextManager():MeasureStringY(font, "+") / 2)
+            
+            self:drawTextCentre("+", cx, fontY, 1, 1, 1, 1, font)
+            
+            local margin = 10
+            self:drawTextureScaledAspect(Joypad.Texture.LBumper, cx - (plusW / 2) - margin - texW, cy - (texH / 2), texW, texH, 1, 1, 1, 1)
+            self:drawTextureScaledAspect(Joypad.Texture.RBumper, cx + (plusW / 2) + margin, cy - (texH / 2), texW, texH, 1, 1, 1, 1)
+        end
+    end
 end
 
 function PaperDollWindow:refreshOverflow(wornItems, prim, sec)

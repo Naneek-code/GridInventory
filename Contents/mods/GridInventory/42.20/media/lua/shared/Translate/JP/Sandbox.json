@@ -17,7 +17,7 @@
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "コンテナを探索中に各スタックを明らかにするのにかかる時間（ミリ秒）。スタック数に応じて変動します。アイテムが多いほど探索が長くなります。\n\n0 = 即時（クリックで全部明らかになる）。",
     "Sandbox_GridInventory_EnableDevTools": "DevTools を有効化",
     "Sandbox_GridInventory_EnableDevTools_tooltip": "アイテムのコンテキストメニューに「[DevTool] グリッドサイズを編集」オプションを追加し、-debug で起動しなくてもアイテムの占有サイズとコンテナのグリッドを変更できるようにします。\n\nオン：このセーブで DevTools が利用可能。マルチプレイヤーでは、非管理者プレイヤーはオプションを表示できますが、サーバーは変更の適用を拒否します。\n\nオフ：ゲームを -debug で起動した場合のみ利用可能。",
-    "Sandbox_GridInventory_IconRotation": "Rotate/Scale Item Sprites",
+    "Sandbox_GridInventory_IconRotation": "アイテムスプライトを回転/拡大縮小",
     "Sandbox_GridInventory_IconRotation_tooltip": "Applies the saved sprite rotation, scale and anchor overrides (GridDevTool) for all players.\n\nOn: everyone sees item sprites rotated/scaled/anchored as configured.\n\nOff: the server forces the default sprite (only the footprint w/h is applied). Server-side decision for everyone.",
     "Sandbox_GridInventory_MaxContainerGridSize": "コンテナグリッドの最大サイズ",
     "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "ワールドコンテナのグリッドの最大行数。グリッドはこの上限まで容量に応じてサイズが決まります。DevTool のグリッド上書きは特定のコンテナでこの上限を超えられます。\n\nデフォルトの 15 が従来の動作です。",

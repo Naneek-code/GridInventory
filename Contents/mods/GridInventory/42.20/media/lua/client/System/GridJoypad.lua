@@ -1178,6 +1178,14 @@ function GridJoypad.pollNav(playerNum, page)
     local anyDown = rbDown or lbDown
 
     if nav.active then
+        -- Transição fluida: se apertou o outro bumper no meio do Nav, entra no PaperDoll!
+        if rbDown and lbDown then
+            if GridJoypad.enterPaperdoll(playerNum) then
+                GridJoypad.endNav(playerNum)
+            end
+            return
+        end
+
         -- Soltou o bumper: posição confirmada, sai do modo (sem ação de tap).
         if not anyDown then
             GridJoypad.endNav(playerNum)

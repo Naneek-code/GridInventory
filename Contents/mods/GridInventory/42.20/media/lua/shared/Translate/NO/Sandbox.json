@@ -17,7 +17,7 @@
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tid i millisekunder for å avsløre hver stabel mens du søker i en beholder. Skalerer med antall stabler: flere gjenstander, lengre søk.\n\n0 = øyeblikkelig (avslører alt ved klikk).",
     "Sandbox_GridInventory_EnableDevTools": "Aktiver DevTools",
     "Sandbox_GridInventory_EnableDevTools_tooltip": "Legger til alternativet \"[DevTool] Rediger rutenettstørrelse\" i kontekstmenyen for gjenstander, slik at du kan endre størrelsen på gjenstanders fotavtrykk og beholders rutenett uten å starte spillet med -debug.\n\nPå: DevTools tilgjengelig i denne lagringen. I flerspiller kan ikke-admin-spillere se alternativet, men serveren avviser å bruke endringer.\n\nAv: kun tilgjengelig når spillet startes med -debug.",
-    "Sandbox_GridInventory_IconRotation": "Rotate/Scale Item Sprites",
+    "Sandbox_GridInventory_IconRotation": "Roter/skaler gjenstandssprites",
     "Sandbox_GridInventory_IconRotation_tooltip": "Applies the saved sprite rotation, scale and anchor overrides (GridDevTool) for all players.\n\nOn: everyone sees item sprites rotated/scaled/anchored as configured.\n\nOff: the server forces the default sprite (only the footprint w/h is applied). Server-side decision for everyone.",
     "Sandbox_GridInventory_MaxContainerGridSize": "Maks. rutenettstørrelse for beholdere",
     "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Maksimalt antall rader for verdensbeholder-rutenett. Rutenett størrelsesbestemmes etter kapasitet opp til denne grensen. DevTool-rutenettoverstyringen kan overskride denne grensen for spesifikke beholdere.\n\nStandard 15 beholder den klassiske oppførselen.",

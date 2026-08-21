@@ -26,8 +26,16 @@ GridModOptions.cache = GridModOptions.cache or {
     multiContainerLoot = true,
     closeOnEsc = true,
     uiScale = 100,
-    panelOpacity = 80,
+    panelOpacity = 90,
     gradientFast = false,
+    solidFootprint = false,
+    autoSearch = false,
+    modifierCtrl = 1,
+    modifierShift = 5,
+    modifierAlt = 6,
+    modifierRightCtrl = 6,
+    modifierRightShift = 6,
+    modifierRightAlt = 6,
 }
 
 local cache = GridModOptions.cache
@@ -38,9 +46,17 @@ local DEFAULTS = {
     multiContainerLoot = true,
     closeOnEsc = true,
     uiScale = 100,
-    panelOpacity = 80,
+    panelOpacity = 90,
     gradientFast = false,
+    solidFootprint = false,
+    autoSearch = false,
     paperDollLeft = false,
+    modifierCtrl = 1,
+    modifierShift = 5,
+    modifierAlt = 6,
+    modifierRightCtrl = 6,
+    modifierRightShift = 6,
+    modifierRightAlt = 6,
 }
 
 local function toBool(value, default)
@@ -82,7 +98,11 @@ local function applyIni()
                 if parts[3] == "uiScale" or parts[3] == "panelOpacity" then
                     cache[parts[3]] = toNumber(value, DEFAULTS[parts[3]])
                 else
-                    cache[parts[3]] = toBool(value, cache[parts[3]])
+                    if parts[3] == "modifierCtrl" or parts[3] == "modifierShift" or parts[3] == "modifierAlt" or parts[3] == "modifierRightCtrl" or parts[3] == "modifierRightShift" or parts[3] == "modifierRightAlt" then
+                cache[parts[3]] = tonumber(value) or cache[parts[3]]
+            else
+                cache[parts[3]] = toBool(value, cache[parts[3]])
+            end
                 end
             end
         end
@@ -108,7 +128,7 @@ local function syncFromPZAPI()
         if option then
             local okv, value = pcall(function() return option:getValue() end)
             if okv then
-                if id == "uiScale" or id == "panelOpacity" then
+                if id == "uiScale" or id == "panelOpacity" or id:sub(1, 8) == "modifier" then
                     cache[id] = toNumber(value, default)
                 else
                     cache[id] = toBool(value, default)
@@ -172,36 +192,94 @@ local function registerOptions()
     end)
     if not ok2 or not section then return end
 
+    section:addTitle(getText("IGUI_GridInv_Section_Window") or "Window Behavior")
     section:addTickBox("fullscreenPanel",
         getText("IGUI_GridInv_OptionsFullscreenPanel"), true,
         getText("IGUI_GridInv_OptionsFullscreenPanel_Tooltip"))
+    section:addTickBox("closeOnEsc",
+        getText("IGUI_GridInv_OptionsCloseOnEsc"), true,
+        getText("IGUI_GridInv_OptionsCloseOnEsc_Tooltip"))
     section:addSeparator()
+    section:addTitle(getText("IGUI_GridInv_Section_Mechanics") or "Grid Mechanics")
     section:addTickBox("multiContainerInv",
         getText("IGUI_GridInv_OptionsMultiContainerInv"), true,
         getText("IGUI_GridInv_OptionsMultiContainerInv_Tooltip"))
     section:addTickBox("multiContainerLoot",
         getText("IGUI_GridInv_OptionsMultiContainerLoot"), true,
         getText("IGUI_GridInv_OptionsMultiContainerLoot_Tooltip"))
+    section:addTickBox("autoSearch",
+        getText("IGUI_GridInv_OptionsAutoSearch") or "Auto-Search Active Container", false,
+        getText("IGUI_GridInv_OptionsAutoSearch_Tooltip") or "Automatically initiates search when you select an unsearched container.")
     section:addSeparator()
-    section:addTickBox("closeOnEsc",
-        getText("IGUI_GridInv_OptionsCloseOnEsc"), true,
-        getText("IGUI_GridInv_OptionsCloseOnEsc_Tooltip"))
-    section:addSeparator()
+    section:addTitle(getText("IGUI_GridInv_Section_Appearance") or "Appearance / UI")
     section:addSlider("uiScale",
         getText("IGUI_GridInv_OptionsUiScale"), 50, 150, 5, 100,
         getText("IGUI_GridInv_OptionsUiScale_Tooltip"))
-    section:addSeparator()
     section:addSlider("panelOpacity",
-        getText("IGUI_GridInv_OptionsPanelOpacity") or "Background Opacity", 50, 100, 5, 80,
+        getText("IGUI_GridInv_OptionsPanelOpacity") or "Background Opacity", 50, 100, 5, 90,
         getText("IGUI_GridInv_OptionsPanelOpacity_Tooltip") or "Adjust the opacity of the inventory backgrounds.")
     section:addSeparator()
-    section:addTickBox("paperDollLeft",
+    section:addTitle(getText("IGUI_GridInv_Section_Layout") or "Layout")
+    section:addTickBox("paperDollLeft", 
         getText("IGUI_GridInv_OptionsPaperDollLeft"), false,
         getText("IGUI_GridInv_OptionsPaperDollLeft_Tooltip"))
     section:addSeparator()
+    section:addTitle(getText("IGUI_GridInv_Section_Performance") or "Graphical Performance")
     section:addTickBox("gradientFast",
         getText("IGUI_GridInv_OptionsGradientFast"), false,
         getText("IGUI_GridInv_OptionsGradientFast_Tooltip"))
+    section:addTickBox("solidFootprint",
+        getText("IGUI_GridInv_OptionsSolidFootprint") or "Solid Footprints (Performance)", false,
+        getText("IGUI_GridInv_OptionsSolidFootprint_Tooltip") or "Renders a solid color instead of a gradient, massively improving FPS.")
+
+    section:addSeparator()
+    section:addTitle(getText("IGUI_GridInv_Section_Shortcuts") or "Mouse Modifiers / Shortcuts")
+    local modifierChoices = {
+        getText("IGUI_GridInv_ModAction_StackPicker") or "Open Stack Picker",
+        getText("IGUI_GridInv_ModAction_TakeOne") or "Take One (Split 1x)",
+        getText("IGUI_GridInv_ModAction_QuickTransfer") or "Quick Transfer",
+        getText("IGUI_GridInv_ModAction_DropFloor") or "Drop to Floor",
+        getText("IGUI_GridInv_ModAction_MultiSelect") or "Multi-Select",
+        getText("IGUI_GridInv_ModAction_Disabled") or "Disabled"
+    }
+
+    local ctrlAction = cache.modifierCtrl or 1
+    local shiftAction = cache.modifierShift or 5
+    local altAction = cache.modifierAlt or 6
+
+    local ctrlCombo = section:addComboBox("modifierCtrl",
+        getText("IGUI_GridInv_OptionsModifierCtrl") or "Ctrl + Click Action",
+        getText("IGUI_GridInv_OptionsModifierCtrl_Tooltip") or "Action performed when clicking an item while holding Ctrl.")
+    for i, choice in ipairs(modifierChoices) do ctrlCombo:addItem(choice, i == ctrlAction) end
+
+    local shiftCombo = section:addComboBox("modifierShift",
+        getText("IGUI_GridInv_OptionsModifierShift") or "Shift + Click Action",
+        getText("IGUI_GridInv_OptionsModifierShift_Tooltip") or "Action performed when clicking an item while holding Shift.")
+    for i, choice in ipairs(modifierChoices) do shiftCombo:addItem(choice, i == shiftAction) end
+
+    local altCombo = section:addComboBox("modifierAlt",
+        getText("IGUI_GridInv_OptionsModifierAlt") or "Alt + Click Action",
+        getText("IGUI_GridInv_OptionsModifierAlt_Tooltip") or "Action performed when clicking an item while holding Alt.")
+    for i, choice in ipairs(modifierChoices) do altCombo:addItem(choice, i == altAction) end
+
+    local rightCtrlAction = cache.modifierRightCtrl or 6
+    local rightShiftAction = cache.modifierRightShift or 6
+    local rightAltAction = cache.modifierRightAlt or 6
+
+    local rightCtrlCombo = section:addComboBox("modifierRightCtrl",
+        getText("IGUI_GridInv_OptionsModifierRightCtrl") or "Ctrl + Right Click",
+        getText("IGUI_GridInv_OptionsModifierRightCtrl_Tooltip") or "Action performed when right clicking an item while holding Ctrl.")
+    for i, choice in ipairs(modifierChoices) do rightCtrlCombo:addItem(choice, i == rightCtrlAction) end
+
+    local rightShiftCombo = section:addComboBox("modifierRightShift",
+        getText("IGUI_GridInv_OptionsModifierRightShift") or "Shift + Right Click",
+        getText("IGUI_GridInv_OptionsModifierRightShift_Tooltip") or "Action performed when right clicking an item while holding Shift.")
+    for i, choice in ipairs(modifierChoices) do rightShiftCombo:addItem(choice, i == rightShiftAction) end
+
+    local rightAltCombo = section:addComboBox("modifierRightAlt",
+        getText("IGUI_GridInv_OptionsModifierRightAlt") or "Alt + Right Click",
+        getText("IGUI_GridInv_OptionsModifierRightAlt_Tooltip") or "Action performed when right clicking an item while holding Alt.")
+    for i, choice in ipairs(modifierChoices) do rightAltCombo:addItem(choice, i == rightAltAction) end
 
     -- Chamado pelo jogo (MainOptions:apply) quando o usuário clica em OK na
     -- aba MODS: a UI já gravou os valores; só re-sincronizamos o cache.
@@ -281,7 +359,7 @@ end
 
 -- Opacidade dos painéis (0-100%). 80 = padrão do Zomboid.
 function GridModOptions.getPanelOpacity()
-    local o = toNumber(cache.panelOpacity, 80)
+    local o = toNumber(cache.panelOpacity, 90)
     if o < 50 then o = 50 end
     if o > 100 then o = 100 end
     return o / 100
@@ -300,7 +378,18 @@ end
 
 -- Nº de faixas do degrade (12 ou 6) pro ItemCategory (shared) usar no render.
 function GridModOptions.getGradientSteps()
-    return GridModOptions.isGradientFast() and 6 or 12
+    if cache.solidFootprint == true then return 1 end
+    function GridModOptions.getModifierAction(modifier)
+    if modifier == "Ctrl" then return cache.modifierCtrl or 1 end
+    if modifier == "Shift" then return cache.modifierShift or 5 end
+    if modifier == "Alt" then return cache.modifierAlt or 6 end
+    if modifier == "RightCtrl" then return cache.modifierRightCtrl or 6 end
+    if modifier == "RightShift" then return cache.modifierRightShift or 6 end
+    if modifier == "RightAlt" then return cache.modifierRightAlt or 6 end
+    return 6
+end
+
+return GridModOptions.isGradientFast() and 6 or 12
 end
 
 -- Global leve usado pelo ItemCategory.getGradient/getSubtleGradient (módulo
@@ -312,5 +401,15 @@ GridInventory_gradientSteps = GridModOptions.getGradientSteps()
 -- pra calcular o cellSize sem require circular. Mantido em sincronia com o cache.
 GridInventory_uiScale = GridModOptions.getUiScale()
 GridInventory_PanelOpacity = GridModOptions.getPanelOpacity()
+
+function GridModOptions.getModifierAction(modifier)
+    if modifier == "Ctrl" then return cache.modifierCtrl or 1 end
+    if modifier == "Shift" then return cache.modifierShift or 5 end
+    if modifier == "Alt" then return cache.modifierAlt or 6 end
+    if modifier == "RightCtrl" then return cache.modifierRightCtrl or 6 end
+    if modifier == "RightShift" then return cache.modifierRightShift or 6 end
+    if modifier == "RightAlt" then return cache.modifierRightAlt or 6 end
+    return 6
+end
 
 return GridModOptions

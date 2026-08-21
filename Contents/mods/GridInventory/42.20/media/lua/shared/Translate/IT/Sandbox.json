@@ -17,7 +17,7 @@
     "Sandbox_GridInventory_SearchTimePerItem_tooltip": "Tempo in millisecondi per rivelare ogni pila durante la perquisizione di un contenitore. Scala con il numero di pile: più oggetti, ricerca più lunga.\n\n0 = istantaneo (rivela tutto al clic).",
     "Sandbox_GridInventory_EnableDevTools": "Abilita DevTools",
     "Sandbox_GridInventory_EnableDevTools_tooltip": "Aggiunge l'opzione \"[DevTool] Modifica dimensione griglia\" al menu contestuale degli oggetti, così puoi ridimensionare l'ingombro degli oggetti e le griglie dei contenitori senza avviare il gioco con -debug.\n\nAttivo: DevTools disponibili in questo salvataggio. In multiplayer, i giocatori non-admin vedono l'opzione ma il server rifiuta di applicare le modifiche.\n\nDisattivo: disponibile solo quando il gioco viene avviato con -debug.",
-    "Sandbox_GridInventory_IconRotation": "Rotate/Scale Item Sprites",
+    "Sandbox_GridInventory_IconRotation": "Ruota/scala gli sprite degli oggetti",
     "Sandbox_GridInventory_IconRotation_tooltip": "Applies the saved sprite rotation, scale and anchor overrides (GridDevTool) for all players.\n\nOn: everyone sees item sprites rotated/scaled/anchored as configured.\n\nOff: the server forces the default sprite (only the footprint w/h is applied). Server-side decision for everyone.",
     "Sandbox_GridInventory_MaxContainerGridSize": "Dimensione massima della griglia del contenitore",
     "Sandbox_GridInventory_MaxContainerGridSize_tooltip": "Numero massimo di righe per le griglie dei contenitori del mondo. Le griglie vengono dimensionate in base alla capacità fino a questo limite. L'override della griglia del DevTool può superare questo limite per contenitori specifici.\n\nIl valore predefinito 15 mantiene il comportamento classico.",
