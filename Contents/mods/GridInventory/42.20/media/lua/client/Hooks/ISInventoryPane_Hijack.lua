@@ -151,13 +151,9 @@ Events.OnGameBoot.Add(function()
         
         self.lastBackpackHash = currentBackpackHash
 
-        -- Limpa a UI de Grids antigos se fomos recriar
-        if self.gridContainerUis then
-            for _, gridUi in ipairs(self.gridContainerUis) do
-                if gridUi.destroy then gridUi:destroy() end
-                self:removeChild(gridUi)
-            end
-        end
+        -- Prepara para reaproveitar os GridRenders que não mudaram (evita piscar UI e tooltips no carro)
+        local oldGrids = self.gridContainerUis or {}
+        local gridsToKeep = {}
         self.gridContainerUis = {}
 
         local maxGridWidth = 0
@@ -173,10 +169,28 @@ Events.OnGameBoot.Add(function()
 
             
             for i, gridCoreInstance in ipairs(gridContainer.grids) do
-                -- Inicializamos sempre no Y=0. O prerender vai distribuir eles via FlexBox!
-                -- Passar yOffset aqui fazia a UI Java gravar um tamanho gigantesco no cache
-                local gridUi = GridRender:new(10, 0, gridCoreInstance, self.player, inv, i, cItem, cIcon)
-                gridUi:initialise()
+                -- Tenta reaproveitar o GridRender antigo se o inv e index forem iguais
+                local gridUi = nil
+                for idx, old in ipairs(oldGrids) do
+                    local isSameInv = (old.inventoryContainer == inv) or (old.inventoryContainer and inv and old.inventoryContainer.getType and inv.getType and old.inventoryContainer:getType() == "floor" and inv:getType() == "floor")
+                    if isSameInv and old.gridIndex == i and not old.isOverflow then
+                        gridUi = old
+                        table.remove(oldGrids, idx)
+                        break
+                    end
+                end
+
+                if not gridUi then
+                    -- Inicializamos sempre no Y=0. O prerender vai distribuir eles via FlexBox!
+                    local newUi = GridRender:new(10, 0, gridCoreInstance, self.player, inv, i, cItem, cIcon)
+                    newUi:initialise()
+                    self:addChild(newUi)
+                    gridUi = newUi
+                else
+                    -- Se reaproveitou, garante que o gridCore e o inventário atualizados estejam no render
+                    gridUi.gridCore = gridCoreInstance
+                    gridUi.inventoryContainer = inv
+                end
                 -- Altura base (SEM o footer da controlsUI): usada pelo
                 -- gridInv_positionControlsUI pra ancorar a barra logo abaixo do
                 -- conteúdo. Capturada aqui (e não no update) pra nunca ficar nil
@@ -198,7 +212,9 @@ Events.OnGameBoot.Add(function()
                 gridUi:setX(gridUi.baseX)
                 gridUi.baseY = 0
                 
-                self:addChild(gridUi)
+                if not gridUi:getParent() then
+                    self:addChild(gridUi)
+                end
                 table.insert(self.gridContainerUis, gridUi)
                 
                 if gridUi.width > maxGridWidth then
@@ -211,8 +227,22 @@ Events.OnGameBoot.Add(function()
                 
                 if isLootMode then
                     local OverflowGridRender = require("UI/GridRender/OverflowGridRender")
-                    local overflowUi = OverflowGridRender:new(10, 0, gridContainer.unpositioned, self.player, true, inv, cItem, cIcon)
-                    overflowUi:initialise()
+                    local overflowUi = nil
+                    for idx, old in ipairs(oldGrids) do
+                        local isSameInv = (old.inventoryContainer == inv) or (old.inventoryContainer and inv and old.inventoryContainer.getType and inv.getType and old.inventoryContainer:getType() == "floor" and inv:getType() == "floor")
+                        if isSameInv and old.isOverflow then
+                            overflowUi = old
+                            table.remove(oldGrids, idx)
+                            break
+                        end
+                    end
+                    if not overflowUi then
+                        overflowUi = OverflowGridRender:new(10, 0, gridContainer.unpositioned, self.player, true, inv, cItem, cIcon)
+                        overflowUi:initialise()
+                    else
+                        overflowUi.unpositionedItems = gridContainer.unpositioned
+                        overflowUi.inventoryContainer = inv
+                    end
                     overflowUi.baseGridHeight = overflowUi.height
                     overflowUi.isFloor = GridContainer.containerSignature(inv) == "floor"
                     
@@ -220,7 +250,9 @@ Events.OnGameBoot.Add(function()
                     overflowUi:setX(overflowUi.baseX)
                     overflowUi.baseY = 0
                     
-                    self:addChild(overflowUi)
+                    if not overflowUi:getParent() then
+                        self:addChild(overflowUi)
+                    end
                     table.insert(self.gridContainerUis, overflowUi)
                     
                     if overflowUi.width > maxGridWidth then
@@ -238,8 +270,22 @@ Events.OnGameBoot.Add(function()
         -- Renderiza o Overflow global do Jogador no fundo da janela
         if #allPlayerUnpositioned > 0 then
             local OverflowGridRender = require("UI/GridRender/OverflowGridRender")
-            local overflowUi = OverflowGridRender:new(10, 0, allPlayerUnpositioned, self.player, false, self.inventory, nil, nil)
-            overflowUi:initialise()
+            local overflowUi = nil
+            for idx, old in ipairs(oldGrids) do
+                local isSameInv = (old.inventoryContainer == self.inventory) or (old.inventoryContainer and self.inventory and old.inventoryContainer.getType and self.inventory.getType and old.inventoryContainer:getType() == "floor" and self.inventory:getType() == "floor")
+                if isSameInv and old.isOverflow then
+                    overflowUi = old
+                    table.remove(oldGrids, idx)
+                    break
+                end
+            end
+            if not overflowUi then
+                overflowUi = OverflowGridRender:new(10, 0, allPlayerUnpositioned, self.player, false, self.inventory, nil, nil)
+                overflowUi:initialise()
+            else
+                overflowUi.unpositionedItems = allPlayerUnpositioned
+                overflowUi.inventoryContainer = self.inventory
+            end
             overflowUi.baseGridHeight = overflowUi.height
             overflowUi.isFloor = GridContainer.containerSignature(self.inventory) == "floor"
             
@@ -247,11 +293,19 @@ Events.OnGameBoot.Add(function()
             overflowUi:setX(overflowUi.baseX)
             overflowUi.baseY = 0
             
-            self:addChild(overflowUi)
+            if not overflowUi:getParent() then self:addChild(overflowUi) end
             table.insert(self.gridContainerUis, overflowUi)
             
             if overflowUi.width > maxGridWidth then
                 maxGridWidth = overflowUi.width
+            end
+        end
+
+        -- Destrói os grids órfãos (que não foram reaproveitados)
+        if oldGrids then
+            for _, old in ipairs(oldGrids) do
+                if old.destroy then old:destroy() end
+                self:removeChild(old)
             end
         end
 

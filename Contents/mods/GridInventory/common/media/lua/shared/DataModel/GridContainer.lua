@@ -200,6 +200,13 @@ function GridContainer.containerSignature(container)
     if container.getType and container:getType() == "floor" then
         return "floor"
     end
+    if container.getVehiclePart and container:getVehiclePart() then
+        local part = container:getVehiclePart()
+        local vehicle = part:getVehicle()
+        local vid = vehicle and vehicle:getId() or "0"
+        local pid = part:getId() or "unknown"
+        return "vehicle:" .. tostring(vid) .. ":" .. tostring(pid)
+    end
     if parent and parent.getSquare then
         local sq = parent:getSquare()
         if sq and sq.getX then

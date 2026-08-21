@@ -132,17 +132,22 @@ function GridSearchAction:start()
     -- do clearVariable + reportEvent("EventLootItem"), senão a animação Loot
     -- trava o personagem pra sempre (sem barra de progresso, preso até ESC).
     local cont = self.gridRender and self.gridRender.inventoryContainer
-    self:setActionAnim("Loot")
-    self:setAnimVariable("LootPosition", "")
-    self:setOverrideHandModels(nil, nil)
-    self.character:clearVariable("LootPosition")
-    if cont and cont.getContainerPosition and cont:getContainerPosition() then
-        self:setAnimVariable("LootPosition", cont:getContainerPosition())
+    
+    -- O jogo crasha se tentarmos tocar animação de "Loot" (que força o personagem a ficar em pé)
+    -- enquanto ele está sentado/dirigindo um veículo.
+    if not self.character:getVehicle() then
+        self:setActionAnim("Loot")
+        self:setAnimVariable("LootPosition", "")
+        self:setOverrideHandModels(nil, nil)
+        self.character:clearVariable("LootPosition")
+        if cont and cont.getContainerPosition and cont:getContainerPosition() then
+            self:setAnimVariable("LootPosition", cont:getContainerPosition())
+        end
+        if cont and cont.getType and cont:getType() == "freezer" and cont.getFreezerPosition and cont:getFreezerPosition() then
+            self:setAnimVariable("LootPosition", cont:getFreezerPosition())
+        end
+        self.character:reportEvent("EventLootItem")
     end
-    if cont and cont.getType and cont:getType() == "freezer" and cont.getFreezerPosition and cont:getFreezerPosition() then
-        self:setAnimVariable("LootPosition", cont:getFreezerPosition())
-    end
-    self.character:reportEvent("EventLootItem")
     -- SEM som de loop aqui: RummageInInventory é um loop contínuo que o vanilla
     -- não consegue parar (FIXME do próprio jogo). O feedback sonoro é o one-shot
     -- por item revelado no update (StoreItemPlayerInventory).

@@ -903,6 +903,22 @@ function GridRender:startSearch()
     -- ainda está oculto).
     if self._searchActive then return true end
 
+    -- Guard global: se a UI for recriada violentamente (ex: andando de carro com multi-container),
+    -- impede que dezenas de ações sejam enfileiradas para o mesmo container.
+    local playerObj = getSpecificPlayer(self.playerNum)
+    if playerObj then
+        local q = ISTimedActionQueue.getTimedActionQueue(playerObj)
+        if q and q.queue then
+            for i = 1, #q.queue do
+                local act = q.queue[i]
+                if act.Type == "GridSearchAction" and act.containerKey == key then
+                    self._searchActive = true
+                    return true
+                end
+            end
+        end
+    end
+
     -- Torna o container o alvo ativo do painel (mesma lógica do duplo clique
     -- no fundo / clique no header).
     local pLoot = getPlayerLoot(self.playerNum)
