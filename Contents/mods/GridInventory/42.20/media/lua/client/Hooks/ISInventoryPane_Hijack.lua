@@ -135,7 +135,7 @@ Events.OnGameBoot.Add(function()
             for _, g in ipairs(self.gridContainerUis) do
                 if g.inventoryContainer and g.gridCore then
                     local gc = GridContainer.instances[g.inventoryContainer]
-                    if gc and gc.grids and gc.grids[1] and g.gridCore ~= gc.grids[1] then
+                    if gc and gc.grids and g.gridIndex and gc.grids[g.gridIndex] and g.gridCore ~= gc.grids[g.gridIndex] then
                         self.lastBackpackHash = nil
                         break
                     end
@@ -174,9 +174,13 @@ Events.OnGameBoot.Add(function()
                 for idx, old in ipairs(oldGrids) do
                     local isSameInv = (old.inventoryContainer == inv) or (old.inventoryContainer and inv and old.inventoryContainer.getType and inv.getType and old.inventoryContainer:getType() == "floor" and inv:getType() == "floor")
                     if isSameInv and old.gridIndex == i and not old.isOverflow then
-                        gridUi = old
-                        table.remove(oldGrids, idx)
-                        break
+                        if old.gridCore and (old.gridCore.width ~= gridCoreInstance.width or old.gridCore.height ~= gridCoreInstance.height) then
+                            -- Modificou W/H no DevTools, força recriar interface para alinhar caixa preta
+                        else
+                            gridUi = old
+                            table.remove(oldGrids, idx)
+                            break
+                        end
                     end
                 end
 
