@@ -2,6 +2,7 @@ require "ISUI/ISCollapsableWindow"
 require "XpSystem/ISUI/ISCharacterScreen"
 local PaperDollSlot      = require "UI/PaperDoll/PaperDollSlot"
 local AvatarUseDropZone  = require "UI/PaperDoll/AvatarUseDropZone"
+local GridModOptions     = require "System/GridModOptions"
 
 -- Upvalue de global vanilla (sempre presente) usado no render.
 local JoypadRef = Joypad
@@ -15,6 +16,33 @@ local PD_DIRS = {
 }
 
 local PaperDollWindow = ISCollapsableWindow:derive("PaperDollWindow")
+
+-- Insere espaço antes de cada letra maiúscula que vem depois de uma minúscula
+local function camelCaseToSpaces(str)
+    if not str or str == "" then return str end
+    str = string.gsub(str, "(%l)(%u)", "%1 %2")
+    str = string.gsub(str, "(%u)(%u%l)", "%1 %2")
+    return str
+end
+
+local ACTION_TRANSLATION_KEYS = {
+    ISEquipWeaponAction       = "IGUI_ActionBar_Equipping",
+    ISWearClothing            = "IGUI_ActionBar_Wearing",
+    ISUnequipAction           = "IGUI_ActionBar_Unequipping",
+    ISInventoryTransferAction = "IGUI_ActionBar_Transferring",
+    ISEatFoodAction           = "IGUI_ActionBar_Eating",
+    ISDrinkFluidAction        = "IGUI_ActionBar_DrinkingFluid",
+    ISReadABook               = "IGUI_ActionBar_Reading",
+    ISAttachItemHotbar        = "IGUI_ActionBar_Attaching",
+    ISDetachItemHotbar        = "IGUI_ActionBar_Detaching",
+    ISDropItemAction          = "IGUI_ActionBar_Dropping",
+    ISGrabItemAction          = "IGUI_ActionBar_Grabbing",
+    ISReloadWeaponAction      = "IGUI_ActionBar_Reloading",
+    ISRackFirearm             = "IGUI_ActionBar_RackingFirearm",
+    ISTakeWaterAction         = "IGUI_ActionBar_TakeWater",
+    GridReorderAction         = "IGUI_ActionBar_GridReorder",
+    GridSearchAction          = "IGUI_ActionBar_Searching"
+}
 
 function PaperDollWindow:initialise()
     ISCollapsableWindow.initialise(self)
@@ -39,6 +67,106 @@ function PaperDollWindow:initialise()
     
     self.scrollPanel.render = function(this)
         ISPanel.render(this)
+
+        -- ─── Barra de progresso da timed action ──────────────────────────
+        -- Desenhada DENTRO do scrollPanel pra ser clipada pelo stencil (não
+        -- vaza pra titlebar nem pra fora dos limites da janela).
+        local pdWin = self  -- captura do PaperDollWindow
+        local playerObj = getSpecificPlayer(pdWin.playerNum)
+        if playerObj and not pdWin.isCollapsed and ISTimedActionQueue then
+            local queue = ISTimedActionQueue.getTimedActionQueue(playerObj)
+            if queue and queue.queue and queue.queue[1] then
+                local action = queue.queue[1]
+                if action.getJobDelta then
+                    local progress = action:getJobDelta()
+                    if progress > 0 and progress <= 1 then
+                        local barScale = pdWin.uiScale or 1
+                        local barW = pdWin.avatarW - math.floor(20 * barScale)
+                        local barH = math.floor(15 * barScale)
+                        local barX = pdWin.avatarX + math.floor(10 * barScale)
+                        local scrollOffset = this:getYScroll() or 0
+                        local barY = pdWin.avatarY - math.floor(20 * barScale) + scrollOffset
+
+                        local actionName = getText("IGUI_ActionBar_Generic")
+                        if action.Type then
+                            local t = tostring(action.Type)
+                            local key = ACTION_TRANSLATION_KEYS[t]
+                            if key then
+                                actionName = getText(key)
+                            else
+                                actionName = string.gsub(t, "^IS", "")
+                                actionName = string.gsub(actionName, "Action$", "")
+                                actionName = camelCaseToSpaces(actionName)
+                            end
+                        end
+
+                        this:drawTextCentre(actionName, barX + (barW/2), barY - 18, 1, 1, 1, 1, UIFont.Small)
+                        this:drawRect(barX, barY, barW, barH, 0.7, 0, 0, 0)
+                        this:drawRectBorder(barX, barY, barW, barH, 1.0, 0.4, 0.4, 0.4)
+                        this:drawRect(barX + 2, barY + 2, (barW - 4) * progress, barH - 4, 0.9, 0, 0.6, 0)
+                    end
+                end
+            end
+        end
+
+        -- ─── Overlay do modo joypad (LB+RB) ─────────────────────────────
+        -- Moldura reforçada no slot selecionado + ícones D-pad nas bordas.
+        -- Desenhado DENTRO do scrollPanel (stencil clipa).
+        if playerObj and not pdWin.isCollapsed then
+            local GridJoypad = require("System/GridJoypad")
+            if GridJoypad.isPaperdollActive(pdWin.playerNum) then
+                local slot = GridJoypad.pdSelectedSlot(pdWin.playerNum)
+                if slot and slot:getIsVisible() then
+                    -- Coordenadas no espaço do scrollPanel. setScrollChildren(true)
+                    -- translada os filhos por yScroll, mas getAbsolute não inclui
+                    -- esse offset — somamos aqui pra alinhar com a posição visual.
+                    local scrollY = this:getYScroll() or 0
+                    local sx = slot:getAbsoluteX() - this:getAbsoluteX()
+                    local sy = slot:getAbsoluteY() - this:getAbsoluteY() + scrollY
+                    local sw, sh = slot:getWidth(), slot:getHeight()
+                    local pad = math.floor(6 * (pdWin.uiScale or 1))
+                    this:drawRectBorder(sx - 2, sy - 2, sw + 4, sh + 4, 0.5, 1.0, 1.0, 1.0)
+
+                    -- Ghost do item ARRASTADO
+                    if GridJoypad.isDragging(pdWin.playerNum) and GridInventory_GlobalDrag
+                        and GridInventory_GlobalDrag.itemsData
+                        and #GridInventory_GlobalDrag.itemsData > 0 then
+                        local dd = GridInventory_GlobalDrag.itemsData[1]
+                        if dd and dd.itemObj then
+                            local tex = dd.itemObj:getTex()
+                            if tex then
+                                this:drawTextureScaledAspect(tex, sx + 2, sy + 2, sw - 4, sh - 4, 0.85, 1, 1, 1)
+                                this:drawRectBorder(sx - 2, sy - 2, sw + 4, sh + 4, 1.0, 1.0, 0.95, 0.4)
+                            end
+                        end
+                    end
+                    if JoypadRef and JoypadRef.Texture then
+                        local texW = math.floor(30 * (pdWin.uiScale or 1))
+                        local texH = math.floor(30 * (pdWin.uiScale or 1))
+                        for name, d in pairs(PD_DIRS) do
+                            local target = GridJoypad.pdTarget(pdWin.playerNum, d[1], d[2])
+                            if target and target:getIsVisible() then
+                                local ix, iy
+                                if name == "left" then
+                                    ix, iy = sx - pad - texW / 2, sy + sh / 2 - texH / 2
+                                elseif name == "right" then
+                                    ix, iy = sx + sw + pad - texW / 2, sy + sh / 2 - texH / 2
+                                elseif name == "up" then
+                                    ix, iy = sx + sw / 2 - texW / 2, sy - pad - texH / 2
+                                else
+                                    ix, iy = sx + sw / 2 - texW / 2, sy + sh + pad - texH / 2
+                                end
+                                local tex = Joypad.Texture[d[3]]
+                                if tex then
+                                    this:drawTextureScaledAspect(tex, ix, iy, texW, texH, 1.0, 1.0, 1.0, 1.0)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
         this:clearStencilRect()
     end
     
@@ -419,10 +547,16 @@ function PaperDollWindow:prerender()
         self:relayout()
     end
 
-    -- Cola o PaperDoll no lado DIREITO do inventário do jogador (Modo Seguro)
+    -- Cola o PaperDoll ao lado do inventário do jogador (Modo Seguro).
+    -- paperDollLeft: à ESQUERDA do inv (inv empurra pra direita).
+    -- paperDollRight (padrão): à DIREITA do inv (paperDoll empurra pra direita).
     local invPage = getPlayerInventory(self.playerNum)
     if invPage and invPage:getIsVisible() then
-        self:setX(invPage:getRight())
+        if GridModOptions.isPaperDollLeft() then
+            self:setX(invPage:getX() - self.width)
+        else
+            self:setX(invPage:getRight())
+        end
         self:setY(invPage:getY())
         -- Mantém a altura sincronizada
         if self.height ~= invPage.height then
@@ -511,141 +645,14 @@ function PaperDollWindow:update()
         end
     end
 end
-
--- Insere espaço antes de cada letra maiúscula que vem depois de uma minúscula
--- (ex: "HandWorking" -> "Hand Working", "DrinkingLiquid" -> "Drinking Liquid")
--- Também trata siglas seguidas de palavra (ex: "HTMLParser" -> "HTML Parser")
-local function camelCaseToSpaces(str)
-    if not str or str == "" then return str end
-
-    -- Caso 1: minúscula seguida de maiúscula
-    str = string.gsub(str, "(%l)(%u)", "%1 %2")
-
-    -- Caso 2: sequência de maiúsculas seguida por Maiúscula+minúscula (siglas)
-    str = string.gsub(str, "(%u)(%u%l)", "%1 %2")
-
-    return str
-end
-
-local ACTION_TRANSLATION_KEYS = {
-    ISEquipWeaponAction       = "IGUI_ActionBar_Equipping",
-    ISWearClothing            = "IGUI_ActionBar_Wearing",
-    ISUnequipAction           = "IGUI_ActionBar_Unequipping",
-    ISInventoryTransferAction = "IGUI_ActionBar_Transferring",
-    ISEatFoodAction           = "IGUI_ActionBar_Eating",
-    ISDrinkFluidAction        = "IGUI_ActionBar_DrinkingFluid",
-    ISReadABook               = "IGUI_ActionBar_Reading",
-    ISAttachItemHotbar        = "IGUI_ActionBar_Attaching",
-    ISDetachItemHotbar        = "IGUI_ActionBar_Detaching",
-    ISDropItemAction          = "IGUI_ActionBar_Dropping",
-    ISGrabItemAction          = "IGUI_ActionBar_Grabbing",
-    ISReloadWeaponAction      = "IGUI_ActionBar_Reloading",
-    ISRackFirearm             = "IGUI_ActionBar_RackingFirearm",
-    ISTakeWaterAction         = "IGUI_ActionBar_TakeWater",
-    GridReorderAction         = "IGUI_ActionBar_GridReorder",
-    GridSearchAction          = "IGUI_ActionBar_Searching"
-}
-
 function PaperDollWindow:render()
     ISCollapsableWindow.render(self)
     local playerObj = getSpecificPlayer(self.playerNum)
     if not playerObj then return end
-    -- Colapsado: só a titlebar aparece (o maxDrawHeight clipa os children,
-    -- mas este desenho é feito no render() do próprio painel, depois do
-    -- clearStencilRect — sem o guard ele vazaria a barra de progresso).
+    -- Colapsado: só a titlebar aparece.
     if self.isCollapsed then return end
-    if ISTimedActionQueue then
-        local queue = ISTimedActionQueue.getTimedActionQueue(playerObj)
-        if queue and queue.queue and queue.queue[1] then
-            local action = queue.queue[1]
-            if action.getJobDelta then
-                local progress = action:getJobDelta()
-                if progress > 0 and progress <= 1 then
-                    local barScale = self.uiScale or 1
-                    local barW = self.avatarW - math.floor(20 * barScale)
-                    local barH = math.floor(15 * barScale)
-                    local barX = self.avatarX + math.floor(10 * barScale)
-                    local scrollOffset = self.scrollPanel and self.scrollPanel:getYScroll() or 0
-                    local barY = self.avatarY - math.floor(20 * barScale) + scrollOffset + self:titleBarHeight()
-
-                    local actionName = getText("IGUI_ActionBar_Generic")
-                    if action.Type then
-                        local t = tostring(action.Type)
-                        local key = ACTION_TRANSLATION_KEYS[t]
-                        if key then
-                            actionName = getText(key)
-                        else
-                            -- Sem mapeamento: fallback com espaçamento automático, não traduzido.
-                            actionName = string.gsub(t, "^IS", "")
-                            actionName = string.gsub(actionName, "Action$", "")
-                            actionName = camelCaseToSpaces(actionName)
-                        end
-                    end
-
-                    self:drawTextCentre(actionName, barX + (barW/2), barY - 18, 1, 1, 1, 1, UIFont.Small)
-                    self:drawRect(barX, barY, barW, barH, 0.7, 0, 0, 0)
-                    self:drawRectBorder(barX, barY, barW, barH, 1.0, 0.4, 0.4, 0.4)
-                    self:drawRect(barX + 2, barY + 2, (barW - 4) * progress, barH - 4, 0.9, 0, 0.6, 0)
-                end
-            end
-        end
-    end
-
-    -- Overlay do modo joypad do PaperDoll (LB+RB segurados): moldura reforçada
-    -- no slot selecionado + ícones D-pad nas bordas apontando pros slots
-    -- alcançáveis (mesmo estilo do modo navegação das grids).
-    local GridJoypad = require("System/GridJoypad")
-    if GridJoypad.isPaperdollActive(self.playerNum) then
-        local slot = GridJoypad.pdSelectedSlot(self.playerNum)
-        if slot and slot:getIsVisible() then
-            local sx = slot:getAbsoluteX() - self:getAbsoluteX()
-            local sy = slot:getAbsoluteY() - self:getAbsoluteY()
-            local sw, sh = slot:getWidth(), slot:getHeight()
-            local pad = math.floor(6 * (self.uiScale or 1))
-            self:drawRectBorder(sx - 2, sy - 2, sw + 4, sh + 4, 0.5, 1.0, 1.0, 1.0)
-
-            -- Ghost do item ARRASTADO (drag de joypad): mostra o que será
-            -- equipado no slot selecionado — sem isso você não sabe o que está
-            -- colocando no paperdoll.
-            if GridJoypad.isDragging(self.playerNum) and GridInventory_GlobalDrag
-                and GridInventory_GlobalDrag.itemsData
-                and #GridInventory_GlobalDrag.itemsData > 0 then
-                local dd = GridInventory_GlobalDrag.itemsData[1]
-                if dd and dd.itemObj then
-                    local tex = dd.itemObj:getTex()
-                    if tex then
-                        self:drawTextureScaledAspect(tex, sx + 2, sy + 2, sw - 4, sh - 4, 0.85, 1, 1, 1)
-                        self:drawRectBorder(sx - 2, sy - 2, sw + 4, sh + 4, 1.0, 1.0, 0.95, 0.4)
-                    end
-                end
-            end
-            if JoypadRef and JoypadRef.Texture then
-                -- Ícones menores que no nav das grids: os slots do PaperDoll são
-                -- bem menores que as células da grid (slots ~50px, hotbar ~64px).
-                local texW = math.floor(30 * (self.uiScale or 1))
-                local texH = math.floor(30 * (self.uiScale or 1))
-                for name, d in pairs(PD_DIRS) do
-                    local target = GridJoypad.pdTarget(self.playerNum, d[1], d[2])
-                    if target and target:getIsVisible() then
-                        local ix, iy
-                        if name == "left" then
-                            ix, iy = sx - pad - texW / 2, sy + sh / 2 - texH / 2
-                        elseif name == "right" then
-                            ix, iy = sx + sw + pad - texW / 2, sy + sh / 2 - texH / 2
-                        elseif name == "up" then
-                            ix, iy = sx + sw / 2 - texW / 2, sy - pad - texH / 2
-                        else
-                            ix, iy = sx + sw / 2 - texW / 2, sy + sh + pad - texH / 2
-                        end
-                        local tex = Joypad.Texture[d[3]]
-                        if tex then
-                            self:drawTextureScaledAspect(tex, ix, iy, texW, texH, 1.0, 1.0, 1.0, 1.0)
-                        end
-                    end
-                end
-            end
-        end
-    end
+    -- Barra de progresso e overlay joypad foram movidos pra scrollPanel.render
+    -- (desenhados DENTRO do stencil, não vazam pra titlebar nem fora da janela).
 end
 
 function PaperDollWindow:refreshOverflow(wornItems, prim, sec)
@@ -682,7 +689,7 @@ end
 
 function PaperDollWindow:refreshHotbarUIs(hotbar)
     for _, ui in ipairs(self.hotbarUis) do
-        self:removeChild(ui)
+        self.scrollPanel:removeChild(ui)
     end
     self.hotbarUis = {}
     

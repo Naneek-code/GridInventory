@@ -1465,6 +1465,23 @@ function GridJoypad.enterPaperdoll(playerNum)
     return true
 end
 
+--- Garante que o slot seja visível no scrollPanel do PaperDoll.
+--- Se o slot estiver acima ou abaixo da viewport, rola o painel pra encaixá-lo.
+local function pdEnsureSlotVisible(pd, slot)
+    local sp = pd and pd.scrollPanel
+    if not sp or not slot then return end
+    local slotY = slot:getY()
+    local slotH = slot:getHeight()
+    local yScroll = sp:getYScroll() or 0
+    local paneH = sp.height or sp:getHeight()
+    local margin = 10
+    if slotY < -yScroll + margin then
+        sp:setYScroll(-slotY + margin)
+    elseif slotY + slotH > -yScroll + paneH - margin then
+        sp:setYScroll(-(slotY + slotH - paneH + margin))
+    end
+end
+
 --- D-pad durante o modo PaperDoll: navega entre os slots (sem wrap).
 function GridJoypad.pdDir(playerNum, dx, dy)
     local p = GridJoypad.pds[playerNum]
@@ -1476,6 +1493,8 @@ function GridJoypad.pdDir(playerNum, dx, dy)
     if p.slot.joySelected then p.slot.joySelected = false end
     p.slot = target
     target.joySelected = true
+    -- Auto-scroll: garante que o slot alvo seja visível no scrollPanel.
+    pdEnsureSlotVisible(pd, target)
     return true
 end
 
