@@ -76,7 +76,7 @@ local CONTROLS_PAD = 1
 
 local og_update = ISInventoryPage.update
 function ISInventoryPage:update()
-    -- Roda o Zomboid (e o maldito CleanUI) primeiro!
+    -- Roda o Zomboid primeiro!
     og_update(self)
 
     -- OTIMIZAÇÃO DE FPS: o UIManager chama update() em TODO elemento todo
@@ -211,8 +211,10 @@ function ISInventoryPage:update()
         
         -- Inventário do Jogador: Grid na ESQUERDA (borda), Mochilas na DIREITA (centro)
         if self.containerButtonPanel then
+            local titleH = self:titleBarHeight()
+            local resizeH = self.resizeWidget and self.resizeWidget.height or 0
             self.containerButtonPanel:setX(panelW - self.buttonSize)
-            self.containerButtonPanel:setHeight(self.height)
+            self.containerButtonPanel:setHeight(self.height - titleH - resizeH)
         end
         if self.inventoryPane then
             self.inventoryPane:setX(0)
@@ -234,8 +236,10 @@ function ISInventoryPage:update()
         
         -- Loot: Mochilas na ESQUERDA (centro), Grid na DIREITA (borda)
         if self.containerButtonPanel then
+            local titleH = self:titleBarHeight()
+            local resizeH = self.resizeWidget and self.resizeWidget.height or 0
             self.containerButtonPanel:setX(0)
-            self.containerButtonPanel:setHeight(self.height)
+            self.containerButtonPanel:setHeight(self.height - titleH - resizeH)
         end
         if self.inventoryPane then
             self.inventoryPane:setX(self.buttonSize)
@@ -243,42 +247,17 @@ function ISInventoryPage:update()
         end
     end
     
-    -- Ajuste da Title Bar (Mover botões pro canto direito, descontando o painel de mochilas se ele estiver na direita)
-    -- Nativamente o Zomboid espera os botões acima das mochilas na direita.
-    local btnOffset = self.width
-    if self.onCharacter then
-        -- No inventário do player, as mochilas ficam na direita, vamos recuar os botões pra não esmagar com o peso
-        btnOffset = self.width - self.buttonSize - 5
-    end
-    
-    if self.closeButton then
-        self.closeButton:setX(btnOffset - 3 - 21)
-    end
+    -- (O autor original do mod movia os botões da titlebar. A pedido do usuário,
+    -- foi removido para restaurar o comportamento 100% nativo)
     if self.infoButton then
         self.infoButton:setVisible(false)
     end
-    -- Pin/Collapse: no fullscreen ficam ocultos (painel fixo e sempre aberto).
-    -- No resize restauramos o comportamento nativo (vanilla): o pinButton
-    -- (visível quando NÃO pinado) trava a janela aberta; o collapseButton
-    -- (visível quando pinado) destrava — e aí a janela auto-colapsa pra
-    -- titlebar quando o mouse sai, expandindo ao passar o mouse na titlebar.
     if isFullscreen then
         if self.pinButton then self.pinButton:setVisible(false) end
         if self.collapseButton then self.collapseButton:setVisible(false) end
     else
         if self.pinButton then self.pinButton:setVisible(not self.pin) end
         if self.collapseButton then self.collapseButton:setVisible(self.pin) end
-        -- Pin/Collapse à ESQUERDA do botão de fechar (no loot o close fica no
-        -- canto e, sem isso, os dois ocupariam o MESMO lugar na titlebar).
-        local closeX = self.closeButton and self.closeButton:getX() or (btnOffset - 24)
-        if self.pinButton then
-            self.pinButton:setX(closeX - self.pinButton:getWidth() - 2)
-            self.pinButton:setY(1)
-        end
-        if self.collapseButton then
-            self.collapseButton:setX(closeX - self.collapseButton:getWidth() - 2)
-            self.collapseButton:setY(1)
-        end
     end
 
     -- O SEGREDO DE TUDO:
@@ -746,11 +725,17 @@ end
 
 local og_pagePrerender = ISInventoryPage.prerender
 function ISInventoryPage:prerender()
+    local opacity = GridInventory_PanelOpacity or 0.8
+    -- Oculte o fundo nativo ANTES de chamar o vanilla para impedir que ele
+    -- desenhe um fundo repetido no lado direito (bug do Zomboid vanilla)
+    -- que causava a coluna do Inv (direita) ficar mais escura que a do Loot (esquerda)
+    local ogAlpha = self.backgroundColor.a
+    if GridInventory_PanelOpacity ~= nil then
+        self.backgroundColor.a = 0
+    end
+    
     local oldTitle = self.title
     
-    -- No modo fullscreen ocultamos APENAS o título para que a classe pai não
-    -- desenhe o nome do container; no modo resize o título nativo é restaurado
-    -- (só o PaperDoll ficaria com o nome "Equipment", o que fica estranho).
     if GridModOptions.isFullscreenPanel() then
         self.title = ""
     end
@@ -759,35 +744,53 @@ function ISInventoryPage:prerender()
     
     self.title = oldTitle
     
-    -- Quando colapsado (modo resize, pin destravado) desenhamos só a titlebar:
-    -- o fundo escuro e a coluna de mochilas não são desenhados pra não sobrar
-    -- "fantasma" do corpo do painel.
+    -- Sobrescreve o fundo "branco/cinza" (0.7, 0.7, 0.7) que o Vanilla aplica na bolsa ativa
+    if not self.blinkContainer and self.backpacks then
+        for _, btn in ipairs(self.backpacks) do
+            if btn.backgroundColor then
+                if btn.inventory == self.inventoryPane.inventory then
+                    btn.backgroundColor.r = 1.0
+                    btn.backgroundColor.g = 0.9
+                    btn.backgroundColor.b = 0.3
+                    btn.backgroundColor.a = 0.35
+                else
+                    btn.backgroundColor.a = 0
+                end
+            end
+        end
+    end
+    
+    -- Restaura o alpha original para manter o estado consistente no objeto (caso algo mais precise)
+    self.backgroundColor.a = ogAlpha
+    
     local collapsed = self.isCollapsed
     local w = self:getWidth()
     local h = self:getHeight()
     local titleH = self:titleBarHeight()
     
     if not collapsed then
-        -- Desenha um fundo sólido escuro (estilo Tarkov/Zomboid) em TODO o painel!
-        -- Reduzi a opacidade de 0.85 para 0.65 para que o jogador consiga ver os zumbis!
-        self:drawRect(0, titleH, w, h - titleH, 0.65, 0.08, 0.08, 0.08)
-        self:drawRectBorder(0, titleH, w, h - titleH, 0.5, 0.5, 0.5, 0.5)
+        -- Fundo unificado do painel usando as exatas cores que o PaperDoll usa (a base do Zomboid).
+        -- Como desativamos o desenho duplo do vanilla (self.backgroundColor.a = 0 acima),
+        -- este é o ÚNICO background renderizado no painel, garantindo paridade perfeita 1:1.
+        self:drawRect(0, titleH, w, h - titleH, opacity, self.backgroundColor.r, self.backgroundColor.g, self.backgroundColor.b)
     end
     
-    -- (Bordas dos botões suspensas a pedido do usuário devido a spam de erros no console)
-    
-    -- Restaura a borda bonitinha exclusiva da coluna de mochilas
-    -- E também mantemos um fundo mais opaco (0.85) só pra essa coluna,
-    -- garantindo que os botões não fiquem confusos com o chão!
+    -- A coluna de mochilas não precisa de um segundo fundo hardcoded agora! 
+    -- Como o fundo unificado acima cobre de X=0 a X=Width, ele já preenche a área da coluna
+    -- tanto se ela estiver na direita (Inv) quanto na esquerda (Loot). 
+    -- Mas se a coluna VAZA para fora ou quisermos a bordinha bonitinha de volta:
     if self.containerButtonPanel and not collapsed then
         local bx = self.containerButtonPanel:getX()
         local by = self.containerButtonPanel:getY()
         local bw = self.containerButtonPanel:getWidth()
         local bh = self.containerButtonPanel:getHeight()
         
-        -- Fundo mais forte pra coluna das mochilas
-        self:drawRect(bx, by, bw, bh, 0.85, 0.08, 0.08, 0.08)
-        self:drawRectBorder(bx, by, bw, bh, 0.5, 0.5, 0.5, 0.5)
+        -- Adiciona uma camada extra de preto escalando com a opacidade para dar profundidade
+        local extraAlpha = opacity * 0.5
+        self:drawRect(bx, by, bw, bh, extraAlpha, 0.15, 0.15, 0.15)
+        
+        local borderAlpha = opacity > 0 and 0.5 or 0
+        self:drawRectBorder(bx, by, bw, bh, borderAlpha, 0.5, 0.5, 0.5)
     end
 end
 
@@ -818,9 +821,27 @@ function ISInventoryPage:render()
         self.borderColor.a, self.borderColor.r, self.borderColor.g, self.borderColor.b)
     -- Modo resize: redesenha o grip de redimensionar (o vanilla o desenha via
     -- drawTextureScaled, que suprimimos acima no og_pageRender).
-    if not GridModOptions.isFullscreenPanel() and not self.isCollapsed and self.resizeimage then
-        local rh = (BUTTON_HGT or 34) / 2 + 2
-        self:drawTextureScaled(self.resizeimage, self:getWidth() - rh + 1, self:getHeight() - rh + 1, rh - 2, rh - 2, 1, 1, 1, 1)
+    if not self.isCollapsed then
+        local rwH = self.resizeWidget and self.resizeWidget.height or 0
+        if rwH > 0 then
+            local footerY = self:getHeight() - rwH
+            local opacity = GridInventory_PanelOpacity or 0.8
+            local extraAlpha = opacity * 0.4
+            local borderAlpha = opacity > 0 and 0.5 or 0
+            
+            -- Desenha o fundo escurecido pro rodapé fantasma
+            self:drawRect(0, footerY, self:getWidth(), rwH, extraAlpha, 0.15, 0.15, 0.15)
+            -- Borda superior do rodapé (separando do grid)
+            self:drawRectBorder(0, footerY, self:getWidth(), rwH, borderAlpha, 0.5, 0.5, 0.5)
+        end
+        
+        -- Grip de redimensionamento
+        if not GridModOptions.isFullscreenPanel() and self.resizeimage then
+            local rh = rwH
+            if rh > 0 then
+                self:drawTextureScaled(self.resizeimage, self:getWidth() - rh + 1, self:getHeight() - rh + 1, rh - 2, rh - 2, 1, 1, 1, 1)
+            end
+        end
     end
     -- Overlay do modo navegação (RB segurado): o Lua render da página roda
     -- DEPOIS dos filhos (verificamos no bytecode do UIElement.render), então
@@ -1080,7 +1101,73 @@ end
 --- Troca o container selecionado usando o scroll (mesma lógica do vanilla
 --- quando o mouse está sobre a coluna de mochilas/ícones). Também é chamado
 --- pelo ISInventoryPane:onMouseWheel quando o scroll rola FORA de um grid.
+-- Sincroniza a navegação vanilla (Joypad LB/RB) com a ordem visual
+local og_selectNextContainer = ISInventoryPage.selectNextContainer
+function ISInventoryPage:selectNextContainer()
+    if not self.backpacks or #self.backpacks == 0 then return end
+    local originalOrder = {}
+    for i, button in ipairs(self.backpacks) do originalOrder[i] = button end
+    table.sort(self.backpacks, function(a, b) return (a.y or 0) < (b.y or 0) end)
+
+    local currentIndex = self:getCurrentBackpackIndex()
+    local unlockedIndex = self:nextUnlockedContainer(currentIndex, true)
+    
+    local selectedBtn = nil
+    if unlockedIndex ~= -1 then selectedBtn = self.backpacks[unlockedIndex] end
+
+    for i, button in ipairs(originalOrder) do self.backpacks[i] = button end
+
+    if selectedBtn then
+        for i, b in ipairs(self.backpacks) do
+            if b == selectedBtn then
+                self.backpackChoice = i
+                break
+            end
+        end
+        self:selectContainer(selectedBtn)
+    end
+end
+
+local og_selectPrevContainer = ISInventoryPage.selectPrevContainer
+function ISInventoryPage:selectPrevContainer()
+    if not self.backpacks or #self.backpacks == 0 then return end
+    local originalOrder = {}
+    for i, button in ipairs(self.backpacks) do originalOrder[i] = button end
+    table.sort(self.backpacks, function(a, b) return (a.y or 0) < (b.y or 0) end)
+
+    local currentIndex = self:getCurrentBackpackIndex()
+    local unlockedIndex = self:prevUnlockedContainer(currentIndex, true)
+    
+    local selectedBtn = nil
+    if unlockedIndex ~= -1 then selectedBtn = self.backpacks[unlockedIndex] end
+
+    for i, button in ipairs(originalOrder) do self.backpacks[i] = button end
+
+    if selectedBtn then
+        for i, b in ipairs(self.backpacks) do
+            if b == selectedBtn then
+                self.backpackChoice = i
+                break
+            end
+        end
+        self:selectContainer(selectedBtn)
+    end
+end
+
 function ISInventoryPage:cycleContainer(del)
+    if not self.backpacks or #self.backpacks == 0 then return true end
+
+    -- Snapshot the original array order
+    local originalOrder = {}
+    for i, button in ipairs(self.backpacks) do
+        originalOrder[i] = button
+    end
+
+    -- Temporarily sort by visual Y position so scrolling feels natural
+    table.sort(self.backpacks, function(a, b)
+        return (a.y or 0) < (b.y or 0)
+    end)
+
     local currentIndex = self:getCurrentBackpackIndex()
     local unlockedIndex = -1
 
@@ -1095,12 +1182,27 @@ function ISInventoryPage:cycleContainer(del)
         unlockedIndex = self:nextUnlockedContainer(currentIndex, wrap)
     end
 
+    local selectedBtn = nil
     if unlockedIndex ~= -1 then
+        selectedBtn = self.backpacks[unlockedIndex]
+    end
+
+    -- Restore the original array order IMMEDIATELY to prevent GridInventory hashes from breaking
+    for i, button in ipairs(originalOrder) do
+        self.backpacks[i] = button
+    end
+
+    if selectedBtn then
         local playerObj = getSpecificPlayer(self.player)
         if playerObj and playerObj:getJoypadBind() ~= -1 then
-            self.backpackChoice = unlockedIndex
+            for i, b in ipairs(self.backpacks) do
+                if b == selectedBtn then
+                    self.backpackChoice = i
+                    break
+                end
+            end
         end
-        self:selectContainer(self.backpacks[unlockedIndex])
+        self:selectContainer(selectedBtn)
     end
     return true
 end
@@ -1148,6 +1250,18 @@ end
 local og_pageRefreshBackpacks = ISInventoryPage.refreshBackpacks
 function ISInventoryPage:refreshBackpacks()
     og_pageRefreshBackpacks(self)
+    
+    if self.backpacks then
+        for _, btn in ipairs(self.backpacks) do
+            btn.drawBorder = false
+            btn.isBorderVisible = false
+            btn.borderColor = {r=0, g=0, b=0, a=0} -- Força o alpha para 0 garantindo invisibilidade
+            
+            -- Troca o fundo cinza de hover pro amarelo do projeto
+            btn.backgroundColorMouseOver = {r=1.0, g=0.9, b=0.3, a=0.35}
+            btn.backgroundColorPressed = {r=1.0, g=0.9, b=0.3, a=0.15}
+        end
+    end
     
     if self.onCharacter and self.backpacks and #self.backpacks > 1 then
         local pObj = getSpecificPlayer(self.player)
@@ -1210,10 +1324,13 @@ function ISInventoryPage:refreshBackpacks()
     end
 
     if self.inventoryPane and self.resizeWidget then
-        local resizeH = self.resizeWidget.height or 0
+        local resizeH = self.resizeWidget and self.resizeWidget.height or 0
         local fullH = self.height - self.inventoryPane.y - resizeH
         if self.inventoryPane.height ~= fullH then
             self.inventoryPane:setHeight(fullH)
+        end
+        if self.containerButtonPanel and self.containerButtonPanel:getHeight() ~= fullH then
+            self.containerButtonPanel:setHeight(fullH)
         end
     end
 end

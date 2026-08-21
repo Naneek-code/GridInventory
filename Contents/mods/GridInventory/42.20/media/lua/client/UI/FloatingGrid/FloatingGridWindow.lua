@@ -788,6 +788,15 @@ function FloatingGridWindow:renderStackList()
 end
 
 function FloatingGridWindow:prerender()
+    if GridInventory_PanelOpacity ~= nil then
+        self.backgroundColor.a = GridInventory_PanelOpacity
+    end
+    local inv = getPlayerInventory(self.playerNum)
+    if inv and inv.backgroundColor then
+        self.backgroundColor.r = inv.backgroundColor.r
+        self.backgroundColor.g = inv.backgroundColor.g
+        self.backgroundColor.b = inv.backgroundColor.b
+    end
     ISPanel.prerender(self)
 
     -- Título: fundo + borda (espelho do header dos grids)
@@ -864,13 +873,17 @@ function FloatingGridWindow:prerender()
     end
 
     -- Fundo da área de grid
-    self:drawRect(0, self.titleH, self.width, self.height - self.titleH, 0.75, 0.08, 0.08, 0.08)
+
     self:drawRectBorder(0, 0, self.width, self.height, 0.5, 0.5, 0.5, 0.5)
 
     -- Destaque quando pinada
     if self.pinned then
         self:drawRectBorder(self.pinBtn:getX(), 1, BTN_W, self.titleH - 2, 0.8, 1.0, 0.9, 0.3)
     end
+    
+    local opacity = GridInventory_PanelOpacity or 0.8
+    local extraAlpha = opacity * 0.5
+    self:drawRect(0, self.titleH, self.width, self.height - self.titleH, extraAlpha, 0.15, 0.15, 0.15)
 end
 
 --- Render do modo stack picker (a janela desenha a lista de itens da pilha).

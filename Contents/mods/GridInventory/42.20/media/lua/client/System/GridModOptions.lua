@@ -26,6 +26,7 @@ GridModOptions.cache = GridModOptions.cache or {
     multiContainerLoot = true,
     closeOnEsc = true,
     uiScale = 100,
+    panelOpacity = 80,
     gradientFast = false,
 }
 
@@ -37,6 +38,7 @@ local DEFAULTS = {
     multiContainerLoot = true,
     closeOnEsc = true,
     uiScale = 100,
+    panelOpacity = 80,
     gradientFast = false,
     paperDollLeft = false,
 }
@@ -77,7 +79,7 @@ local function applyIni()
             if parts[2] == "GridInventory" and parts[3] and parts[4] ~= nil then
                 -- O PZAPI grava o ini com \r\n; o readLine pode manter o \r.
                 local value = parts[4]:gsub("\r$", ""):gsub("%s+$", "")
-                if parts[3] == "uiScale" then
+                if parts[3] == "uiScale" or parts[3] == "panelOpacity" then
                     cache[parts[3]] = toNumber(value, DEFAULTS[parts[3]])
                 else
                     cache[parts[3]] = toBool(value, cache[parts[3]])
@@ -106,7 +108,7 @@ local function syncFromPZAPI()
         if option then
             local okv, value = pcall(function() return option:getValue() end)
             if okv then
-                if id == "uiScale" then
+                if id == "uiScale" or id == "panelOpacity" then
                     cache[id] = toNumber(value, default)
                 else
                     cache[id] = toBool(value, default)
@@ -189,6 +191,10 @@ local function registerOptions()
         getText("IGUI_GridInv_OptionsUiScale"), 50, 150, 5, 100,
         getText("IGUI_GridInv_OptionsUiScale_Tooltip"))
     section:addSeparator()
+    section:addSlider("panelOpacity",
+        getText("IGUI_GridInv_OptionsPanelOpacity") or "Background Opacity", 50, 100, 5, 80,
+        getText("IGUI_GridInv_OptionsPanelOpacity_Tooltip") or "Adjust the opacity of the inventory backgrounds.")
+    section:addSeparator()
     section:addTickBox("paperDollLeft",
         getText("IGUI_GridInv_OptionsPaperDollLeft"), false,
         getText("IGUI_GridInv_OptionsPaperDollLeft_Tooltip"))
@@ -203,6 +209,8 @@ local function registerOptions()
         syncFromPZAPI()
         -- Mantém o global de scale em sincronia pro render usar na hora.
         GridInventory_uiScale = GridModOptions.getUiScale()
+    GridInventory_PanelOpacity = GridModOptions.getPanelOpacity()
+        GridInventory_PanelOpacity = GridModOptions.getPanelOpacity()
         -- Mantém o global de faixas do degrade em sincronia pro ItemCategory
         -- (shared, sem require circular) usar na hora.
         GridInventory_gradientSteps = GridModOptions.getGradientSteps()
@@ -236,12 +244,14 @@ Events.OnMainMenuEnter.Add(function()
     tryRegister()
     applyIni()
     GridInventory_uiScale = GridModOptions.getUiScale()
+    GridInventory_PanelOpacity = GridModOptions.getPanelOpacity()
     GridInventory_gradientSteps = GridModOptions.getGradientSteps()
 end)
 Events.OnGameStart.Add(function()
     tryRegister()
     applyIni()
     GridInventory_uiScale = GridModOptions.getUiScale()
+    GridInventory_PanelOpacity = GridModOptions.getPanelOpacity()
     GridInventory_gradientSteps = GridModOptions.getGradientSteps()
 end)
 
@@ -269,6 +279,14 @@ function GridModOptions.getUiScale()
     return s
 end
 
+-- Opacidade dos painéis (0-100%). 80 = padrão do Zomboid.
+function GridModOptions.getPanelOpacity()
+    local o = toNumber(cache.panelOpacity, 80)
+    if o < 50 then o = 50 end
+    if o > 100 then o = 100 end
+    return o / 100
+end
+
 function GridModOptions.isPaperDollLeft()
     return cache.paperDollLeft == true
 end
@@ -293,5 +311,6 @@ GridInventory_gradientSteps = GridModOptions.getGradientSteps()
 -- Global leve usado pelos renders (GridRender/OverflowGridRender/GlobalDragRender)
 -- pra calcular o cellSize sem require circular. Mantido em sincronia com o cache.
 GridInventory_uiScale = GridModOptions.getUiScale()
+GridInventory_PanelOpacity = GridModOptions.getPanelOpacity()
 
 return GridModOptions

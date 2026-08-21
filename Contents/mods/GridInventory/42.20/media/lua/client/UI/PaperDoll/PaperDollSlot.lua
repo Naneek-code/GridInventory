@@ -103,24 +103,35 @@ function PaperDollSlot:render()
         
         if #items > 1 then
             local text = tostring(self.activeIndex or 1) .. "/" .. tostring(#items)
-            local tw = getTextManager():MeasureStringX(UIFont.Small, text)
-            local th = getTextManager():MeasureStringY(UIFont.Small, text)
+            local uiScale = (GridInventory_uiScale or 100) / 100
+            local font = UIFont.Small
+            if uiScale >= 1.5 then font = UIFont.Large elseif uiScale >= 1.25 then font = UIFont.Medium end
+            
+            local tw = getTextManager():MeasureStringX(font, text)
+            local th = getTextManager():MeasureStringY(font, text)
             
             self:drawRect(self.width - tw - 4, self.height - th - 4, tw + 4, th + 4, 0.7, 0, 0, 0)
-            self:drawText(text, self.width - tw - 2, self.height - th - 2, 1, 1, 1, 1, UIFont.Small)
+            self:drawText(text, self.width - tw - 2, self.height - th - 2, 1, 1, 1, 1, font)
         end
     else
         if self.hotbarProviderTexture then
-            -- Draw large provider icon centered with opacity instead of text
-            self:drawTextureScaledAspect(self.hotbarProviderTexture, 8, 8, self.width - 16, self.height - 16, 0.4, 1, 1, 1)
+            local uiScale = (GridInventory_uiScale or 100) / 100
+            local pad = math.floor(8 * uiScale)
+            self:drawTextureScaledAspect(self.hotbarProviderTexture, pad, pad, self.width - (pad * 2), self.height - (pad * 2), 0.4, 1, 1, 1)
         else
-            self:drawTextCentre(self.shortSlotName, self.width/2, self.height/2 - 5, 0.3, 0.3, 0.3, 1, UIFont.Small)
+            local uiScale = (GridInventory_uiScale or 100) / 100
+            local font = UIFont.Small
+            if uiScale >= 1.5 then font = UIFont.Large elseif uiScale >= 1.25 then font = UIFont.Medium end
+            local fh = getTextManager():MeasureStringY(font, "A")
+            self:drawTextCentre(self.shortSlotName, self.width/2, (self.height - fh)/2, 0.3, 0.3, 0.3, 1, font)
         end
     end
     
     if item and self.hotbarProviderTexture then
-        -- Draw provider icon in the corner, slightly larger (28x28 instead of 20x20)
-        self:drawTextureScaledAspect(self.hotbarProviderTexture, self.width - 32, self.height - 32, 28, 28, 1, 1, 1, 1)
+        local uiScale = (GridInventory_uiScale or 100) / 100
+        local pSize = math.floor(28 * uiScale)
+        local pad = math.floor(4 * uiScale)
+        self:drawTextureScaledAspect(self.hotbarProviderTexture, self.width - pSize - pad, self.height - pSize - pad, pSize, pSize, 1, 1, 1, 1)
     end
 
     -- Slot selecionado pelo joypad (modo PaperDoll: LB+RB segurados).

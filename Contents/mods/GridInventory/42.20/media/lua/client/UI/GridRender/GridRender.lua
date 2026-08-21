@@ -994,8 +994,11 @@ function GridRender:render()
         
         local textX = self.gridPadding + 5
         if tex then
-            self:drawTextureScaledAspect(tex, textX, self.gridPadding + 2, 20, 20, 1, 1, 1, 1)
-            textX = textX + 25
+            local texS = math.floor(20 * self.uiScale)
+            local centerY = self.gridPadding + ((self.headerH - 4) / 2)
+            local texYOffset = math.floor(centerY - (texS / 2))
+            self:drawTextureScaledAspect(tex, textX, texYOffset, texS, texS, 1, 1, 1, 1)
+            textX = textX + texS + 5
         end
 
         -- ── PESO: calcula o TEXTO e a COR antes de desenhar qualquer coisa,
@@ -1034,20 +1037,31 @@ function GridRender:render()
         end
 
         -- Reserva o espaço que o texto de peso vai ocupar de verdade (medido, não estimado)
+        local font = UIFont.Small
+        if self.uiScale >= 1.5 then
+            font = UIFont.Large
+        elseif self.uiScale >= 1.25 then
+            font = UIFont.Medium
+        end
+        
+        local centerY = self.gridPadding + ((self.headerH - 4) / 2)
+        local fontH = getTextManager():MeasureStringY(font, "A")
+        local textYOffset = math.floor(centerY - (fontH / 2))
+
         local weightReservedWidth = 0
         if weightStr then
-            weightReservedWidth = getTextManager():MeasureStringX(UIFont.Small, weightStr) + 10
+            weightReservedWidth = getTextManager():MeasureStringX(font, weightStr) + 10
         end
 
         -- ── NOME: agora que já sabemos quanto espaço sobra, trunca e desenha.
         local titleMaxWidth = (self.width - self.gridPadding - 5) - textX - weightReservedWidth
-        local displayText = truncateText(text, titleMaxWidth, UIFont.Small)
-        self:drawText(displayText, textX, self.gridPadding + 4, 0.9, 0.9, 0.9, 1, UIFont.Small)
+        local displayText = truncateText(text, titleMaxWidth, font)
+        self:drawText(displayText, textX, textYOffset, 0.9, 0.9, 0.9, 1, font)
 
         -- ── PESO: desenha por último, já com texto e cor prontos de antes.
         if weightStr then
             local rightX = self.width - self.gridPadding - 5
-            self:drawTextRight(weightStr, rightX, self.gridPadding + 4, weightR, weightG, weightB, 1, UIFont.Small)
+            self:drawTextRight(weightStr, rightX, textYOffset, weightR, weightG, weightB, 1, font)
         end
 
         -- ── BUSCA (Tarkov): aviso "Vasculhar (X)" no header enquanto houver
@@ -1529,7 +1543,7 @@ function GridRender:render()
     -- "Meio apagada" = o conteúdo continua visível (só leitura), mas fica claro
     -- que o engine não deixa mexer (sem drag in/out, sem put-in, sem autoSlot).
     if locked then
-        self:drawRect(0, 0, self.width, self.height, 0.55, 0.05, 0.05, 0.05)
+        self:drawRect(0, 0, self.width, self.height, 0.55, 0.15, 0.15, 0.15)
         self:drawRectBorder(0, 0, self.width, self.height, 0.9, 1.0, 0.85, 0.3)
         self:drawTextCentre(getText("IGUI_LockedNestedBag") or "Locked", self.width/2, self.height/2 - 10, 1.0, 0.9, 0.6, 1, UIFont.Large)
     end

@@ -574,6 +574,17 @@ function PaperDollWindow:uncollapse()
 end
 
 function PaperDollWindow:prerender()
+    if GridInventory_PanelOpacity ~= nil then
+        self.backgroundColor.a = GridInventory_PanelOpacity
+    end
+    -- Sincroniza a cor base com o painel de inventário para sempre bater exatamente,
+    -- caso outros mods tenham alterado a cor padrão do jogo.
+    local inv = getPlayerInventory(self.playerNum)
+    if inv and inv.backgroundColor then
+        self.backgroundColor.r = inv.backgroundColor.r
+        self.backgroundColor.g = inv.backgroundColor.g
+        self.backgroundColor.b = inv.backgroundColor.b
+    end
     ISCollapsableWindow.prerender(self)
 
     -- Recalcula o layout se o UI Scale global mudou (Mod Options aplicada).
@@ -604,12 +615,11 @@ function PaperDollWindow:prerender()
         self.scrollPanel:setWidth(self.width)
     end
     
-    -- Fundo do Paper Doll idêntico ao do GridInventory (não desenha quando
-    -- colapsado junto com o inv — só a titlebar aparece, sem borda fantasma).
     if not self.isCollapsed then
         local titleH = self:titleBarHeight()
-        self:drawRect(0, titleH, self.width, self.height - titleH, 0.65, 0.08, 0.08, 0.08)
-        self:drawRectBorder(0, titleH, self.width, self.height - titleH, 0.5, 0.5, 0.5, 0.5)
+        local opacity = GridInventory_PanelOpacity or 0.8
+        local extraAlpha = opacity * 0.4
+        self:drawRect(0, titleH, self.width, self.height - titleH, extraAlpha, 0.15, 0.15, 0.15)
     end
 end
 
