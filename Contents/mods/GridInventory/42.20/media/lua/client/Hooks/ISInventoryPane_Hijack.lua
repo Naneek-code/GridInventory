@@ -624,14 +624,15 @@ Events.OnGameBoot.Add(function()
     -- Scroll FORA de um grid = troca o container selecionado (mesmo
     -- comportamento do vanilla na coluna de mochilas/ícones), valendo para o
     -- painel de LOOT e o de INVENTÁRIO. Sobre um grid, rola o painel
-    -- normalmente (comportamento vanilla).
+    -- com multiplicador pra scrollar mais rápido que o vanilla.
+    local SCROLL_MULT = 3
     local og_paneOnMouseWheel = ISInventoryPane.onMouseWheel
     function ISInventoryPane:onMouseWheel(del)
         local page = self.inventoryPage
         if page and not page.isCollapsed and not self:isMouseOverAnyGrid() then
             return page:cycleContainer(del)
         end
-        return og_paneOnMouseWheel(self, del)
+        return og_paneOnMouseWheel(self, del * SCROLL_MULT)
     end
 
     -- Painel COLAPSADO = o pane (filho da página, altura cheia) não pode
