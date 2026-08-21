@@ -39,6 +39,9 @@ package.preload["UI/PaperDoll/PaperDollSlot"] = function()
         new = function() return {} end,
     }
 end
+package.preload["System/GridModOptions"] = function()
+    return { isPaperDollLeft = function() return false end }
+end
 
 local pwPath = H.base .. "/42.20/media/lua/client/UI/PaperDoll/PaperDollWindow.lua"
 assert(loadfile(pwPath))()

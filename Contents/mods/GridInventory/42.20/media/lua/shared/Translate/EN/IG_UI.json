@@ -64,6 +64,8 @@
     "IGUI_GridInv_OptionsUiScale_Tooltip": "Scales the size of the inventory grids (cells, items, headers). 100 is the default (full size). Increase it on high-resolution (e.g. 4K) displays to make the interface bigger and easier to read. Applies to open panels immediately after clicking OK.",
     "IGUI_GridInv_OptionsGradientFast": "Fast gradient (lower quality)",
     "IGUI_GridInv_OptionsGradientFast_Tooltip": "Draws the item footprint gradient with fewer color bands (6 instead of 12), halving the gradient draw calls per item per frame. The gradient looks chunkier but the render is faster.\n\nOff (default): smooth 12-band gradient.\n\nThis is a per-machine visual setting; each player chooses their own.",
+    "IGUI_GridInv_OptionsPaperDollLeft": "Show PaperDoll on Left",
+    "IGUI_GridInv_OptionsPaperDollLeft_Tooltip": "When enabled, the PaperDoll (equipment) panel is shown on the left side of the player inventory instead of the right. The inventory grid shifts to the right to make room.",
     "IGUI_GridInv_OptionsJoypadCursorMode": "Gamepad cursor movement",
     "IGUI_GridInv_OptionsJoypadCursorMode_Tooltip": "How the virtual cursor moves with the gamepad D-pad/analog stick in the grids. 'Snap to items' (default) jumps directly from item to item (Tarkov style). 'Cell by cell' moves one grid cell at a time, including empty cells.",
     "IGUI_GridInv_OptionsJoypadCursorMode_Snap": "Snap to items (default)",

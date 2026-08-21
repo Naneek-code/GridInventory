@@ -38,6 +38,7 @@ local DEFAULTS = {
     closeOnEsc = true,
     uiScale = 100,
     gradientFast = false,
+    paperDollLeft = false,
 }
 
 local function toBool(value, default)
@@ -188,6 +189,10 @@ local function registerOptions()
         getText("IGUI_GridInv_OptionsUiScale"), 50, 150, 5, 100,
         getText("IGUI_GridInv_OptionsUiScale_Tooltip"))
     section:addSeparator()
+    section:addTickBox("paperDollLeft",
+        getText("IGUI_GridInv_OptionsPaperDollLeft"), false,
+        getText("IGUI_GridInv_OptionsPaperDollLeft_Tooltip"))
+    section:addSeparator()
     section:addTickBox("gradientFast",
         getText("IGUI_GridInv_OptionsGradientFast"), false,
         getText("IGUI_GridInv_OptionsGradientFast_Tooltip"))
@@ -262,6 +267,10 @@ function GridModOptions.getUiScale()
     if s < 50 then s = 50 end
     if s > 150 then s = 150 end
     return s
+end
+
+function GridModOptions.isPaperDollLeft()
+    return cache.paperDollLeft == true
 end
 
 -- Se o degrade do footprint usa poucas faixas (6 = rápido) em vez de 12

@@ -509,9 +509,68 @@ Events.OnGameBoot.Add(function()
         -- os outros grids; passada 2 = floor (e seu overflow). Assim qualquer
         -- redraw o reposiciona por último, na base do loot, sem "pular" por cima.
         local orderedGrids = {}
+        local nonFloor = {}
         for _, g in ipairs(self.gridContainerUis) do
-            if not g.isFloor then table.insert(orderedGrids, g) end
+            if not g.isFloor then table.insert(nonFloor, g) end
         end
+        
+        -- Aplica a ordenação customizada para bater com a visualização dos botões
+        local playerObj = getSpecificPlayer(self.player)
+        if playerObj and self.inventoryPage and self.inventoryPage.onCharacter then
+            local modData = playerObj:getModData()
+            local orderStr = modData.GridInventory_ContainerOrderStr or ""
+            local orderTbl = {}
+            for id, i in string.gmatch(orderStr, "([^:,]+):([^:,]+)") do
+                orderTbl[id] = tonumber(i)
+            end
+            
+            local function getGridId(g)
+                if not g.inventoryContainer then return "" end
+                local item = g.inventoryContainer:getContainingItem()
+                if item then
+                    local id = item:getID()
+                    if id and id ~= -1 and id ~= 0 then return tostring(id) end
+                    return item:getFullType() or ""
+                end
+                return ""
+            end
+            
+            local sortData = {}
+            for i, g in ipairs(nonFloor) do
+                local id = getGridId(g)
+                local priority = orderTbl[id]
+                local isMain = false
+                if self.inventoryPage.backpacks and self.inventoryPage.backpacks[1] and self.inventoryPage.backpacks[1].inventory == g.inventoryContainer then
+                    isMain = true
+                end
+                
+                if isMain then
+                    priority = -1
+                elseif not priority then
+                    priority = i * 1000
+                end
+                
+                table.insert(sortData, {
+                    grid = g,
+                    priority = priority,
+                    vanillaIndex = i
+                })
+            end
+            
+            table.sort(sortData, function(a, b)
+                if a.priority ~= b.priority then return a.priority < b.priority end
+                return a.vanillaIndex < b.vanillaIndex
+            end)
+            
+            for _, data in ipairs(sortData) do
+                table.insert(orderedGrids, data.grid)
+            end
+        else
+            for _, g in ipairs(nonFloor) do
+                table.insert(orderedGrids, g)
+            end
+        end
+        
         for _, g in ipairs(self.gridContainerUis) do
             if g.isFloor then table.insert(orderedGrids, g) end
         end

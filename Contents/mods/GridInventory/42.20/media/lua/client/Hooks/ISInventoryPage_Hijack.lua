@@ -45,6 +45,16 @@ function ISInventoryPage:createChildren()
     end
 
     if self.onCharacter then
+        -- Destrói o PaperDoll anterior (se existir) antes de criar um novo.
+        -- Quando o vanilla recria as janelas (joypad connect, resolution change),
+        -- createChildren roda de novo e o PaperDoll antigo ficaria como "fantasma"
+        -- na UIManager sem referência válida pro inv destruído.
+        local oldPD = GridInventory_PaperDollWindow[self.player]
+        if oldPD then
+            oldPD:removeFromUIManager()
+            GridInventory_PaperDollWindow[self.player] = nil
+        end
+
         -- Largura do PaperDoll acompanha o UI Scale (slots laterais maiores).
         local uiScale = GridInventory_uiScale or 100
         local scale = uiScale / 100
@@ -196,7 +206,7 @@ function ISInventoryPage:update()
         -- No modo resize o painel é uma janela nativa e pode ser MOVIDA pela
         -- titlebar (o onMouseDown restaura o moving); não forçamos o X.
         if isFullscreen then
-            self:setX(0)
+            self:setX(GridModOptions.isPaperDollLeft() and paperDollW or 0)
         end
         
         -- Inventário do Jogador: Grid na ESQUERDA (borda), Mochilas na DIREITA (centro)
@@ -816,6 +826,96 @@ function ISInventoryPage:render()
     -- DEPOIS dos filhos (verificamos no bytecode do UIElement.render), então
     -- os ícones D-pad e o destaque ficam por cima dos grids/pane.
     GridJoypad.renderNavOverlay(self)
+    
+    -- Drag & Drop de containers (mochilas)
+    if self.GridInventory_DragContainer then
+        local panel = self.containerButtonPanel
+        if panel then
+            local mouseY = panel:getMouseY()
+            
+            if not self.GridInventory_IsDragging then
+                local startY = self.GridInventory_DragStartY or 0
+                if math.abs(mouseY - startY) > 5 then
+                    self.GridInventory_IsDragging = true
+                end
+            end
+            
+            if not isMouseButtonDown(0) then
+                local dragBtn = self.GridInventory_DragContainer
+                local wasDragging = self.GridInventory_IsDragging
+                
+                self.GridInventory_DragContainer = nil
+                self.GridInventory_IsDragging = false
+                
+                if wasDragging and dragBtn.parent == panel then
+                    local buttonSize = self.buttonSize or 32
+                    local rawIndex = math.floor(mouseY / buttonSize) + 1
+                    if rawIndex < 2 then rawIndex = 2 end
+                    
+                    local tempList = {}
+                    for i = 2, #self.backpacks do
+                        if self.backpacks[i] ~= dragBtn then
+                            table.insert(tempList, self.backpacks[i])
+                        end
+                    end
+                    table.sort(tempList, function(a, b)
+                        return (a.y or 0) < (b.y or 0)
+                    end)
+                    
+                    local insertIndex = rawIndex - 1
+                    if insertIndex > #tempList + 1 then insertIndex = #tempList + 1 end
+                    if insertIndex < 1 then insertIndex = 1 end
+                    
+                    table.insert(tempList, insertIndex, dragBtn)
+                    
+                    local str = ""
+                    for i, b in ipairs(tempList) do
+                        local id = ""
+                        if b.inventory then
+                            local item = b.inventory:getContainingItem()
+                            if item then
+                                local iID = item:getID()
+                                if iID and iID ~= -1 and iID ~= 0 then
+                                    id = tostring(iID)
+                                else
+                                    id = item:getFullType() or ""
+                                end
+                            else
+                                id = b.name or ""
+                            end
+                        end
+                        if id ~= "" then
+                            str = str .. id .. ":" .. tostring(i) .. ","
+                        end
+                    end
+                    
+                    local modData = getSpecificPlayer(self.player):getModData()
+                    modData.GridInventory_ContainerOrderStr = str
+                    
+                    self:refreshBackpacks()
+                end
+            elseif self.GridInventory_IsDragging then
+                -- Desenhando a linha indicadora
+                local buttonSize = self.buttonSize or 32
+                local rawIndex = math.floor(mouseY / buttonSize)
+                if rawIndex < 1 then rawIndex = 1 end
+                if rawIndex > #self.backpacks then rawIndex = #self.backpacks end
+                
+                local yScroll = panel:getYScroll() or 0
+                local lineY = panel:getY() + yScroll + (rawIndex * buttonSize)
+                local lineX = panel:getX()
+                local lineW = panel:getWidth()
+                
+                self:drawRect(lineX, lineY - 2, lineW, 4, 0.8, 1.0, 1.0, 0.0)
+                self:drawRectBorder(lineX, lineY - 2, lineW, 4, 1.0, 0.0, 0.0, 0.0)
+            end
+        else
+            if not isMouseButtonDown(0) then
+                self.GridInventory_DragContainer = nil
+                self.GridInventory_IsDragging = false
+            end
+        end
+    end
 end
 
 -- Sobrescrevemos o sistema de destaque visual (highlight verde no chão) 
@@ -1048,6 +1148,67 @@ end
 local og_pageRefreshBackpacks = ISInventoryPage.refreshBackpacks
 function ISInventoryPage:refreshBackpacks()
     og_pageRefreshBackpacks(self)
+    
+    if self.onCharacter and self.backpacks and #self.backpacks > 1 then
+        local pObj = getSpecificPlayer(self.player)
+        if pObj then
+            local modData = pObj:getModData()
+            if modData then
+                local orderStr = modData.GridInventory_ContainerOrderStr or ""
+                local order = {}
+                for id, i in string.gmatch(orderStr, "([^:,]+):([^:,]+)") do
+                    order[id] = tonumber(i)
+                end
+                
+                local function getContainerId(btn)
+                    if not btn.inventory then return "" end
+                    local item = btn.inventory:getContainingItem()
+                    if item then
+                        local id = item:getID()
+                        if id and id ~= -1 and id ~= 0 then
+                            return tostring(id)
+                        end
+                        return item:getFullType() or ""
+                    end
+                    return btn.name or ""
+                end
+                
+                local buttonsWithSort = {}
+                for i, button in ipairs(self.backpacks) do
+                    local isMain = (i == 1)
+                    local id = getContainerId(button)
+                    local priority = order[id]
+                    
+                    if isMain then
+                        priority = -1
+                    elseif not priority then
+                        priority = i * 1000 -- vanilla fallback
+                    end
+                    
+                    table.insert(buttonsWithSort, {
+                        button = button,
+                        priority = priority,
+                        vanillaIndex = i
+                    })
+                end
+                
+                table.sort(buttonsWithSort, function(a, b)
+                    if a.priority ~= b.priority then
+                        return a.priority < b.priority
+                    end
+                    return a.vanillaIndex < b.vanillaIndex
+                end)
+                
+                for index, data in ipairs(buttonsWithSort) do
+                    local targetY = ((index - 1) * self.buttonSize) - 1
+                    if data.button.y ~= targetY then
+                        data.button:setY(targetY)
+                    end
+                end
+            end
+        end
+    end
+
     if self.inventoryPane and self.resizeWidget then
         local resizeH = self.resizeWidget.height or 0
         local fullH = self.height - self.inventoryPane.y - resizeH
@@ -1343,4 +1504,44 @@ function ISInventoryPage:onJoypadDirRight(joypadData)
         end
     end
     GridJoypad.handleDir(self.player, self, 1, 0)
+end
+
+-- ─── Joypad + resize: reservar espaço pro PaperDoll ─────────────────────────
+-- O vanilla placeInventoryScreens divide a tela ao meio (inv = metade esquerda,
+-- loot = metade direita), mas não sabe do PaperDollWindow. Hookamos pra
+-- encolher o inv e deslocar o loot quando o PaperDoll estiver visível.
+-- Roda UMA vez na ativação do joypad (e no resolution change), NÃO a cada frame.
+local og_placeScreens = ISPlayerDataObject.placeInventoryScreens
+function ISPlayerDataObject:placeInventoryScreens(id, numPlayers, isMouse)
+    og_placeScreens(self, id, numPlayers, isMouse)
+    if isMouse then return end
+    local pdW = math.floor(350 * ((GridInventory_uiScale or 100) / 100))
+    if pdW <= 0 then return end
+    -- Divide igualmente: cada painel recebe (screenW - pdW) / 2.
+    local screenW = self.w1 + self.w2
+    local half = (screenW - pdW) / 2
+    self.w1 = half
+    self.w2 = half
+    if GridModOptions.isPaperDollLeft() then
+        self.x1 = self.x1 + pdW
+        self.x2 = self.x1 + self.w1
+    else
+        self.x2 = self.x1 + self.w1 + pdW
+    end
+end
+
+local og_onBackpackMouseDown = ISInventoryPage.onBackpackMouseDown
+function ISInventoryPage.onBackpackMouseDown(page, button, x, y)
+    if og_onBackpackMouseDown then
+        og_onBackpackMouseDown(page, button, x, y)
+    end
+    if page.onCharacter and page.backpacks and page.backpacks[1] ~= button then
+        page.GridInventory_DragContainer = button
+        if page.containerButtonPanel then
+            page.GridInventory_DragStartY = page.containerButtonPanel:getMouseY()
+        else
+            page.GridInventory_DragStartY = 0
+        end
+        page.GridInventory_IsDragging = false
+    end
 end

@@ -84,8 +84,6 @@ function PaperDollWindow:initialise()
                         local barW = pdWin.avatarW - math.floor(20 * barScale)
                         local barH = math.floor(15 * barScale)
                         local barX = pdWin.avatarX + math.floor(10 * barScale)
-                        -- Mesma lógica do overlay: render() já está no contexto
-                        -- scrolled, não somar yScroll.
                         local barY = pdWin.avatarY - math.floor(20 * barScale)
 
                         local actionName = getText("IGUI_ActionBar_Generic")
@@ -110,62 +108,29 @@ function PaperDollWindow:initialise()
             end
         end
 
-        -- ─── Overlay do modo joypad (LB+RB) ─────────────────────────────
-        -- Moldura reforçada no slot selecionado + ícones D-pad nas bordas.
-        -- Desenhado DENTRO do scrollPanel (stencil clipa).
-        if playerObj and not pdWin.isCollapsed then
+        -- ─── Overlay do modo joypad: posiciona o painel filho ────────────
+        -- O JoyOverlay é um ISPanel FILHO do scrollPanel. Ele scrola
+        -- automaticamente com o conteúdo — basta copiar x/y do slot.
+        local overlay = pdWin.joyOverlay
+        if overlay and playerObj and not pdWin.isCollapsed then
             local GridJoypad = require("System/GridJoypad")
             if GridJoypad.isPaperdollActive(pdWin.playerNum) then
                 local slot = GridJoypad.pdSelectedSlot(pdWin.playerNum)
                 if slot and slot:getIsVisible() then
-                    -- Coordenadas no espaço do scrollPanel.
-                    -- O callback render() é chamado DENTRO do contexto gráfico já
-                    -- transladado por setScrollChildren (yScroll aplicado). Não
-                    -- somamos yScroll — getAbsolute retorna a posição lógica e o
-                    -- contexto de renderização cuida do offset visual.
-                    local sx = slot:getAbsoluteX() - this:getAbsoluteX()
-                    local sy = slot:getAbsoluteY() - this:getAbsoluteY()
-                    local sw, sh = slot:getWidth(), slot:getHeight()
-                    local pad = math.floor(6 * (pdWin.uiScale or 1))
-                    this:drawRectBorder(sx - 2, sy - 2, sw + 4, sh + 4, 0.5, 1.0, 1.0, 1.0)
-
-                    -- Ghost do item ARRASTADO
-                    if GridJoypad.isDragging(pdWin.playerNum) and GridInventory_GlobalDrag
-                        and GridInventory_GlobalDrag.itemsData
-                        and #GridInventory_GlobalDrag.itemsData > 0 then
-                        local dd = GridInventory_GlobalDrag.itemsData[1]
-                        if dd and dd.itemObj then
-                            local tex = dd.itemObj:getTex()
-                            if tex then
-                                this:drawTextureScaledAspect(tex, sx + 2, sy + 2, sw - 4, sh - 4, 0.85, 1, 1, 1)
-                                this:drawRectBorder(sx - 2, sy - 2, sw + 4, sh + 4, 1.0, 1.0, 0.95, 0.4)
-                            end
-                        end
-                    end
-                    if JoypadRef and JoypadRef.Texture then
-                        local texW = math.floor(30 * (pdWin.uiScale or 1))
-                        local texH = math.floor(30 * (pdWin.uiScale or 1))
-                        for name, d in pairs(PD_DIRS) do
-                            local target = GridJoypad.pdTarget(pdWin.playerNum, d[1], d[2])
-                            if target and target:getIsVisible() then
-                                local ix, iy
-                                if name == "left" then
-                                    ix, iy = sx - pad - texW / 2, sy + sh / 2 - texH / 2
-                                elseif name == "right" then
-                                    ix, iy = sx + sw + pad - texW / 2, sy + sh / 2 - texH / 2
-                                elseif name == "up" then
-                                    ix, iy = sx + sw / 2 - texW / 2, sy - pad - texH / 2
-                                else
-                                    ix, iy = sx + sw / 2 - texW / 2, sy + sh + pad - texH / 2
-                                end
-                                local tex = Joypad.Texture[d[3]]
-                                if tex then
-                                    this:drawTextureScaledAspect(tex, ix, iy, texW, texH, 1.0, 1.0, 1.0, 1.0)
-                                end
-                            end
-                        end
-                    end
+                    overlay:setX(slot:getX())
+                    overlay:setY(slot:getY())
+                    overlay:setWidth(slot:getWidth())
+                    overlay:setHeight(slot:getHeight())
+                    overlay:setVisible(true)
+                    overlay:bringToTop()
+                    overlay._slotRef = slot
+                else
+                    overlay:setVisible(false)
+                    overlay._slotRef = nil
                 end
+            else
+                overlay:setVisible(false)
+                overlay._slotRef = nil
             end
         end
 
@@ -410,6 +375,74 @@ function PaperDollWindow:initialise()
             btn:bringToTop()
         end
     end
+
+    -- ─── Overlay joypad como ELEMENTO FILHO do scrollPanel ─────────────
+    -- Último filho adicionado → renderiza por cima de tudo. Posicionado
+    -- exatamente no slot selecionado; como é filho, scrola automaticamente
+    -- com o conteúdo (sem cálculo manual de offset).
+    local JoyOverlay = ISPanel:new(0, 0, 1, 1)
+    JoyOverlay.background = false
+    JoyOverlay:initialise()
+    JoyOverlay:setVisible(false)
+    JoyOverlay._pdWin = self
+    JoyOverlay.render = function(ov)
+        local pdWin = ov._pdWin
+        local playerObj = getSpecificPlayer(pdWin.playerNum)
+        if not playerObj or pdWin.isCollapsed then return end
+
+        local GridJoypad = require("System/GridJoypad")
+        if not GridJoypad.isPaperdollActive(pdWin.playerNum) then return end
+
+        local slot = ov._slotRef
+        if not slot or not slot:getIsVisible() then return end
+
+        local sw, sh = ov:getWidth(), ov:getHeight()
+        local pad = math.floor(6 * (pdWin.uiScale or 1))
+
+        -- Moldura branca no slot selecionado
+        ov:drawRectBorder(-2, -2, sw + 4, sh + 4, 0.5, 1.0, 1.0, 1.0)
+
+        -- Ghost do item ARRASTADO
+        if GridJoypad.isDragging(pdWin.playerNum) and GridInventory_GlobalDrag
+            and GridInventory_GlobalDrag.itemsData
+            and #GridInventory_GlobalDrag.itemsData > 0 then
+            local dd = GridInventory_GlobalDrag.itemsData[1]
+            if dd and dd.itemObj then
+                local tex = dd.itemObj:getTex()
+                if tex then
+                    ov:drawTextureScaledAspect(tex, 2, 2, sw - 4, sh - 4, 0.85, 1, 1, 1)
+                    ov:drawRectBorder(-2, -2, sw + 4, sh + 4, 1.0, 1.0, 0.95, 0.4)
+                end
+            end
+        end
+
+        -- Ícones D-pad ao redor do slot
+        if JoypadRef and JoypadRef.Texture then
+            local texW = math.floor(30 * (pdWin.uiScale or 1))
+            local texH = math.floor(30 * (pdWin.uiScale or 1))
+            for name, d in pairs(PD_DIRS) do
+                local target = GridJoypad.pdTarget(pdWin.playerNum, d[1], d[2])
+                if target and target:getIsVisible() then
+                    local ix, iy
+                    if name == "left" then
+                        ix, iy = -pad - texW / 2, sh / 2 - texH / 2
+                    elseif name == "right" then
+                        ix, iy = sw + pad - texW / 2, sh / 2 - texH / 2
+                    elseif name == "up" then
+                        ix, iy = sw / 2 - texW / 2, -pad - texH / 2
+                    else
+                        ix, iy = sw / 2 - texW / 2, sh + pad - texH / 2
+                    end
+                    local tex = Joypad.Texture[d[3]]
+                    if tex then
+                        ov:drawTextureScaledAspect(tex, ix, iy, texW, texH, 1.0, 1.0, 1.0, 1.0)
+                    end
+                end
+            end
+        end
+    end
+    self.scrollPanel:addChild(JoyOverlay)
+    self.joyOverlay = JoyOverlay
 
     self._pdScale = scale
 end

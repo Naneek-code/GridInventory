@@ -1658,13 +1658,21 @@ function GridJoypad.renderNavOverlay(page)
     local cursorPage = grid.parent and grid.parent.inventoryPage
     if not cursorPage then return end
 
+    local pane = page.inventoryPane
+    if not pane then return end
+
     -- Destaque do grid atual (só na página do cursor).
     if page == cursorPage then
         local gx = grid:getAbsoluteX() - page:getAbsoluteX()
         local gy = grid:getAbsoluteY() - page:getAbsoluteY()
-        page:repaintStencilRect(0, 0, page.width, page.height)
+        
+        -- Clip to the scroll pane bounds to prevent leaking over titlebar
+        page:setStencilRect(pane:getX(), pane:getY(), pane.width, pane.height)
+        
         page:drawRectBorderStatic(gx, gy, grid.width, grid.height, 0.5, 1.0, 1.0, 1.0)
         page:drawRectBorderStatic(gx + 1, gy + 1, grid.width - 2, grid.height - 2, 0.5, 1.0, 1.0, 1.0)
+        
+        page:clearStencilRect()
     end
 
     -- Alvos do cursor (resolvidos na página do cursor — o navTargets calcula
@@ -1674,6 +1682,8 @@ function GridJoypad.renderNavOverlay(page)
     -- relativa à SUA origem (sem isso o ícone do outro painel fica atrás/fora).
     local targets = GridJoypad.navTargets(playerNum, cursorPage)
     if not targets then return end
+    
+    page:setStencilRect(pane:getX(), pane:getY(), pane.width, pane.height)
     for dir, t in pairs(targets) do
         if t and t:getIsVisible() and t.parent and t.parent.inventoryPage == page then
             local x = t:getAbsoluteX() - page:getAbsoluteX()
@@ -1689,6 +1699,7 @@ function GridJoypad.renderNavOverlay(page)
             end
         end
     end
+    page:clearStencilRect()
 end
 
 return GridJoypad
